@@ -228,6 +228,68 @@ export async function renderAccountStrip(selector = '#account-strip') {
   if (btn) btn.addEventListener('click', signOut);
 }
 
+/* -------------------------------- media ---------------------------------- */
+
+/**
+ * Pull the video id out of any common YouTube URL shape: watch?v=, youtu.be/,
+ * /embed/, /shorts/, with or without extra parameters.
+ * Returns null if nothing looks like an id.
+ */
+export function youtubeId(url) {
+  const raw = String(url ?? '').trim();
+  if (!raw) return null;
+
+  const patterns = [
+    /[?&]v=([A-Za-z0-9_-]{11})/,
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,
+    /\/embed\/([A-Za-z0-9_-]{11})/,
+    /\/shorts\/([A-Za-z0-9_-]{11})/,
+    /\/live\/([A-Za-z0-9_-]{11})/
+  ];
+
+  for (const re of patterns) {
+    const hit = raw.match(re);
+    if (hit) return hit[1];
+  }
+
+  // A bare id pasted on its own.
+  return /^[A-Za-z0-9_-]{11}$/.test(raw) ? raw : null;
+}
+
+/** Start offset in seconds from a ?t= or #t= parameter, or 0. */
+export function youtubeStart(url) {
+  const hit = String(url ?? '').match(/[?&#]t=(\d+)/);
+  return hit ? Number(hit[1]) : 0;
+}
+
+/**
+ * Responsive embed markup. Uses youtube-nocookie.com, which holds off on
+ * tracking cookies until the viewer actually presses play.
+ */
+export function youtubeEmbed(url) {
+  const id = youtubeId(url);
+  if (!id) return '';
+  const start = youtubeStart(url);
+
+  return '<div class="video-frame">' +
+    '<iframe src="https://www.youtube-nocookie.com/embed/' + id +
+      '?rel=0&modestbranding=1' + (start ? '&start=' + start : '') + '" ' +
+      'title="Lesson video" loading="lazy" allowfullscreen ' +
+      'allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"' +
+    '></iframe></div>';
+}
+
+/** Only ever emit links we are willing to click. Blocks javascript: and data:. */
+export function safeUrl(url) {
+  const raw = String(url ?? '').trim();
+  try {
+    const parsed = new URL(raw, location.origin);
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol) ? raw : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 /** Minimal escaping for anything that came out of the database. */
 export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({

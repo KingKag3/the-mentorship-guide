@@ -53,43 +53,83 @@
 </div>
 
 <script type="module">
-import { supabase, requireRole, renderAccountStrip, escapeHtml } from './app.js';
+import DOMPurify from 'https://esm.sh/dompurify@3';
+import { supabase, requireRole, renderAccountStrip, escapeHtml,
+         youtubeEmbed, safeUrl } from './app.js';
 
 renderAccountStrip();
 
 const profile = await requireRole(['member', 'admin']);
+
 if (profile) {
   document.getElementById('members-body').hidden = false;
   document.getElementById('greeting').textContent =
     'Signed in as ' + (profile.full_name || profile.email) + '.';
 
-  const { data, error } = await supabase
-    .from('lessons')
-    .select('slug, title, summary, body_html')
-    .eq('published', true)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-
   const mount = document.getElementById('lessons');
 
-  if (error) {
+  try {
+    const { data: lessons, error } = await supabase
+      .from('lessons')
+      .select('id, slug, title, summary, body_html, video_url')
+      .eq('published', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    if (!lessons.length) {
+      mount.innerHTML =
+        '<div class="callout"><span class="callout-label">Empty</span>' +
+        '<p>No entries have been published yet. Add one from the admin page.</p></div>';
+    } else {
+      // Attachment links for every visible lesson, in one round trip.
+      const byLesson = new Map();
+      const { data: links } = await supabase
+        .from('lesson_links')
+        .select('lesson_id, label, url, sort_order')
+        .in('lesson_id', lessons.map((l) => l.id))
+        .order('sort_order', { ascending: true });
+
+      for (const link of links || []) {
+        if (!byLesson.has(link.lesson_id)) byLesson.set(link.lesson_id, []);
+        byLesson.get(link.lesson_id).push(link);
+      }
+
+      mount.innerHTML = lessons.map((row) => {
+        // The body is admin-authored HTML, but it is still sanitised before it
+        // reaches the page: a second admin, or a careless paste, should not be
+        // able to run script on everyone else's browser.
+        const body = DOMPurify.sanitize(row.body_html || '', {
+          ADD_ATTR: ['target', 'rel']
+        });
+
+        const attachments = (byLesson.get(row.id) || [])
+          .map((link) => {
+            const href = safeUrl(link.url);
+            if (!href) return '';
+            return '<li><a href="' + escapeHtml(href) + '" target="_blank" ' +
+                   'rel="noopener noreferrer">' + escapeHtml(link.label) + '</a></li>';
+          })
+          .join('');
+
+        return '<article class="lesson" id="' + escapeHtml(row.slug) + '">' +
+          '<h2>' + escapeHtml(row.title) + '</h2>' +
+          (row.summary ? '<p class="lesson-summary">' + escapeHtml(row.summary) + '</p>' : '') +
+          youtubeEmbed(row.video_url) +
+          '<div class="lesson-body">' + body + '</div>' +
+          (attachments
+            ? '<div class="lesson-files"><h3>Attachments</h3><ul>' + attachments + '</ul></div>'
+            : '') +
+        '</article>';
+      }).join('');
+    }
+  } catch (err) {
     mount.innerHTML =
       '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
-      escapeHtml(error.message) + '</p></div>';
-  } else if (!data.length) {
-    mount.innerHTML =
-      '<div class="callout"><span class="callout-label">Empty</span>' +
-      '<p>No entries have been published yet. Add one from the admin page.</p></div>';
-  } else {
-    // body_html is authored by an administrator via the admin page, so it is
-    // inserted as markup on purpose. Titles and summaries are escaped.
-    mount.innerHTML = data.map((row) =>
-      '<article class="lesson">' +
-        '<h2>' + escapeHtml(row.title) + '</h2>' +
-        (row.summary ? '<p class="lesson-summary">' + escapeHtml(row.summary) + '</p>' : '') +
-        '<div class="lesson-body">' + row.body_html + '</div>' +
-      '</article>'
-    ).join('');
+      escapeHtml(err && err.message ? err.message : String(err)) +
+      '</p><p>If this mentions <code>video_url</code> or <code>lesson_links</code>, run ' +
+      '<code>supabase/lesson-media.sql</code> in the Supabase SQL editor.</p></div>';
   }
 }
 </script>

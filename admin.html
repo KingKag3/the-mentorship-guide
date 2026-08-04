@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -118,15 +119,17 @@
   <div class="table-scroll">
     <table id="lessons-table">
       <thead>
-        <tr><th>Title</th><th>Slug</th><th>Order</th><th>Published</th><th></th></tr>
+        <tr><th>Title</th><th>Slug</th><th>Video</th><th>Order</th><th>Published</th><th></th></tr>
       </thead>
       <tbody id="lessons-body"></tbody>
     </table>
   </div>
 
-  <h3>Add an entry</h3>
+  <h3 id="lesson-form-heading">Add an entry</h3>
 
   <form id="form-lesson" class="auth-form auth-form-wide">
+    <input type="hidden" id="l-id">
+
     <label for="l-title">Title</label>
     <input id="l-title" type="text" required>
 
@@ -136,22 +139,33 @@
     <label for="l-summary">Summary <span class="opt">(optional, one line)</span></label>
     <input id="l-summary" type="text">
 
-    <label for="l-body">Body <span class="opt">(HTML — use &lt;p&gt; tags)</span></label>
-    <textarea id="l-body" rows="8" required></textarea>
+    <label for="l-video">YouTube URL <span class="opt">(optional — any format)</span></label>
+    <input id="l-video" type="url" placeholder="https://www.youtube.com/watch?v=…">
+    <p class="field-note" id="video-check">&nbsp;</p>
+
+    <label for="l-editor">Body</label>
+    <div id="l-editor"></div>
+
+    <label>Attachments <span class="opt">(label + link, in order)</span></label>
+    <div id="l-links"></div>
+    <p><button type="button" class="acct-link" id="add-link">+ add a link</button></p>
 
     <label for="l-order">Sort order</label>
     <input id="l-order" type="number" value="0">
 
-    <button type="submit" class="btn-primary">Publish entry</button>
+    <button type="submit" class="btn-primary">Save entry</button>
+    <button type="button" class="acct-link" id="cancel-edit" hidden>cancel</button>
     <p class="form-status" id="status-lesson"></p>
   </form>
 
-  <div class="callout risk">
-    <span class="callout-label">The body field is raw HTML</span>
-    <p>It is inserted into the members page as markup, which is what lets you format entries. That
-    also means anything you paste in there runs. Only administrators can write to this field, so
-    the risk is limited to what you paste yourself — do not paste HTML you did not write, and
-    never paste a script tag from somewhere else.</p>
+  <div class="callout warn">
+    <span class="callout-label">Embedding does not make a video private</span>
+    <p>The video plays from YouTube's servers, so the permissions on this site have no reach over
+    it. Use <strong>unlisted</strong> videos: they stay out of search and off your channel, but
+    anyone who finds the URL — and it is visible in this page's source to anyone signed in — can
+    watch it on YouTube directly.</p>
+    <p>Attachment links are the same. Whatever sits at the far end is governed by that service, not
+    by member roles here. A publicly shared Drive file stays public.</p>
   </div>
 
 </div>
@@ -165,8 +179,9 @@
 </div>
 
 <script type="module">
+import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
-         formatCode } from './app.js';
+         formatCode, youtubeId } from './app.js';
 
 renderAccountStrip();
 
@@ -175,11 +190,26 @@ renderAccountStrip();
 // ran, and the ReferenceError would reject this module's top-level await -
 // silently skipping the rest of the file, including every addEventListener.
 let allUsers = [];
+let quill = null;
 
 const me = await requireRole(['admin']);
 
 if (me) {
   document.getElementById('admin-body').hidden = false;
+
+  quill = new Quill('#l-editor', {
+    theme: 'snow',
+    placeholder: 'Write the entry…',
+    modules: {
+      toolbar: [
+        [{ header: [2, 3, false] }],
+        ['bold', 'italic', 'underline', 'blockquote'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link', 'image'],
+        ['clean']
+      ]
+    }
+  });
 
   // Wrapped so one failing query cannot abort module evaluation and leave the
   // page rendered but inert.
@@ -441,13 +471,14 @@ async function copyText(text) {
 async function loadLessons() {
   const { data, error } = await supabase
     .from('lessons')
-    .select('id, slug, title, published, sort_order')
+    .select('id, slug, title, published, sort_order, video_url')
     .order('sort_order', { ascending: true });
 
   const body = document.getElementById('lessons-body');
 
   if (error) {
-    body.innerHTML = '<tr><td colspan="5">' + escapeHtml(error.message) + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
+      ' — if this mentions <code>video_url</code>, run <code>supabase/lesson-media.sql</code>.</td></tr>';
     return;
   }
 
@@ -456,12 +487,16 @@ async function loadLessons() {
         '<tr data-id="' + l.id + '">' +
           '<td>' + escapeHtml(l.title) + '</td>' +
           '<td><code>' + escapeHtml(l.slug) + '</code></td>' +
+          '<td>' + (youtubeId(l.video_url) ? '<span class="tag bull">yes</span>' : '—') + '</td>' +
           '<td>' + l.sort_order + '</td>' +
           '<td><input type="checkbox" class="pub-toggle"' + (l.published ? ' checked' : '') + '></td>' +
-          '<td class="row-actions"><button type="button" class="btn-danger" data-act="del">delete</button></td>' +
+          '<td class="row-actions">' +
+            '<button type="button" class="acct-link" data-act="edit">edit</button> ' +
+            '<button type="button" class="btn-danger" data-act="del">delete</button>' +
+          '</td>' +
         '</tr>'
       ).join('')
-    : '<tr><td colspan="5">No entries yet.</td></tr>';
+    : '<tr><td colspan="6">No entries yet.</td></tr>';
 }
 
 document.getElementById('lessons-body').addEventListener('change', async (e) => {
@@ -475,30 +510,166 @@ document.getElementById('lessons-body').addEventListener('change', async (e) => 
 });
 
 document.getElementById('lessons-body').addEventListener('click', async (e) => {
-  if (e.target.dataset.act !== 'del') return;
-  const tr = e.target.closest('tr');
-  if (!confirm('Delete this entry permanently?')) return;
-  const { error } = await supabase.from('lessons').delete().eq('id', tr.dataset.id);
-  if (error) { alert(error.message); return; }
-  await loadLessons();
+  const act = e.target.dataset.act;
+  if (!act) return;
+
+  const id = e.target.closest('tr').dataset.id;
+
+  if (act === 'edit') { await startEdit(id); return; }
+
+  if (act === 'del') {
+    if (!confirm('Delete this entry permanently?\n\nIts attachment links go with it.')) return;
+    const { error } = await supabase.from('lessons').delete().eq('id', id);
+    if (error) { alert(error.message); return; }
+    if (document.getElementById('l-id').value === String(id)) resetLessonForm();
+    await loadLessons();
+  }
 });
+
+/* -------- attachment link rows -------- */
+
+function addLinkRow(label = '', url = '') {
+  const row = document.createElement('div');
+  row.className = 'link-row';
+  row.innerHTML =
+    '<input type="text" class="link-label" placeholder="Label" value="' + escapeHtml(label) + '">' +
+    '<input type="url" class="link-url" placeholder="https://…" value="' + escapeHtml(url) + '">' +
+    '<button type="button" class="btn-danger" data-act="rm-link">remove</button>';
+  document.getElementById('l-links').appendChild(row);
+}
+
+document.getElementById('add-link').addEventListener('click', () => addLinkRow());
+
+document.getElementById('l-links').addEventListener('click', (e) => {
+  if (e.target.dataset.act === 'rm-link') e.target.closest('.link-row').remove();
+});
+
+function collectLinks() {
+  return Array.from(document.querySelectorAll('#l-links .link-row'))
+    .map((row, index) => ({
+      label: row.querySelector('.link-label').value.trim(),
+      url:   row.querySelector('.link-url').value.trim(),
+      sort_order: index
+    }))
+    .filter((link) => link.label && link.url);
+}
+
+/* -------- video field feedback -------- */
+
+document.getElementById('l-video').addEventListener('input', (e) => {
+  const note = document.getElementById('video-check');
+  const value = e.target.value.trim();
+
+  if (!value) { note.textContent = ''; note.className = 'field-note'; return; }
+
+  const id = youtubeId(value);
+  note.textContent = id ? 'Video id read as ' + id : 'No YouTube id found in that URL.';
+  note.className = 'field-note ' + (id ? 'field-note-ok' : 'field-note-bad');
+});
+
+/* -------- edit / reset -------- */
+
+async function startEdit(id) {
+  setStatus('#status-lesson', 'Loading…', 'info');
+
+  const { data: lesson, error } = await supabase
+    .from('lessons')
+    .select('id, title, slug, summary, body_html, video_url, sort_order')
+    .eq('id', id)
+    .single();
+
+  if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+
+  document.getElementById('l-id').value      = lesson.id;
+  document.getElementById('l-title').value   = lesson.title || '';
+  document.getElementById('l-slug').value    = lesson.slug || '';
+  document.getElementById('l-summary').value = lesson.summary || '';
+  document.getElementById('l-video').value   = lesson.video_url || '';
+  document.getElementById('l-order').value   = lesson.sort_order ?? 0;
+
+  // Quill owns its own DOM; feed it HTML rather than setting innerHTML.
+  quill.clipboard.dangerouslyPasteHTML(lesson.body_html || '');
+
+  document.getElementById('l-links').innerHTML = '';
+  const { data: links } = await supabase
+    .from('lesson_links')
+    .select('label, url, sort_order')
+    .eq('lesson_id', id)
+    .order('sort_order', { ascending: true });
+
+  for (const link of links || []) addLinkRow(link.label, link.url);
+
+  document.getElementById('lesson-form-heading').textContent = 'Editing: ' + lesson.title;
+  document.getElementById('cancel-edit').hidden = false;
+  setStatus('#status-lesson', '', 'info');
+  document.getElementById('form-lesson').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetLessonForm() {
+  document.getElementById('form-lesson').reset();
+  document.getElementById('l-id').value = '';
+  document.getElementById('l-links').innerHTML = '';
+  document.getElementById('video-check').textContent = '';
+  if (quill) quill.setText('');
+  document.getElementById('lesson-form-heading').textContent = 'Add an entry';
+  document.getElementById('cancel-edit').hidden = true;
+}
+
+document.getElementById('cancel-edit').addEventListener('click', () => {
+  resetLessonForm();
+  setStatus('#status-lesson', '', 'info');
+});
+
+/* -------- save -------- */
 
 document.getElementById('form-lesson').addEventListener('submit', async (e) => {
   e.preventDefault();
   setStatus('#status-lesson', 'Saving…', 'info');
 
-  const { error } = await supabase.from('lessons').insert({
+  const id = document.getElementById('l-id').value;
+  const bodyHtml = quill.getSemanticHTML ? quill.getSemanticHTML() : quill.root.innerHTML;
+
+  if (!quill.getText().trim()) {
+    setStatus('#status-lesson', 'The body is empty.', 'error');
+    return;
+  }
+
+  const payload = {
     title:      document.getElementById('l-title').value.trim(),
     slug:       document.getElementById('l-slug').value.trim(),
     summary:    document.getElementById('l-summary').value.trim() || null,
-    body_html:  document.getElementById('l-body').value,
-    sort_order: Number(document.getElementById('l-order').value) || 0
-  });
+    video_url:  document.getElementById('l-video').value.trim() || null,
+    body_html:  bodyHtml,
+    sort_order: Number(document.getElementById('l-order').value) || 0,
+    updated_at: new Date().toISOString()
+  };
 
-  if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+  let lessonId = id;
 
-  setStatus('#status-lesson', 'Published.', 'ok');
-  e.target.reset();
+  if (id) {
+    const { error } = await supabase.from('lessons').update(payload).eq('id', id);
+    if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+  } else {
+    const { data, error } = await supabase.from('lessons').insert(payload).select('id').single();
+    if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+    lessonId = data.id;
+  }
+
+  // Links are replaced wholesale rather than diffed - simpler, and the list is
+  // always short.
+  const { error: delErr } = await supabase.from('lesson_links').delete().eq('lesson_id', lessonId);
+  if (delErr) { setStatus('#status-lesson', delErr.message, 'error'); return; }
+
+  const links = collectLinks();
+  if (links.length) {
+    const { error: linkErr } = await supabase
+      .from('lesson_links')
+      .insert(links.map((link) => ({ ...link, lesson_id: lessonId })));
+    if (linkErr) { setStatus('#status-lesson', linkErr.message, 'error'); return; }
+  }
+
+  setStatus('#status-lesson', id ? 'Saved.' : 'Published.', 'ok');
+  resetLessonForm();
   await loadLessons();
 });
 </script>

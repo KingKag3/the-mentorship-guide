@@ -43,6 +43,8 @@ The script is safe to run more than once.
 4. Repeat with [`supabase/invites.sql`](supabase/invites.sql). That adds invite codes — see
    *Invite codes* below. Skip it if you would rather approve everyone by hand; the site works
    either way, though the admin page will show an error where the codes table should be.
+5. Repeat with [`supabase/lesson-media.sql`](supabase/lesson-media.sql). That adds the video field
+   and attachment links to entries. Without it the admin page will complain about `video_url`.
 
 ## 3. Wire the site to the project
 
@@ -136,6 +138,36 @@ it.
 
 **Revoking** kills a code immediately but does not remove anyone who already used it — change
 their role in the accounts table for that.
+
+---
+
+## Videos and attachments
+
+Each entry can carry one YouTube video, a formatted body, and a list of attachment links. All
+three are edited from the admin page.
+
+**Video.** Paste any YouTube URL — `watch?v=`, `youtu.be/`, `/embed/`, `/shorts/`, with or without
+a timestamp. The page extracts the id and renders a responsive `youtube-nocookie.com` embed, which
+holds off on tracking cookies until the viewer presses play. A `?t=90` in the URL is honoured as a
+start offset.
+
+> **Embedding does not make a video private.** The file is served by YouTube, not by this site, so
+> the member roles here have no reach over it. An **unlisted** video stays out of search and off
+> your channel, but the URL sits in the page source and works for anyone who copies it. That is the
+> ceiling on free YouTube. Genuinely private video needs a host with domain-locked playback (paid
+> Vimeo) or signed URLs (Cloudflare Stream).
+
+**Body.** A toolbar editor — headings, bold, lists, quotes, links, images. The HTML it produces is
+run through DOMPurify before it is inserted on the members page, so a careless paste cannot execute
+script on everyone else's browser.
+
+**Attachments.** Label plus link, in whatever order you like. Anything at the far end is governed
+by that service, not by roles here: a publicly shared Drive file stays public.
+
+A note on Discord specifically — **`cdn.discordapp.com` file links expire.** They carry signed
+`ex`/`is`/`hm` parameters and stop resolving after roughly a day, so they are useless as permanent
+attachments. If you run a members Discord, link to the channel or message
+(`discord.com/channels/…`) instead: that is durable, and access follows server membership.
 
 ---
 

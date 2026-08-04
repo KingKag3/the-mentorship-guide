@@ -673,6 +673,138 @@ select.role-select:disabled { color: var(--muted); cursor: not-allowed; }
 
 .lesson-body > :last-child { margin-bottom: 0; }
 
+.lesson-body img { max-width: 100%; height: auto; border-radius: var(--radius); }
+
+.lesson-body blockquote {
+  margin: 18px 0;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+
+/* ---------- embedded video ---------- */
+
+.video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 22px 0;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- attachment links ---------- */
+
+.lesson-files {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.lesson-files h3 {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lesson-files ul { list-style: none; padding: 0; margin: 0; }
+.lesson-files li { margin: 0 0 6px; }
+
+.lesson-files a {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.lesson-files a::before { content: "↗ "; color: var(--muted); }
+
+/* ---------- admin: link rows and field notes ---------- */
+
+.link-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.link-row input { margin-bottom: 0; }
+.link-row .link-label { flex: 0 0 30%; }
+.link-row .link-url { flex: 1 1 auto; }
+
+.field-note {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  margin: -12px 0 16px;
+  min-height: 1em;
+  color: var(--muted);
+}
+
+.field-note-ok  { color: var(--accent); }
+.field-note-bad { color: var(--amber); }
+
+/* ---------- Quill, dragged into the dark palette ---------- */
+
+#l-editor {
+  background: var(--bg-inset);
+  border: 1px solid var(--border) !important;
+  border-radius: 0 0 var(--radius) var(--radius);
+  min-height: 260px;
+  margin-bottom: 18px;
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--fg);
+}
+
+.ql-toolbar.ql-snow {
+  background: var(--bg-alt);
+  border: 1px solid var(--border) !important;
+  border-bottom: none !important;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.ql-snow .ql-stroke { stroke: var(--muted); }
+.ql-snow .ql-fill   { fill: var(--muted); }
+.ql-snow .ql-picker-label { color: var(--muted); }
+
+.ql-snow.ql-toolbar button:hover .ql-stroke,
+.ql-snow.ql-toolbar button.ql-active .ql-stroke { stroke: var(--accent); }
+.ql-snow.ql-toolbar button:hover .ql-fill,
+.ql-snow.ql-toolbar button.ql-active .ql-fill { fill: var(--accent); }
+.ql-snow.ql-toolbar button:hover,
+.ql-snow.ql-toolbar button.ql-active { background: var(--bg-inset); border-radius: 3px; }
+
+.ql-editor.ql-blank::before { color: var(--border) !important; font-style: normal; }
+.ql-editor a { color: var(--accent); }
+
+.ql-snow .ql-picker-options {
+  background: var(--bg-alt);
+  border-color: var(--border) !important;
+}
+
+.ql-snow .ql-tooltip {
+  background: var(--bg-alt);
+  border-color: var(--border);
+  color: var(--fg);
+  box-shadow: none;
+}
+
+.ql-snow .ql-tooltip input[type=text] {
+  background: var(--bg-inset);
+  border-color: var(--border);
+  color: var(--fg-strong);
+}
+
 @media (max-width: 620px) {
   body { font-size: 17px; }
   h1 { font-size: 1.5rem; }

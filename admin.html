@@ -170,17 +170,33 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
 
 renderAccountStrip();
 
+// Module state must be initialised before anything below can touch it. A `let`
+// declared further down would sit in the temporal dead zone while the loaders
+// ran, and the ReferenceError would reject this module's top-level await -
+// silently skipping the rest of the file, including every addEventListener.
+let allUsers = [];
+
 const me = await requireRole(['admin']);
+
 if (me) {
   document.getElementById('admin-body').hidden = false;
-  await loadUsers();
-  await loadInvites();
-  await loadLessons();
+
+  // Wrapped so one failing query cannot abort module evaluation and leave the
+  // page rendered but inert.
+  try {
+    await loadUsers();
+    await loadInvites();
+    await loadLessons();
+  } catch (err) {
+    console.error('Admin page failed to load data:', err);
+    document.getElementById('auth-root').innerHTML =
+      '<div class="callout risk"><span class="callout-label">Load failed</span><p>' +
+      escapeHtml(String(err && err.message ? err.message : err)) +
+      '</p></div>';
+  }
 }
 
 /* ------------------------------- users ------------------------------- */
-
-let allUsers = [];
 
 async function loadUsers() {
   const { data, error } = await supabase

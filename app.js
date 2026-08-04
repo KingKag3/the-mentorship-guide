@@ -290,6 +290,119 @@ export function safeUrl(url) {
   }
 }
 
+/* -------------------------------- storage -------------------------------- */
+
+export const MEDIA_BUCKET = 'lesson-media';
+
+/** How long a signed link stays good. Long enough to read a page, not to share. */
+const SIGN_SECONDS = 3600;
+
+/** One signed URL, or null if the caller is not allowed to read it. */
+export async function signedUrl(path, seconds = SIGN_SECONDS) {
+  if (!supabase || !path) return null;
+  const { data, error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUrl(path, seconds);
+  return error ? null : data.signedUrl;
+}
+
+/** Many at once - one round trip rather than one per slide. */
+export async function signedUrlMap(paths, seconds = SIGN_SECONDS) {
+  const map = new Map();
+  const unique = [...new Set((paths || []).filter(Boolean))];
+  if (!supabase || !unique.length) return map;
+
+  const { data, error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUrls(unique, seconds);
+
+  if (error || !data) return map;
+  for (const row of data) {
+    if (row.signedUrl && !row.error) map.set(row.path, row.signedUrl);
+  }
+  return map;
+}
+
+/**
+ * Lesson bodies store <img data-path="…"> with no src, because a signed URL
+ * baked into the database would be dead within the hour. This fills the src in
+ * at render time.
+ */
+export async function hydrateStorageImages(root) {
+  const images = Array.from(root.querySelectorAll('img[data-path]'));
+  if (!images.length) return;
+
+  const urls = await signedUrlMap(images.map((img) => img.dataset.path));
+
+  for (const img of images) {
+    const url = urls.get(img.dataset.path);
+    if (url) {
+      img.src = url;
+      img.loading = 'lazy';
+    } else {
+      img.replaceWith(Object.assign(document.createElement('p'), {
+        className: 'media-missing',
+        textContent: '[image unavailable]'
+      }));
+    }
+  }
+}
+
+/**
+ * Shrink a screenshot before upload. Slides compress enormously as WebP with
+ * no visible loss, which is the difference between the free tier lasting
+ * months and lasting weeks.
+ *
+ * Falls back to the original file if anything goes wrong or if it is already
+ * small.
+ */
+export async function compressImage(file, maxWidth = 1600, quality = 0.82) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxWidth / bitmap.width);
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', quality)
+    );
+
+    // If WebP is unsupported or somehow bigger, keep the original.
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' });
+  } catch (err) {
+    return file;
+  }
+}
+
+/** Upload to the private bucket, returning the stored path. */
+export async function uploadMedia(file, folder = 'lessons') {
+  const ext = (file.name.match(/\.(\w+)$/) || [, 'bin'])[1].toLowerCase();
+  const path = folder + '/' + crypto.randomUUID() + '.' + ext;
+
+  const { error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .upload(path, file, { contentType: file.type || 'application/octet-stream' });
+
+  if (error) throw error;
+  return path;
+}
+
+export function humanSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
 /** Minimal escaping for anything that came out of the database. */
 export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({

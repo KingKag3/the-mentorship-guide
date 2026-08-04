@@ -139,16 +139,26 @@
     <label for="l-summary">Summary <span class="opt">(optional, one line)</span></label>
     <input id="l-summary" type="text">
 
+    <label for="l-phase">Phase / tag <span class="opt">(optional — e.g. Phase 1)</span></label>
+    <input id="l-phase" type="text" placeholder="Phase 1">
+
+    <label for="l-cover">Cover image <span class="opt">(optional)</span></label>
+    <input id="l-cover" type="file" accept="image/*">
+    <div id="cover-preview" class="cover-preview"></div>
+
     <label for="l-video">YouTube URL <span class="opt">(optional — any format)</span></label>
     <input id="l-video" type="url" placeholder="https://www.youtube.com/watch?v=…">
     <p class="field-note" id="video-check">&nbsp;</p>
 
-    <label for="l-editor">Body</label>
+    <label for="l-editor">Body <span class="opt">(the image button uploads — paste text, insert slides as you go)</span></label>
     <div id="l-editor"></div>
 
-    <label>Attachments <span class="opt">(label + link, in order)</span></label>
+    <label>Downloads <span class="opt">(upload a file, or point at a link)</span></label>
     <div id="l-links"></div>
-    <p><button type="button" class="acct-link" id="add-link">+ add a link</button></p>
+    <p>
+      <button type="button" class="acct-link" id="add-file">+ upload a file</button>
+      <button type="button" class="acct-link" id="add-link">+ add a link</button>
+    </p>
 
     <label for="l-order">Sort order</label>
     <input id="l-order" type="number" value="0">
@@ -181,7 +191,8 @@
 <script type="module">
 import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
-         formatCode, youtubeId } from './app.js';
+         formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
+         hydrateStorageImages, humanSize } from './app.js';
 
 renderAccountStrip();
 
@@ -201,13 +212,19 @@ if (me) {
     theme: 'snow',
     placeholder: 'Write the entry…',
     modules: {
-      toolbar: [
-        [{ header: [2, 3, false] }],
-        ['bold', 'italic', 'underline', 'blockquote'],
-        [{ list: 'ordered' }, { list: 'bullet' }],
-        ['link', 'image'],
-        ['clean']
-      ]
+      toolbar: {
+        container: [
+          [{ header: [2, 3, false] }],
+          ['bold', 'italic', 'underline', 'blockquote'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'image'],
+          ['clean']
+        ],
+        // Quill's default image handler base64-encodes the file straight into
+        // the HTML. For a lesson built from a dozen slides that produces a
+        // multi-megabyte database row. Upload instead and keep a path.
+        handlers: { image: pickAndInsertImage }
+      }
     }
   });
 
@@ -526,11 +543,95 @@ document.getElementById('lessons-body').addEventListener('click', async (e) => {
   }
 });
 
-/* -------- attachment link rows -------- */
+/* -------- body images -------- */
+
+/**
+ * Toolbar image button: pick, shrink, upload, insert. The inserted tag carries
+ * the storage path; its src is a temporary signed URL good only for this
+ * editing session, and is stripped before saving.
+ */
+async function pickAndInsertImage() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const range = quill.getSelection(true);
+    setStatus('#status-lesson', 'Uploading image…', 'info');
+
+    try {
+      const compressed = await compressImage(file);
+      const path = await uploadMedia(compressed);
+      const url = await signedUrl(path);
+
+      quill.insertEmbed(range.index, 'image', url, 'user');
+
+      // Tag the node we just inserted with its permanent path.
+      const inserted = quill.root.querySelector('img[src="' + url + '"]');
+      if (inserted) inserted.dataset.path = path;
+
+      quill.setSelection(range.index + 1, 0, 'silent');
+
+      const saved = file.size - compressed.size;
+      setStatus('#status-lesson',
+        'Image added (' + humanSize(compressed.size) +
+        (saved > 0 ? ', ' + humanSize(saved) + ' saved by compression' : '') + ').', 'ok');
+    } catch (err) {
+      setStatus('#status-lesson',
+        'Upload failed: ' + (err && err.message ? err.message : err), 'error');
+    }
+  };
+
+  input.click();
+}
+
+/* -------- cover image -------- */
+
+let coverPath = null;
+
+document.getElementById('l-cover').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  setStatus('#status-lesson', 'Uploading cover…', 'info');
+  try {
+    const compressed = await compressImage(file);
+    coverPath = await uploadMedia(compressed, 'covers');
+    await renderCoverPreview();
+    setStatus('#status-lesson', 'Cover uploaded (' + humanSize(compressed.size) + ').', 'ok');
+  } catch (err) {
+    setStatus('#status-lesson',
+      'Cover upload failed: ' + (err && err.message ? err.message : err), 'error');
+  }
+});
+
+async function renderCoverPreview() {
+  const box = document.getElementById('cover-preview');
+  if (!coverPath) { box.innerHTML = ''; return; }
+
+  const url = await signedUrl(coverPath);
+  box.innerHTML = url
+    ? '<img src="' + escapeHtml(url) + '" alt="">' +
+      '<button type="button" class="acct-link" id="clear-cover">remove cover</button>'
+    : '<p class="field-note field-note-bad">Cover could not be previewed.</p>';
+
+  const clear = document.getElementById('clear-cover');
+  if (clear) clear.addEventListener('click', () => {
+    coverPath = null;
+    document.getElementById('l-cover').value = '';
+    box.innerHTML = '';
+  });
+}
+
+/* -------- downloads: files and links -------- */
 
 function addLinkRow(label = '', url = '') {
   const row = document.createElement('div');
   row.className = 'link-row';
+  row.dataset.kind = 'link';
   row.innerHTML =
     '<input type="text" class="link-label" placeholder="Label" value="' + escapeHtml(label) + '">' +
     '<input type="url" class="link-url" placeholder="https://…" value="' + escapeHtml(url) + '">' +
@@ -538,7 +639,47 @@ function addLinkRow(label = '', url = '') {
   document.getElementById('l-links').appendChild(row);
 }
 
+function addFileRow(label, path, fileName, fileSize) {
+  const row = document.createElement('div');
+  row.className = 'link-row';
+  row.dataset.kind = 'file';
+  row.dataset.path = path;
+  row.dataset.fileName = fileName || '';
+  row.dataset.fileSize = fileSize || '';
+  row.innerHTML =
+    '<input type="text" class="link-label" placeholder="Label" value="' + escapeHtml(label) + '">' +
+    '<span class="file-chip">' + escapeHtml(fileName || path) +
+      (fileSize ? ' · ' + humanSize(Number(fileSize)) : '') + '</span>' +
+    '<button type="button" class="btn-danger" data-act="rm-link">remove</button>';
+  document.getElementById('l-links').appendChild(row);
+}
+
 document.getElementById('add-link').addEventListener('click', () => addLinkRow());
+
+document.getElementById('add-file').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    setStatus('#status-lesson', 'Uploading ' + file.name + '…', 'info');
+    try {
+      // PDFs and spreadsheets are left alone; only images are recompressed.
+      const prepared = await compressImage(file);
+      const path = await uploadMedia(prepared, 'files');
+      addFileRow(file.name.replace(/\.\w+$/, ''), path, prepared.name, prepared.size);
+      setStatus('#status-lesson',
+        'Uploaded ' + prepared.name + ' (' + humanSize(prepared.size) + ').', 'ok');
+    } catch (err) {
+      setStatus('#status-lesson',
+        'Upload failed: ' + (err && err.message ? err.message : err), 'error');
+    }
+  };
+
+  input.click();
+});
 
 document.getElementById('l-links').addEventListener('click', (e) => {
   if (e.target.dataset.act === 'rm-link') e.target.closest('.link-row').remove();
@@ -546,12 +687,26 @@ document.getElementById('l-links').addEventListener('click', (e) => {
 
 function collectLinks() {
   return Array.from(document.querySelectorAll('#l-links .link-row'))
-    .map((row, index) => ({
-      label: row.querySelector('.link-label').value.trim(),
-      url:   row.querySelector('.link-url').value.trim(),
-      sort_order: index
-    }))
-    .filter((link) => link.label && link.url);
+    .map((row, index) => {
+      const label = row.querySelector('.link-label').value.trim();
+      if (!label) return null;
+
+      if (row.dataset.kind === 'file') {
+        return {
+          label,
+          url: null,
+          storage_path: row.dataset.path,
+          file_name: row.dataset.fileName || null,
+          file_size: row.dataset.fileSize ? Number(row.dataset.fileSize) : null,
+          sort_order: index
+        };
+      }
+
+      const url = row.querySelector('.link-url').value.trim();
+      if (!url) return null;
+      return { label, url, storage_path: null, file_name: null, file_size: null, sort_order: index };
+    })
+    .filter(Boolean);
 }
 
 /* -------- video field feedback -------- */
@@ -574,7 +729,7 @@ async function startEdit(id) {
 
   const { data: lesson, error } = await supabase
     .from('lessons')
-    .select('id, title, slug, summary, body_html, video_url, sort_order')
+    .select('id, title, slug, summary, phase, cover_path, body_html, video_url, sort_order')
     .eq('id', id)
     .single();
 
@@ -584,20 +739,34 @@ async function startEdit(id) {
   document.getElementById('l-title').value   = lesson.title || '';
   document.getElementById('l-slug').value    = lesson.slug || '';
   document.getElementById('l-summary').value = lesson.summary || '';
+  document.getElementById('l-phase').value   = lesson.phase || '';
   document.getElementById('l-video').value   = lesson.video_url || '';
   document.getElementById('l-order').value   = lesson.sort_order ?? 0;
+
+  coverPath = lesson.cover_path || null;
+  await renderCoverPreview();
 
   // Quill owns its own DOM; feed it HTML rather than setting innerHTML.
   quill.clipboard.dangerouslyPasteHTML(lesson.body_html || '');
 
+  // Stored images have a path but no src. Sign them so they are visible while
+  // editing.
+  await hydrateStorageImages(quill.root);
+
   document.getElementById('l-links').innerHTML = '';
   const { data: links } = await supabase
     .from('lesson_links')
-    .select('label, url, sort_order')
+    .select('label, url, storage_path, file_name, file_size, sort_order')
     .eq('lesson_id', id)
     .order('sort_order', { ascending: true });
 
-  for (const link of links || []) addLinkRow(link.label, link.url);
+  for (const link of links || []) {
+    if (link.storage_path) {
+      addFileRow(link.label, link.storage_path, link.file_name, link.file_size);
+    } else {
+      addLinkRow(link.label, link.url);
+    }
+  }
 
   document.getElementById('lesson-form-heading').textContent = 'Editing: ' + lesson.title;
   document.getElementById('cancel-edit').hidden = false;
@@ -610,6 +779,8 @@ function resetLessonForm() {
   document.getElementById('l-id').value = '';
   document.getElementById('l-links').innerHTML = '';
   document.getElementById('video-check').textContent = '';
+  document.getElementById('cover-preview').innerHTML = '';
+  coverPath = null;
   if (quill) quill.setText('');
   document.getElementById('lesson-form-heading').textContent = 'Add an entry';
   document.getElementById('cancel-edit').hidden = true;
@@ -622,22 +793,45 @@ document.getElementById('cancel-edit').addEventListener('click', () => {
 
 /* -------- save -------- */
 
+/**
+ * Snapshot the editor for storage. Signed URLs are stripped from images that
+ * have a path, because they expire within the hour and would leave a lesson
+ * full of broken pictures tomorrow. members.html re-signs them at render.
+ *
+ * Any image without a path is left alone - that would be a pasted external
+ * URL, which is the author's business.
+ */
+function bodyForStorage() {
+  const clone = quill.root.cloneNode(true);
+
+  for (const img of clone.querySelectorAll('img[data-path]')) {
+    img.removeAttribute('src');
+    img.setAttribute('loading', 'lazy');
+  }
+
+  return clone.innerHTML;
+}
+
 document.getElementById('form-lesson').addEventListener('submit', async (e) => {
   e.preventDefault();
   setStatus('#status-lesson', 'Saving…', 'info');
 
   const id = document.getElementById('l-id').value;
-  const bodyHtml = quill.getSemanticHTML ? quill.getSemanticHTML() : quill.root.innerHTML;
 
-  if (!quill.getText().trim()) {
+  const hasImages = quill.root.querySelector('img');
+  if (!quill.getText().trim() && !hasImages) {
     setStatus('#status-lesson', 'The body is empty.', 'error');
     return;
   }
+
+  const bodyHtml = bodyForStorage();
 
   const payload = {
     title:      document.getElementById('l-title').value.trim(),
     slug:       document.getElementById('l-slug').value.trim(),
     summary:    document.getElementById('l-summary').value.trim() || null,
+    phase:      document.getElementById('l-phase').value.trim() || null,
+    cover_path: coverPath,
     video_url:  document.getElementById('l-video').value.trim() || null,
     body_html:  bodyHtml,
     sort_order: Number(document.getElementById('l-order').value) || 0,

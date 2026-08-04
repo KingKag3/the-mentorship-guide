@@ -45,6 +45,9 @@ The script is safe to run more than once.
    either way, though the admin page will show an error where the codes table should be.
 5. Repeat with [`supabase/lesson-media.sql`](supabase/lesson-media.sql). That adds the video field
    and attachment links to entries. Without it the admin page will complain about `video_url`.
+6. Repeat with [`supabase/storage.sql`](supabase/storage.sql). That creates the private
+   `lesson-media` bucket for slides and PDFs, plus the cover image and phase fields. Run it last —
+   it depends on the two files above.
 
 ## 3. Wire the site to the project
 
@@ -161,13 +164,36 @@ start offset.
 run through DOMPurify before it is inserted on the members page, so a careless paste cannot execute
 script on everyone else's browser.
 
-**Attachments.** Label plus link, in whatever order you like. Anything at the far end is governed
-by that service, not by roles here: a publicly shared Drive file stays public.
+**Slides and images.** The image button in the editor uploads rather than embedding. Pick a file
+and it is resized to 1600px wide, converted to WebP and pushed to the private bucket; the body
+stores the storage path, not a URL. Screenshots typically drop by five to ten times with no visible
+loss.
+
+That path matters: a signed URL written into the database would expire within the hour and leave
+the lesson full of broken pictures. The page signs them fresh on every render instead.
+
+**Cover image and phase.** Optional. The cover renders full width under the title; the phase shows
+as a small tag above it — the equivalent of the banner and `Phase 1` label on a Discord post.
+
+**Downloads.** Two kinds per entry:
+
+- **Uploaded files** — PDFs, spreadsheets, images. Stored in the private bucket. Members get a
+  signed link that stops working after an hour; a non-member gets nothing at all. **This is the one
+  part of a lesson that is genuinely gated** — unlike the video, and unlike anything hosted
+  elsewhere.
+- **External links** — anything on another service. Access is governed by that service, not by
+  roles here: a publicly shared Drive file stays public.
 
 A note on Discord specifically — **`cdn.discordapp.com` file links expire.** They carry signed
 `ex`/`is`/`hm` parameters and stop resolving after roughly a day, so they are useless as permanent
-attachments. If you run a members Discord, link to the channel or message
-(`discord.com/channels/…`) instead: that is durable, and access follows server membership.
+attachments. Upload the file here instead. If you want to link to a discussion, link to the channel
+or message (`discord.com/channels/…`) — that is durable, and access follows server membership.
+
+**Watch the storage budget.** The free tier gives roughly 1GB of files and about 5GB of transfer a
+month; check the current figures, they move. A lesson built from a dozen compressed slides plus a
+PDF lands around 1–2MB, so storage is unlikely to be the limit — transfer is. Every member reading
+that lesson pulls the images again. If the members area gets busy, that is the number that runs out
+first, and it is what the automatic compression is there to stretch.
 
 ---
 

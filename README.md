@@ -29,6 +29,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `supabase/schema.sql` | Tables, roles and row-level security policies |
 | `supabase/invites.sql` | Invite codes: table, audit log, and the `redeem_invite` function |
 | `supabase/lesson-media.sql` | Video field and attachment links on entries |
+| `supabase/storage.sql` | Private `lesson-media` bucket, cover image and phase fields |
 
 Authentication runs on Supabase (free tier). Permissions are enforced by database policies, not by
 JavaScript. **See [SETUP.md](SETUP.md)** for the walkthrough — the site works fine without it.

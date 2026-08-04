@@ -64,10 +64,10 @@ Confirmation and password-reset emails contain links back to your site. If this 
 those links go nowhere.
 
 1. Go to **Authentication** → **URL Configuration**.
-2. Set **Site URL** to `https://kingkag3.github.io/ict-mentorship-guide/`
+2. Set **Site URL** to `https://kingkag3.github.io/the-mentorship-guide/`
 3. Under **Redirect URLs**, add:
-   - `https://kingkag3.github.io/ict-mentorship-guide/login.html`
-   - `https://kingkag3.github.io/ict-mentorship-guide/members.html`
+   - `https://kingkag3.github.io/the-mentorship-guide/login.html`
+   - `https://kingkag3.github.io/the-mentorship-guide/members.html`
 
 ## 5. Make yourself the admin
 

@@ -1,8 +1,8 @@
 # Smart Money, Plain English
 
-A small static site that explains ICT / Smart Money trading vocabulary in ordinary language.
+A small static site that explains Smart Money trading vocabulary in ordinary language.
 
-**Live:** https://kingkag3.github.io/ict-mentorship-guide/
+**Live:** https://kingkag3.github.io/the-mentorship-guide/
 
 ## What's here
 
@@ -61,8 +61,8 @@ needs updating.
 
 ## Credit and scope
 
-The concepts described originate with Michael J. Huddleston (Inner Circle Trader). "Smart Money
-Concepts" and "ICT concepts" refer to the same body of material. All wording, diagrams and
-examples on this site were written from scratch; no text from any book or course is reproduced.
+The concepts described originate with Michael J. Huddleston, and are usually labelled Smart Money
+Concepts or SMC. All wording, diagrams and examples on this site were written from scratch; no
+text from any book or course is reproduced.
 
 Educational content only. Not financial advice. Trading involves substantial risk of loss.

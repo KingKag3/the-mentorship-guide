@@ -24,7 +24,7 @@ export function requireConfig(mountSelector = '#auth-root') {
     mount.innerHTML =
       '<div class="callout risk"><span class="callout-label">Not connected</span>' +
       '<p>Supabase is not configured yet. Open <code>supabase-config.js</code> and paste ' +
-      'your project URL and anon key, then follow <a href="https://github.com/KingKag3/ict-mentorship-guide/blob/main/SETUP.md">SETUP.md</a>. ' +
+      'your project URL and anon key, then follow <a href="https://github.com/KingKag3/the-mentorship-guide/blob/main/SETUP.md">SETUP.md</a>. ' +
       'Until then, sign-in and the members area will not work.</p></div>';
   }
   return false;

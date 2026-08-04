@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Money, Plain English — an ICT concept decoder</title>
+<meta name="description" content="ICT / Smart Money trading concepts explained in plain English: liquidity, PD arrays, market structure, killzones, and the day-trading models built on them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html" aria-current="page">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Smart Money, plain English</h1>
+
+<p class="lede">ICT material is famously hard to read — not because the ideas are complicated,
+but because it is delivered in a private vocabulary. This site translates that vocabulary
+into ordinary language, one concept at a time.</p>
+
+<p>Every page here answers three questions about a concept: <strong>what it actually is</strong>,
+<strong>why anyone claims it works</strong>, and <strong>what you would have to see on a chart</strong>
+to say it is present. Where a picture helps, there is a diagram. Where the jargon is the only
+obstacle, there is a plain sentence and a glossary entry.</p>
+
+<div class="callout risk">
+  <span class="callout-label">Read this first</span>
+  <p>This is educational writing about a trading methodology, not advice and not a
+  recommendation to trade anything. The ideas described here are one community's model of how
+  markets move; they are not established fact, and none of them are backed by an audited track
+  record. Most people who day-trade lose money. Nothing on this site should be treated as a
+  reason to risk capital.</p>
+</div>
+
+<h2>The one-paragraph version</h2>
+
+<p>The whole framework rests on a single claim: price does not wander, it is
+<em>delivered</em>. Large participants need a counterparty to fill size, so price is walked to
+places where lots of resting orders sit — mostly the stop-losses parked above obvious highs and
+below obvious lows. Once those orders are absorbed, price moves away, often leaving behind
+untraded gaps that it later returns to fill. Everything else in the vocabulary is a name for
+either <strong>a place where orders are resting</strong> (liquidity), <strong>a gap or level price
+tends to revisit</strong> (a PD array), or <strong>a time of day when this is most likely to
+happen</strong> (a killzone).</p>
+
+<h2>Where to start</h2>
+
+<div class="card-grid">
+
+  <a class="card" href="liquidity.html">
+    <h3>1 · Liquidity</h3>
+    <p>Why stop-losses are the fuel. Buyside and sellside, internal vs external range,
+    draw on liquidity, stop hunts and the Judas swing.</p>
+  </a>
+
+  <a class="card" href="pd-arrays.html">
+    <h3>2 · PD arrays</h3>
+    <p>The catalogue of levels: fair value gaps, order blocks, breakers, mitigation and
+    rejection blocks, opening gaps, premium and discount.</p>
+  </a>
+
+  <a class="card" href="structure.html">
+    <h3>3 · Market structure</h3>
+    <p>Short-, intermediate- and long-term highs and lows. Displacement, market structure
+    shifts, and how a directional bias is actually formed.</p>
+  </a>
+
+  <a class="card" href="time.html">
+    <h3>4 · Time</h3>
+    <p>Sessions and killzones, the daily rhythm, power of three, the central bank dealers
+    range, day-of-week tendencies, and news days to avoid.</p>
+  </a>
+
+  <a class="card" href="models.html">
+    <h3>5 · Models</h3>
+    <p>Where the pieces get assembled: the 2022 entry model, the market maker buy/sell
+    curve, silver bullet, turtle soup, and risk rules.</p>
+  </a>
+
+  <a class="card" href="glossary.html">
+    <h3>Jargon decoder</h3>
+    <p>Searchable list of every acronym — BISI, CBDR, IOFED, IPDA, NWOG, OTE, RDRB — with a
+    one-line plain-English meaning.</p>
+  </a>
+
+</div>
+
+<h2>The mental model in one picture</h2>
+
+<figure class="figure">
+<svg viewBox="0 0 720 320" role="img" aria-label="Diagram: price runs above an old high to collect stops, reverses, and returns to a gap left behind">
+  <!-- baseline grid -->
+  <line x1="40" y1="40"  x2="700" y2="40"  class="svg-axis" stroke-dasharray="2 5"/>
+  <line x1="40" y1="270" x2="700" y2="270" class="svg-axis" stroke-dasharray="2 5"/>
+
+  <!-- old high / liquidity band -->
+  <rect x="40" y="72" width="660" height="20" fill="#f87171" opacity="0.10"/>
+  <line x1="40" y1="92" x2="700" y2="92" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="66" class="svg-label-em">old high — buy stops resting here (buyside liquidity)</text>
+
+  <!-- price path -->
+  <path d="M 60 230 L 130 175 L 175 205 L 240 130 L 285 165 L 350 84 L 380 100 L 420 150 L 470 128 L 520 196 L 580 240 L 650 262"
+        fill="none" stroke="#4ade80" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 350 84 L 380 100 L 420 150 L 470 128 L 520 196 L 580 240 L 650 262"
+        fill="none" stroke="#f87171" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- the raid -->
+  <circle cx="350" cy="84" r="5" fill="#fbbf24"/>
+  <text x="300" y="52" class="svg-label-em" fill="#fbbf24">the raid</text>
+  <line x1="352" y1="60" x2="352" y2="76" stroke="#fbbf24" stroke-width="1"/>
+
+  <!-- gap left behind on the way down -->
+  <rect x="420" y="128" width="280" height="22" fill="#4ade80" opacity="0.12"/>
+  <line x1="420" y1="128" x2="700" y2="128" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="420" y1="150" x2="700" y2="150" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="500" y="122" class="svg-label">gap left by the fast move down…</text>
+  <text x="500" y="170" class="svg-label">…price returns to it before continuing</text>
+  <circle cx="470" cy="128" r="4" fill="#4ade80"/>
+
+  <!-- target below -->
+  <rect x="40" y="255" width="660" height="18" fill="#4ade80" opacity="0.08"/>
+  <line x1="40" y1="255" x2="700" y2="255" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="292" class="svg-label-em">old low — sell stops resting here (sellside liquidity). The next destination.</text>
+</svg>
+<figcaption>Left to right: price is pushed above an obvious high so that the stop orders
+sitting there become market buys. Those buys are the counterparty a large seller needs. Price
+then falls fast, leaving an untraded gap behind, retraces into that gap once, and continues
+toward the opposite pool of orders below. Almost every "setup" in this methodology is a
+variation of this one sequence.</figcaption>
+</figure>
+
+<h2>How the vocabulary is organised</h2>
+
+<p>It helps enormously to know that every term belongs to one of four buckets. When you meet a
+new acronym, decide which bucket it is in first — you will usually find you already understand
+what it does.</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Bucket</th><th>What it names</th><th>Examples</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="tag bull">Liquidity</span></td>
+      <td>A place where resting orders are believed to sit, and therefore a place price is
+      drawn toward.</td>
+      <td>BSL, SSL, EQH/EQL, PDH/PDL, ERL, IRL, DOL</td>
+    </tr>
+    <tr>
+      <td><span class="tag">PD array</span></td>
+      <td>A price level or zone where a reaction is expected — usually an inefficiency to be
+      refilled or a candle body to be revisited.</td>
+      <td>FVG, OB, BB, MB, RB, BPR, NWOG, liquidity void</td>
+    </tr>
+    <tr>
+      <td><span class="tag time">Time</span></td>
+      <td>A window in the day or week when the above are expected to be acted on.</td>
+      <td>LOKZ, NYOKZ, LCKZ, AKZ, CBDR, silver bullet</td>
+    </tr>
+    <tr>
+      <td><span class="tag bear">Structure</span></td>
+      <td>Descriptions of the shape price has already drawn, used to decide direction.</td>
+      <td>STH/STL, ITH/ITL, LTH/LTL, MSS, BOS, displacement</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>A working order of study</h2>
+
+<ol class="steps">
+  <li><strong>Liquidity first.</strong> If you do not accept that stop orders are the target,
+  none of the rest has a motive behind it.</li>
+  <li><strong>Then the arrays.</strong> Fair value gaps and order blocks account for the large
+  majority of entries. The exotic blocks are variations on those two.</li>
+  <li><strong>Then structure.</strong> This is what stops you from taking a perfectly valid
+  array in the wrong direction.</li>
+  <li><strong>Then time.</strong> The same level behaves differently at 3am and at 3pm. Time is
+  the filter that turns a long list of levels into a short list of candidates.</li>
+  <li><strong>Models last.</strong> A model is just a fixed order in which you check the four
+  things above. Learning the model before the pieces produces confident nonsense.</li>
+</ol>
+
+<div class="callout warn">
+  <span class="callout-label">Honest caveat</span>
+  <p>Much of this framework is unfalsifiable as stated. "Price seeks liquidity or rebalances an
+  inefficiency" covers both directions of every move, so it can never be wrong after the fact.
+  That does not make the individual observations useless — session timing and prior-day levels
+  are real, measurable things — but it does mean the framework cannot be evaluated by how well
+  it explains charts you are looking at backwards. Only forward testing with recorded rules
+  tells you anything.</p>
+</div>
+
+<h2>Sources and credit</h2>
+
+<p>The concepts described on this site originate with Michael J. Huddleston, who publishes as
+the Inner Circle Trader. "Smart Money Concepts" and "ICT concepts" refer to the same body of
+material. This site is an independent explanation written from scratch: the wording,
+diagrams and examples here are original, and no text from any book or course has been copied.
+Where a term has a fixed definition inside the methodology, that definition is described in
+plain language rather than quoted.</p>
+
+<p>For the original material, go to the source rather than to a summary — including this one.</p>
+
+<div class="pager">
+  <span></span>
+  <a href="liquidity.html">next: liquidity →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

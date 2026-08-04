@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time — Smart Money, Plain English</title>
+<meta name="description" content="Killzones and sessions, the daily rhythm, power of three, midnight open, the central bank dealers range, day-of-week tendencies, news days and IPDA quarterly shifts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html" aria-current="page">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Time</h1>
+
+<p class="lede">A price level with no time attached is close to useless, and a time window with
+no level at it is just a clock. The claim underpinning this whole section is that the same level
+behaves completely differently at 3am and at 3pm, because different participants are awake.</p>
+
+<div class="callout warn">
+  <span class="callout-label">All times are New York time</span>
+  <p>Every window below is quoted in New York local time, which is the reference clock the entire
+  methodology uses. If your platform runs on exchange time, broker time, or UTC, convert once and
+  write the result down — a one-hour error here silently invalidates everything on this page, and
+  the daylight-saving changeovers in the US and Europe do not happen on the same dates.</p>
+</div>
+
+<h2>The five killzones</h2>
+
+<p>A "killzone" is a window when a session opens or two sessions overlap, and therefore when
+volume arrives. The framework does not treat every hour as tradeable — most of the day is
+explicitly written off.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 260" role="img" aria-label="A 24-hour timeline showing the five ICT killzones">
+  <line x1="40" y1="200" x2="690" y2="200" class="svg-axis" stroke-width="1.5"/>
+
+  <!-- hour ticks: map 0..24 to x 40..690 -->
+  <g class="svg-label">
+    <line x1="40"  y1="200" x2="40"  y2="207" class="svg-axis"/><text x="30"  y="222">00</text>
+    <line x1="149" y1="200" x2="149" y2="207" class="svg-axis"/><text x="139" y="222">04</text>
+    <line x1="257" y1="200" x2="257" y2="207" class="svg-axis"/><text x="247" y="222">08</text>
+    <line x1="365" y1="200" x2="365" y2="207" class="svg-axis"/><text x="355" y="222">12</text>
+    <line x1="474" y1="200" x2="474" y2="207" class="svg-axis"/><text x="464" y="222">16</text>
+    <line x1="582" y1="200" x2="582" y2="207" class="svg-axis"/><text x="572" y="222">20</text>
+    <line x1="690" y1="200" x2="690" y2="207" class="svg-axis"/><text x="678" y="222">24</text>
+  </g>
+
+  <!-- London open 02:00-05:00 -> x 94..176 -->
+  <rect x="94" y="60" width="82" height="30" fill="#4ade80" opacity="0.35" stroke="#4ade80"/>
+  <text x="94" y="52" class="svg-label-em" fill="#4ade80">London open</text>
+  <text x="94" y="108" class="svg-label">02:00–05:00</text>
+
+  <!-- NY open 07:00-10:00 -> x 230..311 -->
+  <rect x="230" y="60" width="81" height="30" fill="#4ade80" opacity="0.35" stroke="#4ade80"/>
+  <text x="230" y="52" class="svg-label-em" fill="#4ade80">New York open</text>
+  <text x="230" y="108" class="svg-label">07:00–10:00</text>
+
+  <!-- London close 10:00-12:00 -> 311..365 -->
+  <rect x="311" y="130" width="54" height="30" fill="#fbbf24" opacity="0.30" stroke="#fbbf24"/>
+  <text x="318" y="122" class="svg-label-em" fill="#fbbf24">London close</text>
+  <text x="318" y="178" class="svg-label">10:00–12:00</text>
+
+  <!-- CBDR 14:00-20:00 -> 419..582 -->
+  <rect x="419" y="60" width="163" height="30" fill="#60a5fa" opacity="0.25" stroke="#60a5fa"/>
+  <text x="424" y="52" class="svg-label-em" fill="#60a5fa">central bank dealers range</text>
+  <text x="424" y="108" class="svg-label">14:00–20:00</text>
+
+  <!-- Asia 20:00-24:00 -> 582..690 -->
+  <rect x="582" y="130" width="108" height="30" fill="#c4b5fd" opacity="0.25" stroke="#c4b5fd"/>
+  <text x="560" y="122" class="svg-label-em" fill="#c4b5fd">Asia</text>
+  <text x="586" y="178" class="svg-label">20:00–00:00</text>
+
+  <!-- midnight marker -->
+  <line x1="40" y1="30" x2="40" y2="200" stroke="#f87171" stroke-width="1.2" stroke-dasharray="3 4"/>
+  <text x="46" y="28" class="svg-label" fill="#f87171">midnight open — the day's reference price</text>
+</svg>
+<figcaption>The five windows. Anything outside them — the 5am–7am lull, the New York lunch hour,
+the last hour before the Asian open — is treated as low quality and generally avoided.</figcaption>
+</figure>
+
+<h3>Asia · 20:00–00:00</h3>
+<p>Usually a consolidation, and that is its value: it gives you a small, well-defined range whose
+edges become the first targets when London arrives. Draw the highest high and lowest low of the
+window and extend both lines forward. A <em>narrow</em> Asian range — on the S&amp;P futures,
+roughly 10 to 15 points — is read as a coiled spring and a good sign for a trending day. A wide
+one (over about 15–20 points) is a reason to skip London entirely and wait for New York.</p>
+
+<h3>London open · 02:00–05:00</h3>
+<p>The highest-energy window of the day and, statistically, the most likely place for the day's
+high or low to be set. The expected sequence on a bullish day: London raids the Asian high first
+(the false start), then reverses down through the Asian low into a discount level, and that low
+becomes the low of the day. On a bearish day, the mirror. The London range — 02:00 to just before
+the New York open — should be measured and kept, because the next day's retracement often lands
+inside it.</p>
+
+<h3>New York open · 07:00–10:00</h3>
+<p>The easiest session to read, because London has already done the hard part: the day's high or
+low is usually already in place, so New York is either a continuation of London or a clean
+reversal. It is a reversal specifically when London ran into an untouched higher-timeframe level
+and crossed into New York sitting there. Otherwise, expect continuation, entered on a pullback
+into a gap or block on the 5- or 15-minute chart.</p>
+
+<p>Key moments inside the window: <span class="kbd-time">08:30</span> when scheduled US data is
+released and the news embargo lifts; <span class="kbd-time">09:30</span> when the equity market
+opens and volatility spikes. If big news lands at 08:30, do not also expect a fake-out at 09:30 —
+the manipulation already happened. If news is scheduled for 10:00, expect the fake-out to come
+just after it rather than at 09:30, and stay out of the first ten minutes either way.</p>
+
+<h3>London close · 10:00–12:00</h3>
+<p>London traders square up and New York goes to lunch, which produces profit-taking and often a
+retracement off the day's extreme. On a day that has already run a long way — more than about five
+times its recent average daily range — expect roughly a fifth of the day's range to be given back
+in this window. It is also where a day's direction can genuinely flip, so a position held through
+it deserves attention.</p>
+
+<h3>Central bank dealers range · 14:00–20:00</h3>
+<p>Late afternoon into the Asian handover. Its use is as a measuring stick rather than a trading
+window — see below.</p>
+
+<h2>The daily rhythm</h2>
+
+<p>Stitching the sessions together produces a repeating shape for the day. It will not be exact,
+but it gives you an expectation to check against:</p>
+
+<ol class="steps">
+  <li><span class="kbd-time">20:00–00:00</span> Asia consolidates. The range forms.</li>
+  <li><span class="kbd-time">00:00–02:00</span> Price drifts off the midnight opening price — the
+  first manipulation.</li>
+  <li><span class="kbd-time">02:00–05:00</span> London expands. The high or low of the day is set.</li>
+  <li><span class="kbd-time">05:00–08:00</span> Back to consolidation. A dead zone.</li>
+  <li><span class="kbd-time">08:00–08:30</span> A retracement, setting up the morning.</li>
+  <li><span class="kbd-time">08:30–11:00</span> The main New York move: continuation or reversal.</li>
+  <li><span class="kbd-time">11:00–13:30</span> Lunch. Consolidation, or a reversal of the morning.</li>
+  <li><span class="kbd-time">13:30–16:00</span> The afternoon session, sometimes repeating the
+  morning's move in miniature. Acceleration into the close around 15:40–15:50 as
+  market-on-close orders land.</li>
+</ol>
+
+<h2>Hours of operation</h2>
+
+<p>A short list of intraday ranges worth having drawn, because each one becomes the liquidity
+target for a later window:</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Range</th><th>Window</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>Opening range</td><td>09:30–10:00</td><td>First half hour after the bell. Defines the initial battlefield.</td></tr>
+    <tr><td>AM session range</td><td>09:30–12:00</td><td>Referenced in the afternoon for reversal profiles.</td></tr>
+    <tr><td>Lunch range</td><td>12:00–13:30</td><td>Usually consolidation. Its edges get raided later.</td></tr>
+    <tr><td>PM session range</td><td>13:30–16:00</td><td>The previous day's PM high and low are prime targets the next morning.</td></tr>
+    <tr><td>London range</td><td>02:00–05:00</td><td>Raided by New York if the morning does not reach the PM range.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The routine that uses them: in the first thirty minutes after the opening bell, ask where price
+sits relative to yesterday's PM range and this morning's London range. Whichever is closer is the
+liquidity in play. Then wait for displacement between 10:00 and 11:00.</p>
+
+<h2>Power of three</h2>
+
+<p>The accumulation / manipulation / distribution cycle, applied to a single candle at any
+timeframe. Every candle has an open, and price spends the period first drifting one way, then
+going the other way for real.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 280" role="img" aria-label="A bullish daily candle broken into accumulation, manipulation and distribution phases">
+  <line x1="60" y1="150" x2="690" y2="150" stroke="#8b98a5" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="60" y="142" class="svg-label-em">opening price</text>
+
+  <!-- phase 1 -->
+  <rect x="80" y="120" width="120" height="60" fill="#8b98a5" opacity="0.10"/>
+  <path d="M 90 152 L 110 143 L 130 158 L 150 146 L 175 155 L 195 148"
+        fill="none" stroke="#d7dde3" stroke-width="1.8"/>
+  <text x="82" y="112" class="svg-label-em">1 · accumulation</text>
+  <text x="82" y="200" class="svg-label">quiet, near the open</text>
+
+  <!-- phase 2 -->
+  <rect x="200" y="150" width="150" height="80" fill="#f87171" opacity="0.12"/>
+  <path d="M 195 148 L 230 190 L 265 175 L 300 225 L 335 195 L 350 160"
+        fill="none" stroke="#f87171" stroke-width="2.2"/>
+  <text x="204" y="112" class="svg-label-em" fill="#f87171">2 · manipulation</text>
+  <text x="204" y="250" class="svg-label" fill="#f87171">the Judas swing — below the open, sweeping sell stops</text>
+
+  <!-- phase 3 -->
+  <rect x="350" y="50" width="320" height="100" fill="#4ade80" opacity="0.10"/>
+  <path d="M 350 160 L 400 120 L 445 138 L 500 95 L 545 110 L 600 68 L 660 58"
+        fill="none" stroke="#4ade80" stroke-width="2.4"/>
+  <text x="356" y="42" class="svg-label-em" fill="#4ade80">3 · distribution / expansion</text>
+  <text x="470" y="170" class="svg-label" fill="#4ade80">the real move, ending near the close</text>
+
+  <!-- resulting candle -->
+  <g transform="translate(690,0)">
+    <line x1="0" y1="52" x2="0" y2="232" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="-9" y="58" width="18" height="94" fill="#4ade80" opacity="0.4" stroke="#4ade80" stroke-width="1.5"/>
+  </g>
+</svg>
+<figcaption>What a bullish day looks like from the inside. The long lower wick on the finished
+candle is the manipulation phase. If you are bullish, that dip below the opening price is not a
+problem — it is the entry you were waiting for.</figcaption>
+</figure>
+
+<h3>Applied to the day</h3>
+<p>Mark the <strong>midnight opening price</strong> and leave it on the chart. If your bias is
+bullish, you want the manipulation to happen <em>below</em> it, typically between 08:30 and 09:45,
+and you want price to reclaim and hold above it before you commit. Bearish is the mirror. For the
+afternoon, the 13:30 opening price is used the same way.</p>
+
+<h3>Applied to the week</h3>
+<p>Mark Sunday's opening price and extend it to Friday. On a bullish week, expect the low to form
+between Monday and Wednesday — most often Tuesday or Wednesday — below that opening price, and
+expect price to expand away afterwards. Once it has clearly expanded away past Wednesday, it
+usually does not come back. If it does come back through, expect consolidation or a reversal for
+the rest of the week.</p>
+
+<p>One practical note that comes up repeatedly: Monday's extremes are treated as untrustworthy.
+The preference is to let Monday build its range, then look for the real weekly high or low on
+Tuesday or Wednesday at a key level.</p>
+
+<h2>Central bank dealers range</h2>
+
+<p>A measuring tool built from the 14:00–20:00 window. The method:</p>
+
+<ol class="steps">
+  <li>On the 1-hour chart, mark the high and low of 14:00–20:00. Use candle <em>bodies</em>, and
+  check the wicks separately.</li>
+  <li>Mark the midpoint.</li>
+  <li>Project the range's height above and below it as a series of equal steps — one deviation,
+  two deviations, and so on.</li>
+  <li>On a sell day, the day's high tends to form around one deviation above the range, and the
+  day's low around two deviations below it. On a buy day, the mirror.</li>
+</ol>
+
+<p>Conditions that make it work better: the range itself under about 20 points on the S&amp;P
+futures, an Asian range of 10–15 points, and mid-week rather than Monday. High-impact news pushes
+price to larger deviations, and a move out to a fourth deviation is usually associated with either
+big news or a full New York reversal profile.</p>
+
+<div class="callout">
+  <span class="callout-label">What this really is</span>
+  <p>Strip the language away and it is a volatility-normalised projection: measure a quiet
+  overnight range, assume the day expands to a multiple of it, use those multiples as targets.
+  That is a legitimate and testable idea. It also means the specific point values quoted here are
+  instrument-specific and era-specific — they were calibrated on index futures at a particular
+  level of volatility, and blindly reusing them on another market or in a different regime will
+  not work.</p>
+</div>
+
+<h2>Day of the week and time of day</h2>
+
+<ul>
+  <li>The weekly high or low most often forms <strong>Tuesday or Wednesday</strong>, frequently
+  before the New York open.</li>
+  <li>The best trending days tend to be <strong>Monday through Wednesday</strong>; that is when
+  the framework prefers to take positions.</li>
+  <li>For a sell day, the high of the day usually lands in the <span class="kbd-time">02:00–05:00</span>
+  window and the low around <span class="kbd-time">10:00–11:00</span>. Buy days are the mirror.
+  That pairing is also an exit rule: if you sold from London, plan to be finished around 10–11am.</li>
+  <li>The <span class="kbd-time">05:00</span> opening price is worth marking. If London gave no
+  false start, the fake-out often appears here instead.</li>
+  <li><span class="kbd-time">07:20</span> is when index futures activity picks up ahead of the
+  cash open, and is a reasonable point to start hunting New York setups.</li>
+</ul>
+
+<h2>Days to stay out</h2>
+
+<p>The framework is unusually explicit that some days are not worth trading, which is a useful
+corrective to the assumption that every session owes you a setup.</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Day</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>FOMC decision days</td><td>Two-stage event at 14:00 — the first move after the release is routinely a fake, and the press conference frequently reverses it. Conditions are unlike any other day.</td></tr>
+    <tr><td>Thursday and Friday of payrolls week</td><td>Aimless chop while the market waits, then a violent release. Low-quality conditions in both directions.</td></tr>
+    <tr><td>The day after a very large expansion</td><td>The move already happened. Expect consolidation or an aimless sweep of both sides.</td></tr>
+    <tr><td>Holiday-thinned sessions, late December</td><td>Liquidity leaves; levels behave unreliably.</td></tr>
+    <tr><td>After the weekly objective is met</td><td>If the level you named as the week's draw has been hit, the incentive is gone.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The tell that you are in a low-quality environment: price ranges back and forth with no clean
+follow-through, and levels that normally produce reactions are traded straight through. That is
+what "high-resistance liquidity conditions" means in practice — precision degrades, and the
+correct response is to stand aside rather than to trade smaller.</p>
+
+<h2>Seasonality</h2>
+
+<p>A rough calendar map, used as background context rather than as a signal:</p>
+
+<ul>
+  <li><strong>December–January</strong> — consolidation; holidays drain liquidity.</li>
+  <li><strong>February–April</strong> — the market comes out of its range; generally the cleanest
+  trending conditions of the year.</li>
+  <li><strong>May–August</strong> — profit-taking, then a summer lull. August is the quietest.</li>
+  <li><strong>September–November</strong> — activity returns and the cycle restarts.</li>
+</ul>
+
+<p>Treat these as tendencies with wide error bars. Their only real use is as a tiebreaker when
+your analysis is already pointing one way.</p>
+
+<h2>Quarterly shifts and IPDA data ranges</h2>
+
+<p>IPDA stands for interbank price delivery algorithm — the framework's name for whatever
+mechanism is assumed to be delivering price. Its practical output is a look-back exercise:</p>
+
+<ol class="steps">
+  <li>On the <em>daily</em> chart, counting weekdays only, mark the highest high and lowest low
+  of the last <strong>20</strong>, <strong>40</strong> and <strong>60</strong> trading days.</li>
+  <li>Inside each look-back window, note the untouched highs and lows, gaps, voids and blocks.</li>
+  <li>Take the 60-day high and low, cut that range in half, and mark the premium and discount
+  arrays on each side.</li>
+  <li>Then look <em>forward</em> the same distances. The claim is that the algorithm will reach
+  for something within the next 20, 40 or 60 trading days from the most recent structural shift.</li>
+</ol>
+
+<p>Wrapped around this is the "quarterly shift" idea: every three to four months, the market
+changes character — a trend pauses into consolidation, or a range breaks. The purpose is not
+prediction of direction but calibration of <em>when</em> to expect something significant, and how
+far back your reference levels should reach.</p>
+
+<div class="callout warn">
+  <span class="callout-label">Read this critically</span>
+  <p>The IPDA framing asserts a specific mechanism — a single algorithm delivering price to
+  predetermined levels — that has no public evidence behind it. You do not have to accept the
+  mechanism to use the exercise: "mark the extremes of the last 20, 40 and 60 sessions and know
+  where the untouched levels are" is sensible housekeeping regardless of what you believe is
+  moving price. Keep the housekeeping; hold the story loosely.</p>
+</div>
+
+<div class="pager">
+  <a href="structure.html">← market structure</a>
+  <a href="models.html">next: models →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

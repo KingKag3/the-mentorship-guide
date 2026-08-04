@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidity — Smart Money, Plain English</title>
+<meta name="description" content="Buyside and sellside liquidity, internal vs external range liquidity, draw on liquidity, low- and high-resistance runs, stop hunts and the Judas swing, explained in plain English.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html" aria-current="page">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Liquidity</h1>
+
+<p class="lede">Liquidity is the whole engine. Strip the jargon away and the claim is simple:
+big orders need someone to trade against, and the most reliable supply of willing counterparties
+is other traders' stop-losses.</p>
+
+<h2>What "liquidity" actually means here</h2>
+
+<p>In normal finance, liquidity means how easily you can buy or sell without moving the price.
+In this framework the word is used more narrowly. <strong>Liquidity means a cluster of resting
+orders at a known price</strong> — mostly stop-losses, plus breakout orders — that will convert
+into market orders the moment price touches them.</p>
+
+<p>That conversion is the point. A stop-loss is not a passive request; it is a pending market
+order pointed the opposite way to the position it protects. A crowd of long positions with stops
+under an obvious low is, from a large seller's point of view, a crowd of guaranteed buyers
+sitting at a known address. Price only has to go and ring the bell.</p>
+
+<div class="callout">
+  <span class="callout-label">The mechanic, spelled out</span>
+  <p>A trader is long. Their stop sits below a recent low. When price trades through that low the
+  stop fires as a <em>sell</em> at market. Multiply by thousands of accounts and you get a burst
+  of selling at a known price — which is exactly what someone trying to buy a large position
+  needs. This is why the framework insists that price moves <em>toward</em> obvious levels rather
+  than respecting them.</p>
+</div>
+
+<h2>Buyside and sellside</h2>
+
+<p>The naming trips everyone up at first, because it is named after the orders that fire, not
+after where they sit relative to price.</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Term</th><th>Where it sits</th><th>What is resting there</th><th>Who wants it</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="tag bull">BSL</span> Buyside liquidity</td>
+      <td>Above highs</td>
+      <td>Stops of short positions, and breakout buy orders</td>
+      <td>Someone who needs to sell size</td>
+    </tr>
+    <tr>
+      <td><span class="tag bear">SSL</span> Sellside liquidity</td>
+      <td>Below lows</td>
+      <td>Stops of long positions, and breakdown sell orders</td>
+      <td>Someone who needs to buy size</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>So "price is going for buyside" means price is expected to rally through a high — and the
+implication is bearish afterwards, because the entity that just filled its short book has no
+further reason to hold price up.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 300" role="img" aria-label="Diagram showing buy stops resting above equal highs and sell stops resting below equal lows">
+  <rect x="40" y="46" width="640" height="26" fill="#f87171" opacity="0.10"/>
+  <line x1="40" y1="72" x2="680" y2="72" stroke="#f87171" stroke-width="1.5"/>
+  <text x="46" y="40" class="svg-label-em">BUYSIDE — buy stops of shorts + breakout buys</text>
+
+  <rect x="40" y="214" width="640" height="26" fill="#4ade80" opacity="0.10"/>
+  <line x1="40" y1="214" x2="680" y2="214" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="46" y="264" class="svg-label-em">SELLSIDE — sell stops of longs + breakdown sells</text>
+
+  <!-- equal highs markers -->
+  <circle cx="180" cy="72" r="4" fill="#f87171"/>
+  <circle cx="330" cy="72" r="4" fill="#f87171"/>
+  <circle cx="470" cy="72" r="4" fill="#f87171"/>
+  <text x="500" y="66" class="svg-label">equal highs = a bigger, more obvious pool</text>
+
+  <!-- equal lows markers -->
+  <circle cx="230" cy="214" r="4" fill="#4ade80"/>
+  <circle cx="390" cy="214" r="4" fill="#4ade80"/>
+
+  <!-- price squiggle between -->
+  <path d="M 60 190 L 120 120 L 180 74 L 230 212 L 290 140 L 330 74 L 390 212 L 440 150 L 470 74 L 520 130 L 570 190 L 640 216"
+        fill="none" stroke="#8b98a5" stroke-width="1.8" stroke-linejoin="round"/>
+
+  <text x="46" y="150" class="svg-label">price oscillates between the two pools…</text>
+  <text x="46" y="168" class="svg-label">…each touch of a pool is a chance for size to be filled</text>
+</svg>
+<figcaption>The two pools. Repeated touches of the same level — equal highs, equal lows — make
+the pool larger and, in this framework, make it more likely to be taken. The more obvious a
+level looks to a chart-reading retail trader, the more attractive it is as a target.</figcaption>
+</figure>
+
+<h2>Where the pools are, ranked</h2>
+
+<p>Not all liquidity is equal. The framework grades it roughly by the timeframe that produced it,
+because bigger timeframes attract more participants and therefore more stops.</p>
+
+<ul>
+  <li><strong>Major</strong> — highs and lows of the day, week, month, quarter and year. This is
+  what a higher-timeframe bias is built on.</li>
+  <li><strong>Medium</strong> — highs and lows visible on the 15-minute and 1-hour charts. This
+  is the working range for a day trader.</li>
+  <li><strong>Minor</strong> — highs and lows on 1- to 5-minute charts. Used for timing, not for
+  direction.</li>
+</ul>
+
+<p>Layered on top of the timeframe ranking are the specific formations that concentrate orders:</p>
+
+<ul>
+  <li><strong>Equal highs / equal lows (EQH / EQL)</strong> — two or more touches at nearly the
+  same price. The flattest, most obvious levels attract the most stops.</li>
+  <li><strong>Previous day's high and low (PDH / PDL)</strong> — the single most-watched pair of
+  levels in intraday trading, and the easiest daily target to name in advance.</li>
+  <li><strong>Previous week's high and low (PWH / PWL)</strong> — the same idea one timeframe up.</li>
+  <li><strong>Session highs and lows</strong> — the extremes of the Asian, London and New York
+  windows. See <a href="time.html">time</a>.</li>
+  <li><strong>Trendline touches</strong> — every trader who draws the same diagonal places stops
+  just beyond it, which quietly stacks orders along a slanted line.</li>
+  <li><strong>Range boundaries</strong> — in a sideways market, above the top and below the bottom.</li>
+</ul>
+
+<h2>Internal vs external range liquidity</h2>
+
+<p>This is the single most useful idea on the page, and the one that makes daily bias tractable.
+Take any range you can see — a swing low to a swing high. Then:</p>
+
+<ul>
+  <li><strong>External range liquidity (ERL)</strong> = the old high and the old low that
+  <em>define</em> the range. Stops live outside them.</li>
+  <li><strong>Internal range liquidity (IRL)</strong> = the inefficiencies <em>inside</em> the
+  range — chiefly fair value gaps and order blocks — that price has not yet come back to fill.</li>
+</ul>
+
+<p>The claim is that price alternates between the two, forever, on every timeframe:</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 300" role="img" aria-label="Diagram of the alternation between external range liquidity and internal range liquidity">
+  <line x1="60" y1="60"  x2="660" y2="60"  stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <line x1="60" y1="250" x2="660" y2="250" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="60" y="50" class="svg-label-em">EXTERNAL — old high</text>
+  <text x="60" y="272" class="svg-label-em">EXTERNAL — old low</text>
+
+  <rect x="60" y="140" width="600" height="28" fill="#60a5fa" opacity="0.13"/>
+  <text x="66" y="132" class="svg-label-em" fill="#60a5fa">INTERNAL — an unfilled gap sitting inside the range</text>
+
+  <path d="M 80 240 L 140 100 L 190 62 L 250 150 L 310 154 L 370 90 L 420 62 L 470 160 L 520 200 L 580 250 L 630 200"
+        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+
+  <circle cx="190" cy="62"  r="5" fill="#f87171"/>
+  <circle cx="250" cy="150" r="5" fill="#60a5fa"/>
+  <circle cx="420" cy="62"  r="5" fill="#f87171"/>
+  <circle cx="470" cy="160" r="5" fill="#60a5fa"/>
+  <circle cx="580" cy="250" r="5" fill="#4ade80"/>
+
+  <text x="196" y="86"  class="svg-label">1 · take external</text>
+  <text x="256" y="192" class="svg-label">2 · fill internal</text>
+  <text x="392" y="42"  class="svg-label">3 · take external again</text>
+  <text x="478" y="192" class="svg-label">4 · fill internal</text>
+  <text x="520" y="278" class="svg-label">5 · take the other external</text>
+</svg>
+<figcaption>External to internal to external. Once an old high or low has been raided, the next
+destination is an unfilled gap inside the range. Once that gap is filled, the next destination is
+an old high or low again. This alternation is the mechanical core of "daily bias".</figcaption>
+</figure>
+
+<div class="callout">
+  <span class="callout-label">How to actually use it</span>
+  <p>Mark the monthly, weekly and daily ranges. Ask one question: <em>was the last thing that
+  happened an external raid or an internal fill?</em> If a high was just taken, look for the
+  nearest unfilled gap below and treat that as the next objective. If a gap was just filled, look
+  for the old high or low that is now most exposed. You are not predicting; you are naming the
+  next stop on a two-stop loop.</p>
+</div>
+
+<h2>Draw on liquidity (DOL)</h2>
+
+<p>"Draw on liquidity" is simply <strong>the level you believe price is currently travelling
+toward</strong>. It is the destination, not the entry. Everything else is negotiation about how
+to get on board.</p>
+
+<p>Candidates for a day trader, roughly in order of usefulness: previous day's high or low;
+previous week's high or low; the high or low of the Asian, London or New York session; an
+obvious set of equal highs or equal lows; a large unfilled gap on the 1-hour or 4-hour chart.</p>
+
+<p>The discipline that matters more than the choice: <strong>having named a draw, do not change
+it every fifteen minutes.</strong> The most common self-inflicted wound in this methodology is
+flip-flopping the destination each time a five-minute candle goes the other way.</p>
+
+<h2>High-resistance and low-resistance runs</h2>
+
+<p>Two liquidity pools can look identical and behave completely differently, depending on
+whether anything stands between price and the pool.</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th></th><th>Low-resistance run (LRLR)</th><th>High-resistance run (HRLR)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>What it is</strong></td>
+      <td>Untouched orders with a clear path to them</td>
+      <td>Orders that price must fight through opposing structure to reach</td>
+    </tr>
+    <tr>
+      <td><strong>How it feels</strong></td>
+      <td>Fast, one-sided, few pullbacks</td>
+      <td>Grinding, choppy, long time in the trade</td>
+    </tr>
+    <tr>
+      <td><strong>Typical shape</strong></td>
+      <td>A series of higher lows leading up to untouched highs</td>
+      <td>A high that already ran a previous high and rejected</td>
+    </tr>
+    <tr>
+      <td><strong>Verdict</strong></td>
+      <td>What you want to target</td>
+      <td>What you want to avoid targeting</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>The practical test is boring and effective: <em>has this level already been swept once?</em>
+Liquidity that has been taken is spent. A high that has already run a previous high and reversed
+is now high-resistance — the incentive to go back for it is gone. Untouched equal highs sitting
+above a staircase of higher lows are low-resistance, and that is where the framework says to aim.</p>
+
+<h2>Stop hunts, Judas swings and turtle soup</h2>
+
+<p>These three terms all describe the same event seen from slightly different angles.</p>
+
+<h3>Stop hunt</h3>
+<p>The generic name. Price moves to a level specifically to trigger the orders resting there,
+then leaves. If you have ever been stopped out to the tick and then watched price go your
+original way, you have met one.</p>
+
+<h3>Judas swing</h3>
+<p>A stop hunt with a time attached. It is the <em>first</em> move of a session or a day, in the
+direction opposite to where the day actually goes — the false start that establishes the day's
+high on a down day, or the day's low on an up day. The name is a betrayal joke: the move that
+looks like the start of a trend is the one that sells you out.</p>
+
+<p>Where it usually appears: the London open raiding the high or low of the Asian range; the
+New York open around 9:30 taking a short-term high or low before reversing; or the first move
+after a scheduled news release. If big news lands at 8:30, the 9:30 fake-out often does not
+happen — the manipulation already occurred at the news.</p>
+
+<h3>Turtle soup</h3>
+<p>The trade you take <em>against</em> the false breakout. Price pokes just beyond an obvious old
+high or low, fails to hold, and closes back inside. You enter on the failure, with a stop beyond
+the extreme of the poke. It is called soup because it eats the breakout traders — the "turtles"
+being an older generation of breakout-following speculators.</p>
+
+<div class="callout warn">
+  <span class="callout-label">Where this reasoning gets dangerous</span>
+  <p>"It was a stop hunt" is available as an explanation for any losing trade, which makes it
+  psychologically toxic. A breakout that fails is a stop hunt; a breakout that runs is
+  "displacement". You cannot tell which you are in until afterwards. The only protection is to
+  define, before entry, what price would have to do to prove you wrong — and then honour it.</p>
+</div>
+
+<h2>Liquidity as an entry, liquidity as an exit</h2>
+
+<p>A rule worth internalising, because it quietly organises everything else:</p>
+
+<div class="callout">
+  <p><strong>Enter on internal liquidity. Exit on external liquidity.</strong><br>
+  You take your position inside the range, at a gap or an order block. You take profit outside
+  the range, at the old high or old low that everyone can see. Doing it the other way around —
+  buying the breakout above the obvious high, selling the breakdown below the obvious low — is
+  the behaviour the whole model is built to exploit.</p>
+</div>
+
+<p>The corollary is a blunt pair of rules the material repeats often: do not buy above an old
+high, and do not sell below an old low. Not because breakouts never work, but because at those
+prices you are, by construction, providing the liquidity rather than using it.</p>
+
+<h2>Liquidity voids</h2>
+
+<p>A liquidity void is a stretch of price covered in one direction so quickly that almost no
+two-way trading happened there — on the chart, a run of long-bodied candles with tiny wicks. The
+claim is that these ranges are unfinished business: price spent no time there, so both buying and
+selling still need to be offered at those prices, and the market tends to come back and do it.</p>
+
+<p>A void is not the same thing as a fair value gap, though they usually appear together. A fair
+value gap is a precise three-candle formation with defined edges; a void is the broader stretch of
+one-sided delivery around it. Voids are used more for <em>targets</em> — "there is unfinished
+business back there" — and gaps more for <em>entries</em>. Both are covered in detail on the
+<a href="pd-arrays.html">PD arrays</a> page.</p>
+
+<div class="pager">
+  <a href="index.html">← start</a>
+  <a href="pd-arrays.html">next: pd arrays →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

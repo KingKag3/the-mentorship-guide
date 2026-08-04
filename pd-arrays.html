@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PD arrays — Smart Money, Plain English</title>
+<meta name="description" content="Fair value gaps, order blocks, breakers, mitigation blocks, rejection blocks, propulsion and vacuum blocks, opening gaps, premium and discount — the full ICT price-level catalogue in plain English.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html" aria-current="page">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>PD arrays</h1>
+
+<p class="lede">"PD array" stands for premium/discount array. It is a catalogue term for
+<em>any specific price level where a reaction is expected</em>. Once you know that, the long list
+of block types stops being intimidating — they are all answers to the same question: which exact
+price do I care about?</p>
+
+<h2>First: premium, discount and equilibrium</h2>
+
+<p>Everything in this catalogue is graded relative to a range. Take a swing low and a swing high,
+put a line at the midpoint, and you have the whole framework:</p>
+
+<ul>
+  <li><strong>Equilibrium (EQ)</strong> — the 50% level. Fair value. Coin-flip territory.</li>
+  <li><strong>Premium</strong> — above the midpoint. Expensive. Where you look to sell.</li>
+  <li><strong>Discount</strong> — below the midpoint. Cheap. Where you look to buy.</li>
+</ul>
+
+<p>The rule is refreshingly simple: <em>buy in discount, sell in premium, and be suspicious of
+anything you want to do at equilibrium.</em> The complications are all about <em>which</em>
+range you measure. A price can be at a discount on the 5-minute chart and deep in premium on the
+daily. When those disagree, the higher timeframe wins.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 280" role="img" aria-label="Premium, equilibrium and discount zones within a dealing range">
+  <rect x="120" y="40"  width="480" height="80"  fill="#f87171" opacity="0.08"/>
+  <rect x="120" y="160" width="480" height="80"  fill="#4ade80" opacity="0.08"/>
+
+  <line x1="120" y1="40"  x2="600" y2="40"  stroke="#f87171" stroke-width="1.5"/>
+  <line x1="120" y1="140" x2="600" y2="140" stroke="#8b98a5" stroke-width="1.5" stroke-dasharray="8 5"/>
+  <line x1="120" y1="240" x2="600" y2="240" stroke="#4ade80" stroke-width="1.5"/>
+
+  <text x="612" y="45"  class="svg-label-em" fill="#f87171">1.00 · range high</text>
+  <text x="612" y="145" class="svg-label-em">0.50 · equilibrium</text>
+  <text x="612" y="245" class="svg-label-em" fill="#4ade80">0.00 · range low</text>
+
+  <text x="132" y="76"  class="svg-label-em" fill="#f87171">PREMIUM — expensive — look to sell</text>
+  <text x="132" y="96"  class="svg-label">bearish arrays live here: −FVG, −OB, −BB</text>
+
+  <text x="132" y="196" class="svg-label-em" fill="#4ade80">DISCOUNT — cheap — look to buy</text>
+  <text x="132" y="216" class="svg-label">bullish arrays live here: +FVG, +OB, +BB</text>
+
+  <line x1="120" y1="62" x2="600" y2="62" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="3 4"/>
+  <text x="132" y="58" class="svg-label" fill="#c4b5fd">0.79 / 0.705 — the OTE band</text>
+</svg>
+<figcaption>The dealing range and its zones. The OTE ("optimal trade entry") band marked in
+violet is a favoured slice of the retracement — roughly the 62% to 79% pullback — where the
+framework prefers to enter in the direction of the larger move.</figcaption>
+</figure>
+
+<h3>The dealing range</h3>
+
+<p>A <strong>dealing range</strong> is a range whose <em>both</em> ends have already been taken —
+liquidity swept above the high and below the low. Once that has happened, you have a stable
+container to measure premium and discount inside, and the arrays within it become meaningful.
+Before both sides are taken, you are still guessing where the range ends.</p>
+
+<h2>Fair value gaps</h2>
+
+<p>The workhorse. A fair value gap (FVG) is a three-candle formation where the middle candle
+moves so hard that the first candle's wick and the third candle's wick <strong>do not
+overlap</strong>. The untouched space between them is the gap.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 300" role="img" aria-label="Three candle formation creating a bullish fair value gap">
+  <!-- bullish FVG -->
+  <g>
+    <text x="60" y="30" class="svg-label-em" fill="#4ade80">BULLISH FVG (BISI)</text>
+    <!-- candle 1 -->
+    <line x1="110" y1="200" x2="110" y2="250" stroke="#8b98a5" stroke-width="1.5"/>
+    <rect x="98" y="215" width="24" height="28" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+    <text x="90" y="272" class="svg-label">candle 1</text>
+    <!-- candle 2 big up -->
+    <line x1="180" y1="80" x2="180" y2="235" stroke="#4ade80" stroke-width="1.5"/>
+    <rect x="168" y="95" width="24" height="125" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+    <text x="160" y="272" class="svg-label">candle 2</text>
+    <!-- candle 3 -->
+    <line x1="250" y1="70" x2="250" y2="150" stroke="#8b98a5" stroke-width="1.5"/>
+    <rect x="238" y="85" width="24" height="40" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+    <text x="230" y="272" class="svg-label">candle 3</text>
+
+    <!-- the gap -->
+    <rect x="90" y="150" width="180" height="50" fill="#4ade80" opacity="0.18"/>
+    <line x1="90" y1="150" x2="300" y2="150" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="90" y1="175" x2="300" y2="175" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
+    <line x1="90" y1="200" x2="300" y2="200" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="305" y="154" class="svg-label">low of candle 3</text>
+    <text x="305" y="179" class="svg-label" fill="#c4b5fd">consequent encroachment (50%)</text>
+    <text x="305" y="204" class="svg-label">high of candle 1</text>
+  </g>
+
+  <!-- the return -->
+  <g transform="translate(430,0)">
+    <path d="M 20 90 L 60 60 L 100 130 L 140 175 L 180 120 L 230 60"
+          fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="0" y="150" width="250" height="50" fill="#4ade80" opacity="0.10"/>
+    <line x1="0" y1="175" x2="250" y2="175" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
+    <circle cx="140" cy="175" r="5" fill="#4ade80"/>
+    <text x="0" y="30" class="svg-label-em">…later, price returns to the gap</text>
+    <text x="60" y="215" class="svg-label">touch, react, continue</text>
+  </g>
+</svg>
+<figcaption>Left: the gap is the vertical space between candle 1's high and candle 3's low. Its
+midpoint has a name — consequent encroachment — and is watched as closely as its edges. Right: the
+trade is the return. Price is expected to come back into the untouched space, react, and resume.</figcaption>
+</figure>
+
+<h3>BISI and SIBI</h3>
+
+<p>Two acronyms for the same object seen from either side, and they are worth decoding once
+because they appear constantly:</p>
+
+<ul>
+  <li><strong>BISI</strong> — buyside imbalance, sellside inefficiency. A gap created by a fast
+  move <em>up</em>. Buying happened; selling did not. It sits <em>below</em> price and is a
+  bullish (discount) array.</li>
+  <li><strong>SIBI</strong> — sellside imbalance, buyside inefficiency. A gap created by a fast
+  move <em>down</em>. It sits <em>above</em> price and is a bearish (premium) array.</li>
+</ul>
+
+<h3>How gaps are used</h3>
+
+<ul>
+  <li><strong>As an entry.</strong> Place a limit order inside the gap, typically at or beyond
+  the midpoint, and let price come to you.</li>
+  <li><strong>As a target.</strong> An unfilled gap is unfinished business; price is expected to
+  reach for it.</li>
+  <li><strong>As a signal.</strong> A gap appearing after a liquidity raid is treated as evidence
+  that the raid was real, because the size of the move needed to create it implies serious
+  participation rather than drift.</li>
+</ul>
+
+<h3>Related gap species</h3>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Name</th><th>What it is</th><th>What it is used for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Volume imbalance</strong></td>
+        <td>Two candle <em>bodies</em> that do not touch, though their wicks overlap</td>
+        <td>A weaker cousin of the FVG. Same three reference prices: top, midpoint, bottom.</td></tr>
+    <tr><td><strong>Liquidity void</strong></td>
+        <td>A long stretch of one-sided delivery — big bodies, tiny wicks</td>
+        <td>Mainly a target. Expect wicking back and forth as it is filled.</td></tr>
+    <tr><td><strong>Inversion FVG (IFVG)</strong></td>
+        <td>A gap that price traded straight through instead of respecting</td>
+        <td>It flips polarity. A failed bullish gap becomes resistance, and vice versa.</td></tr>
+    <tr><td><strong>Breakaway gap (BG)</strong></td>
+        <td>A gap left at the start of a strong move that is <em>not</em> filled</td>
+        <td>Read as confirmation that the move is real, not a retracement.</td></tr>
+    <tr><td><strong>Measuring gap (MG)</strong></td>
+        <td>A gap that forms near the midpoint of a move and stays unfilled</td>
+        <td>Used to project where the move ends: origin to gap, doubled.</td></tr>
+    <tr><td><strong>Vacuum block</strong></td>
+        <td>A literal price gap caused by a news release or a session open</td>
+        <td>Treated like any other candle. Often, but not always, filled the same session.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <span class="callout-label">Consequent encroachment</span>
+  <p>An intimidating phrase for "the middle of the gap". Whenever a gap or void is drawn, its 50%
+  line is marked, and reactions are expected there as often as at the edges. If you see "CE" in
+  someone's chart annotation, they mean the midpoint.</p>
+</div>
+
+<h2>Order blocks</h2>
+
+<p>An order block is <strong>the last candle of the opposite colour before a decisive move</strong>.</p>
+
+<ul>
+  <li><strong>Bullish order block (+OB)</strong> — the last down-close candle before a strong
+  rally. Watched as support on the way back down.</li>
+  <li><strong>Bearish order block (−OB)</strong> — the last up-close candle before a strong
+  decline. Watched as resistance on the way back up.</li>
+</ul>
+
+<p>The story attached to it: a large participant had to fill their position somewhere, and that
+candle is where the average price of that position sits. If price returns there, they can add or
+manage without being underwater — so the level is defended.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 280" role="img" aria-label="A bullish order block: the last down candle before a rally, revisited later">
+  <!-- down candles -->
+  <g stroke="#8b98a5" stroke-width="1.5">
+    <line x1="90"  y1="70"  x2="90"  y2="130"/>
+    <line x1="130" y1="90"  x2="130" y2="160"/>
+    <line x1="170" y1="120" x2="170" y2="205"/>
+  </g>
+  <rect x="80"  y="80"  width="20" height="42" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+  <rect x="120" y="100" width="20" height="52" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+
+  <!-- the OB candle, highlighted -->
+  <rect x="160" y="130" width="20" height="62" fill="#f87171" opacity="0.3" stroke="#f87171" stroke-width="2"/>
+  <rect x="60" y="130" width="600" height="62" fill="#4ade80" opacity="0.08"/>
+  <line x1="60" y1="130" x2="660" y2="130" stroke="#4ade80" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="60" y1="161" x2="660" y2="161" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="60" y1="192" x2="660" y2="192" stroke="#4ade80" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <text x="188" y="228" class="svg-label-em" fill="#f87171">the order block: last down-close candle</text>
+  <text x="470" y="126" class="svg-label">open (top of body)</text>
+  <text x="470" y="157" class="svg-label" fill="#c4b5fd">mean threshold — 50% of the body</text>
+  <text x="470" y="205" class="svg-label">close (bottom of body)</text>
+
+  <!-- rally away -->
+  <g stroke="#4ade80" stroke-width="1.5">
+    <line x1="210" y1="90"  x2="210" y2="150"/>
+    <line x1="250" y1="55"  x2="250" y2="110"/>
+    <line x1="290" y1="40"  x2="290" y2="80"/>
+  </g>
+  <rect x="200" y="100" width="20" height="45" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+  <rect x="240" y="62"  width="20" height="44" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+  <rect x="280" y="46"  width="20" height="30" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+
+  <!-- return -->
+  <path d="M 310 55 L 350 40 L 400 95 L 450 70 L 500 140 L 545 158 L 590 90 L 640 45"
+        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="545" cy="158" r="5" fill="#4ade80"/>
+  <text x="500" y="252" class="svg-label">price returns, respects the mean threshold, continues</text>
+</svg>
+<figcaption>The block is measured from the body, not the wick — open to close on the down candle
+— because wick data varies between brokers. The <strong>mean threshold</strong> is the body's
+midpoint. A good block is not closed through beyond it.</figcaption>
+</figure>
+
+<h3>What makes a block worth trading</h3>
+
+<ul>
+  <li>It is <strong>validated</strong>: a later candle trades through the top of the down-close
+  candle (for a bullish block) or the bottom of the up-close candle (for a bearish one).</li>
+  <li>It sits at a level that matters anyway — a session high or low, a previous day's extreme,
+  a higher-timeframe zone.</li>
+  <li>It <strong>pushed price into liquidity</strong>: the candle itself drove price into a pool
+  of stops.</li>
+  <li>It has <strong>a fair value gap paired with it</strong>. This is the single best filter in
+  the whole catalogue. A block with a gap attached is treated as high-probability; a block with
+  nothing else going on is a line on a chart.</li>
+  <li>Price left it quickly and did not come straight back. Blocks that get retested immediately
+  usually fail.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="callout-label">The honest problem with order blocks</span>
+  <p>Every strong move has a "last opposite candle", so on any chart you can find dozens of them,
+  and most do nothing. In isolation they have no predictive content — a fact the source material
+  states directly. They only carry weight once direction has been decided on a higher timeframe
+  and a liquidity objective has been named. Identify the destination first; use the block for
+  timing.</p>
+</div>
+
+<h2>The variations on an order block</h2>
+
+<p>These are the terms that make the vocabulary look bigger than it is. Each one is an order
+block in a particular situation.</p>
+
+<h3>Breaker block</h3>
+
+<p>An order block that <strong>failed</strong>, and then flipped sides. Sequence for a bullish
+breaker: price makes a high, pulls back, then breaks <em>below</em> the prior low (running the
+stops there), and then rallies back <em>above</em> that high. The down-close candles at the
+earlier swing high — which were supposed to be resistance — become support on the retest.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 280" role="img" aria-label="Bullish breaker block formation: low, high, lower low, then break above the high">
+  <path d="M 60 170 L 130 90 L 200 155 L 270 225 L 340 130 L 410 70 L 470 120 L 530 148 L 590 95 L 650 45"
+        fill="none" stroke="#d7dde3" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <line x1="40" y1="170" x2="690" y2="170" stroke="#8b98a5" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="40" y1="90"  x2="690" y2="90"  stroke="#8b98a5" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <circle cx="60"  cy="170" r="5" fill="#8b98a5"/><text x="42"  y="192" class="svg-label">low</text>
+  <circle cx="130" cy="90"  r="5" fill="#8b98a5"/><text x="112" y="80"  class="svg-label">high</text>
+  <circle cx="270" cy="225" r="5" fill="#f87171"/><text x="230" y="248" class="svg-label" fill="#f87171">lower low — stops taken</text>
+  <circle cx="410" cy="70"  r="5" fill="#4ade80"/><text x="392" y="58"  class="svg-label" fill="#4ade80">higher high — structure broken</text>
+
+  <rect x="120" y="130" width="570" height="34" fill="#4ade80" opacity="0.14"/>
+  <text x="440" y="152" class="svg-label-em" fill="#4ade80">breaker zone — retested as support</text>
+  <circle cx="530" cy="148" r="5" fill="#4ade80"/>
+</svg>
+<figcaption>Key sequence for a bullish breaker: low → high → <em>lower</em> low → higher high.
+The lower low is the stop run; the break above the high is the confirmation. The zone is then
+bought on the retest, with the stop below it.</figcaption>
+</figure>
+
+<p>A bearish breaker is the mirror: high → low → <em>higher</em> high → lower low, and the zone
+becomes resistance. Note that despite the drama of the name, a breaker is not necessarily a
+reversal signal — it very often marks a continuation.</p>
+
+<h3>Mitigation block</h3>
+
+<p>Almost identical to a breaker, with one difference that is worth memorising because it is the
+only thing separating them:</p>
+
+<div class="callout">
+  <p><strong>Breaker = the swing succeeded.</strong> Price made a new extreme and took the
+  liquidity there before reversing.<br>
+  <strong>Mitigation block = the swing failed.</strong> Price did <em>not</em> reach the previous
+  extreme — it made a lower high (or higher low) and reversed anyway.</p>
+</div>
+
+<p>Same trade, weaker premise: because no stops were run, the reversal has less obvious
+sponsorship behind it. The name refers to trapped traders "mitigating" — getting out at
+break-even — when price returns to where they entered.</p>
+
+<h3>Rejection block</h3>
+
+<p>Built from <strong>wicks</strong>, not bodies. When a swing high forms with long upper wicks,
+the space between the highest body and the wick tops is the rejection block: price reached up
+there, grabbed the stops, and was pushed straight back. It is used when the extreme is spiky
+rather than a clean candle body. The bullish version is the mirror at a swing low with long lower
+wicks.</p>
+
+<h3>Propulsion block</h3>
+
+<p>An order block sitting <em>inside</em> an older order block. Price came down into an existing
+bullish block, formed a fresh down-close candle there, and continued higher. That inner candle
+becomes a very sensitive level — the framework expects it to hold above its own midpoint, and
+treats a close beyond that as invalidation.</p>
+
+<h3>Reclaimed order block</h3>
+
+<p>An old block that price ignored on the first visit but respected later, once the higher
+timeframe caught up. Treated as evidence that positions were rebuilt at an old level rather than
+a new one.</p>
+
+<h3>Balanced price range / redelivered rebalanced array</h3>
+
+<p>A stretch where price went one way, came back the other way over the same prices, and then
+went the first way again — up, down, up (bullish) or down, up, down (bearish). Both sides have now
+been offered at those prices, so the area is considered "balanced" and finished. The practical
+consequence: a gap sitting underneath a balanced range can be left permanently open, because the
+market has no unfinished business there. That is what makes a breakaway gap a breakaway gap.</p>
+
+<h2>Opening gaps: NWOG and NDOG</h2>
+
+<p>These are not chart patterns; they are literal holes in the price series caused by the market
+being closed.</p>
+
+<ul>
+  <li><strong>New week opening gap (NWOG)</strong> — the space between Friday's closing price and
+  Sunday's opening price.</li>
+  <li><strong>New day opening gap (NDOG)</strong> — the space between the 5pm close and the 6pm
+  open on the futures session.</li>
+</ul>
+
+<p>They are given unusual weight because they are genuine voids: no trading happened between the
+two prices, so there is no price discovery there at all. The recommended practice is to keep the
+last four or five weekly gaps drawn on the chart permanently, along with each one's midpoint, and
+to expect price to react at them even weeks later. When several of them sit close together,
+price often goes range-bound between them.</p>
+
+<p>The <strong>event horizon</strong> is a related idea: the midpoint between two adjacent weekly
+gaps. Price approaching that halfway line is expected to be pulled toward the nearer gap rather
+than escaping.</p>
+
+<div class="callout">
+  <span class="callout-label">How to draw them</span>
+  <p>Use a low timeframe such as the 5-minute chart, not the daily — on a daily chart the gap is
+  hidden inside a single candle. Mark the two prices, then add a 50% line between them. On
+  futures charts, use the regular-trading-hours view rather than the electronic one, or the gap
+  will not be visible at all.</p>
+</div>
+
+<h2>Quick reference</h2>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Array</th><th>Built from</th><th>Bullish version sits</th><th>Invalidated when</th></tr></thead>
+  <tbody>
+    <tr><td>Fair value gap</td><td>3 candles, wicks not overlapping</td><td>Below price, in discount</td><td>Price closes decisively through it without reacting</td></tr>
+    <tr><td>Order block</td><td>Last opposite-colour candle body</td><td>Below price, at a swing low</td><td>Close beyond the mean threshold</td></tr>
+    <tr><td>Breaker</td><td>Failed block + successful stop run</td><td>At the swing high that got broken upward</td><td>Price closes back through the zone</td></tr>
+    <tr><td>Mitigation block</td><td>Failed block, no stop run</td><td>Same place, weaker premise</td><td>Same</td></tr>
+    <tr><td>Rejection block</td><td>Wicks at a swing extreme</td><td>At a spiky swing low</td><td>Bodies trade beyond the wick zone</td></tr>
+    <tr><td>Propulsion block</td><td>A block inside a block</td><td>Inside an older bullish block</td><td>Close below its own 50%</td></tr>
+    <tr><td>Opening gap</td><td>Session close vs next open</td><td>Anywhere; both edges and midpoint matter</td><td>Rarely — treated as permanent reference</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="pager">
+  <a href="liquidity.html">← liquidity</a>
+  <a href="structure.html">next: market structure →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

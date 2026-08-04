@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market structure — Smart Money, Plain English</title>
+<meta name="description" content="Swing points, short/intermediate/long-term highs and lows, displacement, market structure shifts, the three drives pattern, SMT divergence and how a daily bias is formed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html" aria-current="page">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Market structure</h1>
+
+<p class="lede">Structure is the part most traders think they already know — higher highs, lower
+lows — and it is where most of the damage gets done. The version used here is stricter, ranked
+into three degrees, and explicitly subordinate to narrative.</p>
+
+<h2>What counts as a swing point</h2>
+
+<p>Three candles. That is the whole definition, and keeping it mechanical prevents a lot of
+wishful chart-reading.</p>
+
+<ul>
+  <li><strong>Swing high</strong> — a candle whose high is higher than the candle immediately to
+  its left <em>and</em> the candle immediately to its right.</li>
+  <li><strong>Swing low</strong> — a candle whose low is lower than the candles on either side.</li>
+</ul>
+
+<p>The colours of the three candles do not matter. Only the shape does. Note that this means a
+swing point is never confirmed until the candle after it has closed — you cannot mark one in real
+time on the current bar.</p>
+
+<h2>The three degrees</h2>
+
+<p>Once you have swing points, they get promoted by the same rule applied recursively. This is
+what turns a messy chart into a hierarchy.</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Degree</th><th>Definition</th><th>Read as</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Short-term</strong> (STH / STL)</td>
+      <td>A basic three-candle swing point</td>
+      <td>Noise, unless it is being used for entry timing</td>
+    </tr>
+    <tr>
+      <td><strong>Intermediate-term</strong> (ITH / ITL)</td>
+      <td>A short-term low with <em>higher</em> short-term lows on both sides (and the mirror for
+      highs)</td>
+      <td>The level that matters. Breaking one is a real structural event</td>
+    </tr>
+    <tr>
+      <td><strong>Long-term</strong> (LTH / LTL)</td>
+      <td>An intermediate-term low with higher intermediate-term lows on both sides</td>
+      <td>The frame for the whole move. Usually visible on the daily chart</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="figure">
+<svg viewBox="0 0 720 300" role="img" aria-label="Price path with short-term, intermediate-term and long-term highs and lows marked">
+  <path d="M 40 250 L 80 200 L 110 235 L 150 160 L 185 200 L 220 120 L 255 175 L 295 95
+           L 330 150 L 365 60 L 400 130 L 440 100 L 470 155 L 510 115 L 545 185 L 580 140
+           L 615 210 L 660 250"
+        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- STH/STL small dots -->
+  <g fill="#8b98a5">
+    <circle cx="80"  cy="200" r="3.5"/>
+    <circle cx="150" cy="160" r="3.5"/>
+    <circle cx="220" cy="120" r="3.5"/>
+    <circle cx="295" cy="95"  r="3.5"/>
+    <circle cx="440" cy="100" r="3.5"/>
+    <circle cx="510" cy="115" r="3.5"/>
+    <circle cx="110" cy="235" r="3.5"/>
+    <circle cx="185" cy="200" r="3.5"/>
+    <circle cx="255" cy="175" r="3.5"/>
+    <circle cx="400" cy="130" r="3.5"/>
+    <circle cx="470" cy="155" r="3.5"/>
+    <circle cx="580" cy="140" r="3.5"/>
+  </g>
+
+  <!-- ITH/ITL -->
+  <circle cx="330" cy="150" r="6" fill="none" stroke="#60a5fa" stroke-width="2"/>
+  <circle cx="545" cy="185" r="6" fill="none" stroke="#60a5fa" stroke-width="2"/>
+  <text x="308" y="176" class="svg-label" fill="#60a5fa">ITL</text>
+  <text x="524" y="212" class="svg-label" fill="#60a5fa">ITL</text>
+
+  <!-- LTH -->
+  <circle cx="365" cy="60" r="7" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="352" y="46" class="svg-label-em" fill="#fbbf24">LTH</text>
+  <circle cx="40" cy="250" r="7" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="30" y="276" class="svg-label-em" fill="#fbbf24">LTL</text>
+
+  <text x="600" y="60" class="svg-label">grey · short-term</text>
+  <text x="600" y="78" class="svg-label" fill="#60a5fa">blue · intermediate</text>
+  <text x="600" y="96" class="svg-label" fill="#fbbf24">amber · long-term</text>
+</svg>
+<figcaption>The hierarchy in one picture. Breaking a short-term low happens constantly and means
+little. Breaking an intermediate-term low is the event the framework calls a genuine break of
+structure — and if you are bullish and your intermediate-term low goes, the correct response is
+to stand aside, not to look for a better entry.</figcaption>
+</figure>
+
+<h2>Displacement</h2>
+
+<p>Displacement is the quality control on every structural event. It means a move that is
+<strong>fast, large relative to recent candles, and closes decisively beyond a level</strong> —
+leaving a fair value gap behind it.</p>
+
+<p>The purpose of the concept is to separate two things that look similar on a chart: price
+drifting through a level, and price being driven through it. Only the second is treated as
+evidence that a large participant is involved.</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Displacement present</th><th>Displacement absent</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Large-bodied candles, small wicks</td>
+      <td>Small candles, long wicks, indecision</td>
+    </tr>
+    <tr>
+      <td>A clear <em>close</em> beyond the level</td>
+      <td>A wick through the level, then a close back inside</td>
+    </tr>
+    <tr>
+      <td>A fair value gap is created</td>
+      <td>No gap — everything is overlapping</td>
+    </tr>
+    <tr>
+      <td>Read as: the move is real, take the signal</td>
+      <td>Read as: the level held. This is a reversal clue, not a failure</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Lack of displacement is also a signal</h3>
+
+<p>This is the part people miss. If you are bullish and price dips below a short-term low but
+does it limply — no big candles, no close below, price immediately back inside the range — that
+failure to displace is itself an entry cue. Somebody absorbed the sell orders. The mirror applies
+when bearish: a high gets tagged, nothing happens, price falls back. That is a short signal, not
+a warning.</p>
+
+<h2>Market structure shift vs break of structure</h2>
+
+<p>The two terms are used loosely everywhere, including by people who should know better. The
+distinction that is actually useful:</p>
+
+<div class="callout">
+  <p><strong>Break of structure (BOS)</strong> — price continues the existing pattern: a new high
+  in an uptrend, a new low in a downtrend. Confirmation of what is already happening.</p>
+  <p><strong>Market structure shift (MSS)</strong> — price breaks the pattern in the
+  <em>opposite</em> direction, with displacement, shortly after a liquidity raid. This is the
+  reversal signal.</p>
+</div>
+
+<figure class="figure">
+<svg viewBox="0 0 720 300" role="img" aria-label="Bearish market structure shift: rally above an old high, then a displaced break below a recent low">
+  <line x1="40" y1="80" x2="690" y2="80" stroke="#f87171" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="44" y="72" class="svg-label">old high — buy stops</text>
+
+  <line x1="40" y1="185" x2="690" y2="185" stroke="#60a5fa" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="44" y="203" class="svg-label" fill="#60a5fa">most recent short-term low</text>
+
+  <path d="M 60 230 L 110 150 L 155 195 L 205 110 L 250 145 L 300 62 L 335 100 L 370 150"
+        fill="none" stroke="#4ade80" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 370 150 L 400 235 L 440 205 L 480 262 L 540 230 L 600 275"
+        fill="none" stroke="#f87171" stroke-width="2.6" stroke-linejoin="round"/>
+
+  <circle cx="300" cy="62" r="5" fill="#fbbf24"/>
+  <text x="258" y="46" class="svg-label-em" fill="#fbbf24">1 · liquidity taken</text>
+
+  <rect x="370" y="150" width="30" height="85" fill="#f87171" opacity="0.2"/>
+  <text x="404" y="196" class="svg-label-em" fill="#f87171">2 · displacement through the low</text>
+
+  <rect x="400" y="170" width="290" height="26" fill="#f87171" opacity="0.13"/>
+  <text x="470" y="164" class="svg-label">3 · the gap it left behind — the entry</text>
+  <circle cx="440" cy="185" r="5" fill="#f87171"/>
+</svg>
+<figcaption>The canonical bearish shift. Price rallies above an obvious high (taking buy stops),
+then drops through the most recent short-term low with real force, leaving a gap. The entry is the
+retracement into that gap — not the break itself.</figcaption>
+</figure>
+
+<div class="callout warn">
+  <span class="callout-label">The rule that saves the most money</span>
+  <p>Structure means nothing without narrative. If you cannot say <em>which pool of liquidity
+  price is travelling toward</em> and <em>where it is in the premium/discount range</em>, then a
+  broken high or low tells you nothing. Reading structure in isolation is exactly how traders end
+  up buying the top of a raid because "it broke out".</p>
+</div>
+
+<h2>The three drives pattern</h2>
+
+<p>A simple exhaustion read. Price pushes toward a level in three successive attempts, each one
+making a slightly further extreme. The idea is that each push consumes the short-term orders
+above it, so by the third one there is very little fuel left.</p>
+
+<p>Two useful notes. First, the third drive does <em>not</em> have to reach the target level — if
+it stalls short and reverses hard, that is a stronger signal, because it says there was nothing
+left to take. Second, the pattern's real function is as an early warning: if price is grinding
+toward a pool <em>without</em> the three-drive rhythm, expect a straight stop-run instead.</p>
+
+<p>Either way, the trade is the same: wait for displacement away from the level, find the gap that
+displacement left, enter there.</p>
+
+<h2>The market's three phases</h2>
+
+<p>Underneath all of this sits an old accumulation/manipulation/distribution model:</p>
+
+<ol class="steps">
+  <li><strong>Accumulation.</strong> Quiet, range-bound price while a position is built without
+  moving the market against itself.</li>
+  <li><strong>Manipulation.</strong> A deliberate push the <em>wrong</em> way — false breakout,
+  stop run, news spike — to trap participants and collect the last fills.</li>
+  <li><strong>Distribution.</strong> The real move, ending where the position is unloaded into
+  the traders chasing it.</li>
+</ol>
+
+<p>There is an ordering rule attached that is worth remembering because it constrains what you
+should expect next: <strong>consolidation is always followed by expansion.</strong> After an
+expansion you get either a retracement or a reversal — but you do not get consolidation straight
+back to consolidation. The timed version of this cycle is on the <a href="time.html">time</a>
+page.</p>
+
+<h2>How a directional bias is actually built</h2>
+
+<p>Bias is not a feeling you have before the open. It is the answer to a short, fixed list of
+questions, asked in order, mostly on the daily chart.</p>
+
+<ol class="steps">
+  <li><strong>What just happened?</strong> Did price take a significant pool of liquidity? Did it
+  reach a significant gap? Was there a structural break with displacement?</li>
+  <li><strong>Where is the next draw?</strong> Are there clean highs or lows sitting exposed? Is
+  there an unfilled gap that needs rebalancing? Name one destination.</li>
+  <li><strong>Premium or discount?</strong> Inside the current dealing range, is price expensive
+  or cheap? Only buy in discount, only sell in premium.</li>
+  <li><strong>Does the previous day agree?</strong> Was the previous day's high or low taken? Did
+  price fail to displace past it? Failure to displace beyond a previous day's extreme is a
+  classic reversal frame.</li>
+  <li><strong>Is there a correlated market confirming?</strong> See SMT divergence below.</li>
+</ol>
+
+<p>Two disciplines make the difference between a bias and a guess. Pick a direction and trade
+only that direction for the session — if you are bearish, only look for shorts. And accept that
+being bullish does not mean buying every day; it means waiting for price to reach a discount
+array at the right time of day, which may not happen.</p>
+
+<h2>SMT divergence</h2>
+
+<p>SMT — "smart money technique", though it is usually just called SMT divergence — is a
+correlation check. Take two markets that normally move together, such as the S&amp;P and Nasdaq
+futures, or EUR/USD and GBP/USD. At a moment when you expect a turn, compare them:</p>
+
+<ul>
+  <li>One makes a <strong>higher high</strong>, the other fails to — bearish. The one that could
+  not follow is showing weakness, and the one that did is showing a false break.</li>
+  <li>One makes a <strong>lower low</strong>, the other holds — bullish, same logic inverted.</li>
+  <li>For inversely correlated pairs (a dollar index against an index future), you compare in the
+  opposite sense.</li>
+</ul>
+
+<div class="callout">
+  <span class="callout-label">Use it as a confirmation, never as a trigger</span>
+  <p>Divergences appear all over the chart and most mean nothing. The correct use is narrow: you
+  have already decided a level matters, price arrives there, and <em>then</em> you check whether
+  the correlated market failed to follow. That failure is the green light. Scanning for
+  divergences and trading them on sight is a reliable way to lose money.</p>
+</div>
+
+<h2>Order flow as a live check</h2>
+
+<p>Once you are in a position, there is a simple ongoing test of whether the premise still holds:</p>
+
+<ul>
+  <li><strong>Bullish:</strong> down-close candles should act as support. Every time price dips
+  into one and turns higher, the read is intact.</li>
+  <li><strong>Bearish:</strong> up-close candles should act as resistance. If price closes
+  decisively above one, the read is in trouble.</li>
+</ul>
+
+<p>This is the same logic as an order block, applied continuously rather than at one level. It
+also gives you a clean, non-emotional exit rule: when the candles that are supposed to hold stop
+holding, the idea is finished.</p>
+
+<h2>Top-down analysis</h2>
+
+<p>The routine that stitches the timeframes together. Three roles, and each one does exactly one
+job:</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Role</th><th>Day trader's chart</th><th>Job</th></tr></thead>
+  <tbody>
+    <tr><td>Higher timeframe</td><td>Daily / 4-hour</td><td>Direction and the destination level. Nothing else.</td></tr>
+    <tr><td>Intermediate</td><td>1-hour / 15-minute</td><td>Find the specific array to trade and manage the position.</td></tr>
+    <tr><td>Lower timeframe</td><td>5-minute / 1-minute</td><td>Timing the entry and spotting the first sign it is over.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>One practical stopping rule for drilling down: work 5-minute, then 4, 3, 2, 1 — and the moment
+you find a usable fair value gap, stop. Do not keep descending. If there is no gap by the
+1-minute chart, there is no trade.</p>
+
+<div class="pager">
+  <a href="pd-arrays.html">← pd arrays</a>
+  <a href="time.html">next: time →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

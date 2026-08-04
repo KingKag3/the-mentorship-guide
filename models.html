@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Models — Smart Money, Plain English</title>
+<meta name="description" content="The 2022 entry model, the ATM method, market maker buy and sell curves, silver bullet, turtle soup, daily templates, intermarket checks and risk rules.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html" aria-current="page">models</a>
+      <a href="glossary.html">glossary</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Models</h1>
+
+<p class="lede">A model is not a secret. It is a fixed order in which you check things you already
+understand — liquidity, an array, structure, and time — so that you stop improvising under
+pressure. If the previous four pages made sense, none of what follows is new.</p>
+
+<h2>The 2022 entry model</h2>
+
+<p>The most widely copied sequence in the whole methodology, and a good template for how these
+things are built. Six conditions, in order:</p>
+
+<ol class="steps">
+  <li><strong>Liquidity is taken.</strong> Price trades through an obvious pool — the Asian high
+  or low, the London high or low, the previous day's high or low.</li>
+  <li><strong>Price reverses with displacement.</strong> Fast, decisive, leaving a fair value gap
+  behind. No gap means no trade; the gap is the evidence that something serious happened.</li>
+  <li><strong>A structural break lines up with the gap.</strong> A swing high or low sits
+  horizontally level with one of the three candles forming the gap. That break is the market
+  structure shift. It may occur either before or after the liquidity grab — both count.</li>
+  <li><strong>Measure the displacement range.</strong> Draw from the swing that took the liquidity
+  to the swing on the other side of the gap, and mark its 50% level.</li>
+  <li><strong>Check the gap sits on the right side.</strong> The gap should fall at or beyond the
+  midpoint — the side nearer the liquidity that was just taken. A gap on the wrong half of the
+  range is a worse entry.</li>
+  <li><strong>Place a limit order inside the gap</strong>, at the midpoint or beyond, with the
+  stop past the extreme of the raid, and a target at the opposing pool of liquidity.</li>
+</ol>
+
+<div class="callout">
+  <span class="callout-label">The short version</span>
+  <p>Liquidity grab → displacement → structure shift → gap or block beyond the 50% of the
+  displacement leg → limit order on the return → exit at the opposite liquidity. Every other model
+  on this page is a variation on that skeleton.</p>
+</div>
+
+<h2>The ATM method</h2>
+
+<p>A standalone pattern usually framed on the 1-hour chart, and simpler to spot than the 2022
+model. Bearish version:</p>
+
+<ul>
+  <li>Find a key high that forms after price has been pushing higher, ideally with a couple of
+  swing highs already broken on the way up.</li>
+  <li>Wait for the short-term low that preceded that high to be broken to the downside — that
+  break is the signal.</li>
+  <li>Wait for price to retrace back into the breaker zone at that broken low.</li>
+  <li>Enter there. Stop above the key high or above the breaker. Target below the next short-term
+  low down.</li>
+</ul>
+
+<p>The bullish version is the mirror: a key low, a broken swing high above it, a pullback into the
+breaker, entry with the stop below the low.</p>
+
+<h2>The market maker buy and sell curves</h2>
+
+<p>The most elaborate structure in the methodology, and the one that ties everything together. It
+describes a complete round trip: a position being built, walked to a target, and unloaded.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 340" role="img" aria-label="Market maker sell model: a buy program up to a higher timeframe level, a smart money reversal, then a sell program down past the initial consolidation">
+  <!-- HTF level -->
+  <rect x="40" y="46" width="650" height="22" fill="#f87171" opacity="0.12"/>
+  <line x1="40" y1="68" x2="690" y2="68" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="40" class="svg-label-em" fill="#f87171">higher-timeframe premium level + buy stops above an old high</text>
+
+  <!-- initial consolidation -->
+  <rect x="55" y="196" width="90" height="42" fill="#8b98a5" opacity="0.14" stroke="#8b98a5" stroke-dasharray="3 3"/>
+  <text x="52" y="190" class="svg-label">initial consolidation</text>
+
+  <!-- terminus -->
+  <line x1="40" y1="290" x2="690" y2="290" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="308" class="svg-label-em" fill="#4ade80">terminus — sell stops below the consolidation</text>
+
+  <!-- buy program -->
+  <path d="M 60 222 L 95 205 L 130 228 L 160 190 L 195 214 L 235 160 L 270 186 L 310 128
+           L 345 152 L 385 92 L 415 110 L 450 64"
+        fill="none" stroke="#4ade80" stroke-width="2.3" stroke-linejoin="round"/>
+  <text x="150" y="150" class="svg-label" fill="#4ade80">buy program — accumulation, then re-accumulation</text>
+
+  <!-- SMR -->
+  <circle cx="450" cy="64" r="6" fill="#fbbf24"/>
+  <text x="404" y="34" class="svg-label-em" fill="#fbbf24">smart money reversal</text>
+
+  <!-- sell program -->
+  <path d="M 450 64 L 480 120 L 505 96 L 540 165 L 570 140 L 600 215 L 630 190 L 665 292"
+        fill="none" stroke="#f87171" stroke-width="2.5" stroke-linejoin="round"/>
+  <text x="530" y="250" class="svg-label" fill="#f87171">sell program — distribution, then redistribution</text>
+
+  <!-- quadrant grading -->
+  <g stroke="#232b33" stroke-dasharray="2 5">
+    <line x1="40" y1="124" x2="690" y2="124"/>
+    <line x1="40" y1="180" x2="690" y2="180"/>
+    <line x1="40" y1="236" x2="690" y2="236"/>
+  </g>
+  <text x="655" y="120" class="svg-label">75%</text>
+  <text x="655" y="176" class="svg-label">50%</text>
+  <text x="655" y="232" class="svg-label">25%</text>
+</svg>
+<figcaption>The market maker <em>sell</em> model. Left side of the curve: a rally that engineers
+sell stops beneath it while running the buy stops above the old high. At the top, the change in
+state of delivery. Right side: the return trip, targeting the liquidity the rally created. The
+range is graded in quarters, and the halfway point often holds an unfilled gap that confirms the
+measurement.</figcaption>
+</figure>
+
+<h3>How to read it</h3>
+
+<ol class="steps">
+  <li><strong>Establish the higher-timeframe direction.</strong> A sell model is used when the
+  daily or 4-hour picture is bearish. The rally is the retracement, not the trend.</li>
+  <li><strong>Find the initial consolidation.</strong> This is the point of origin, and the sell
+  stops that build up beneath it are the eventual target.</li>
+  <li><strong>Name the destination of the rally.</strong> Ideally an old high with a
+  higher-timeframe level sitting just above it, so that one move both takes liquidity and fills an
+  inefficiency.</li>
+  <li><strong>Grade the range in quarters</strong> from origin to destination. Accumulation
+  clusters near the bottom quarter; re-accumulation around the middle; the final push is fast and
+  gives no comfortable pullback.</li>
+  <li><strong>Wait for the reversal.</strong> The preferred version makes a new high above the old
+  one, then breaks a prior swing low with displacement and a gap. A weaker version fails to make
+  the new high and simply rolls over.</li>
+  <li><strong>Trade the return trip</strong> using the 2022 model on the way down, taking entries
+  at the gap left by the break, then at the breaker inside the last stage of accumulation.</li>
+</ol>
+
+<p>The buy model is the same diagram flipped: a decline that engineers buy stops above it and runs
+sell stops below an old low, then a reversal and a rally back through the initial consolidation.
+The catchphrase for it — "the market goes lower to go higher" — is a fair summary.</p>
+
+<h3>Two useful sub-ideas</h3>
+
+<ul>
+  <li><strong>Change in state of delivery.</strong> The moment the algorithm switches from a buy
+  program to a sell program. Concretely: price trades through the opening price of the last
+  up-close candle that ran the liquidity, and leaves a gap doing it. That candle becomes the order
+  block.</li>
+  <li><strong>Measuring gap at 50%.</strong> An unfilled gap around the midpoint of the range is
+  treated as confirmation that you measured the range correctly — the halfway marker between
+  origin and destination.</li>
+</ul>
+
+<h2>Silver bullet</h2>
+
+<p>A narrow, time-boxed application of the same skeleton. You wait for a specific one-hour window,
+take the first clean gap that forms after a liquidity raid, and target the nearest opposing pool.
+The most-used window is <span class="kbd-time">10:00–11:00</span>, after the opening-range noise
+has resolved and while London close volume is still present.</p>
+
+<p>Its appeal is entirely in the constraint. One hour, one setup, one target, and if it does not
+appear you do nothing. That constraint is doing more work than the pattern is.</p>
+
+<h2>Turtle soup</h2>
+
+<p>The reversal trade against a failed breakout, covered on the <a href="liquidity.html">liquidity</a>
+page. As a model:</p>
+
+<ul>
+  <li>Identify an obvious old high or low — ideally equal highs or equal lows, with a
+  higher-timeframe level just beyond.</li>
+  <li>Wait for price to poke through and <em>fail</em>: no displacement, no close beyond, back
+  inside quickly.</li>
+  <li>Enter on the return inside, stop beyond the extreme of the poke, target the opposite side of
+  the range.</li>
+</ul>
+
+<p>A specific variant worth knowing: if a short-term low is taken out twice without any move to the
+upside in between, that second sweep is a strong turtle soup buy candidate.</p>
+
+<h2>Daily templates</h2>
+
+<p>Rather than a single setup, these are shapes a whole day tends to take. Recognising which one
+you are in tells you what to expect for the rest of the session.</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Template</th><th>Shape</th><th>How to trade it</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Classic trend day</strong></td>
+      <td>Price moves away from the daily open during London, sets the day's extreme there, and
+      trends for seven or eight hours.</td>
+      <td>The best template. On a buy day, buy the dip below the opening price at a discount level
+      during London; take partial profit into 11:00–12:00.</td>
+    </tr>
+    <tr>
+      <td><strong>London swing, New York reversal</strong></td>
+      <td>Starts like a trend day, then reverses around the New York open or London close and
+      returns to clear the early extreme.</td>
+      <td>Watch the last hour of London and the first hour of New York for the turn. Typically
+      happens when price reaches an untouched higher-timeframe level.</td>
+    </tr>
+    <tr>
+      <td><strong>Consolidation, then afternoon trend</strong></td>
+      <td>The morning goes nowhere; the move arrives after lunch.</td>
+      <td>Do not force the morning. Use the 13:30 opening price the same way you would use
+      midnight.</td>
+    </tr>
+    <tr>
+      <td><strong>Morning trend, afternoon reversal</strong></td>
+      <td>The morning move is retraced from about 13:30 onward.</td>
+      <td>Take profit before lunch rather than holding for a bigger number.</td>
+    </tr>
+    <tr>
+      <td><strong>Morning trend, afternoon continuation</strong></td>
+      <td>The afternoon repeats the morning move at roughly the same size.</td>
+      <td>Measure the morning leg and project it from the lunch low or high.</td>
+    </tr>
+    <tr>
+      <td><strong>Consolidation raid on news</strong></td>
+      <td>Range before the release, a spike through one side to trigger stops, then the real move
+      the other way.</td>
+      <td>Know your level beyond the range beforehand. If price does not reject within about five
+      minutes of the release, the read was wrong — leave.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>The high-probability day trade checklist</h2>
+
+<p>Consolidating everything into the conditions the framework wants stacked before it commits.
+For a long — invert everything for a short:</p>
+
+<ul>
+  <li>The daily or 4-hour direction is up, and price has reacted positively at a discount level.</li>
+  <li>There is a clear, unobstructed path to a premium level above.</li>
+  <li>It is Monday, Tuesday or Wednesday.</li>
+  <li>The overnight ranges are compressed — an Asian range in the 10–15 point region on index
+  futures, and a central bank dealers range under about 20 points.</li>
+  <li>The window is <span class="kbd-time">02:00–04:00</span> for London, or the New York morning
+  after 07:20.</li>
+  <li>The entry is at a discount array: a gap below a short-term low from the previous New York
+  session, a bullish block below a short-term low, a projection off the Asian range or dealers
+  range, or a turtle soup on a second sweep.</li>
+  <li>Execution on the 5- or 15-minute chart. Below that is timing, not analysis.</li>
+</ul>
+
+<h2>Risk, sizing and exits</h2>
+
+<p>The framework's own risk rules are more conservative than its reputation suggests, and this is
+the part beginners skip.</p>
+
+<ul>
+  <li><strong>Define the stop by structure, not by comfort.</strong> It goes beyond the extreme of
+  the raid you traded against. If that distance is too large for your account, the answer is a
+  smaller position or no trade — not a tighter stop.</li>
+  <li><strong>Do not rush to move it.</strong> Trailing a stop up to break-even at the first sign
+  of profit converts winning trades into scratches, because the retracement into the entry zone is
+  a normal part of the pattern.</li>
+  <li><strong>Scale out at pre-named places</strong>, not at pre-named profits: the previous day's
+  high or low, the midpoint of the range you are trading inside, a projected deviation of the
+  overnight range, and time-based points such as 10:00–11:00.</li>
+  <li><strong>Aim small.</strong> The explicit target size is modest — a handful of points on index
+  futures — rather than the whole move. Consistency comes from repeatable small objectives.</li>
+  <li><strong>One bias per session.</strong> If you are bearish, take only shorts. Flip-flopping
+  mid-session is the most reliable way to lose on both sides of the same move.</li>
+</ul>
+
+<div class="callout risk">
+  <span class="callout-label">The part that is not optional</span>
+  <p>Every point value quoted in this methodology comes from index futures during a particular
+  volatility regime. A "5-point stop" is meaningless on another instrument, and can be meaningless
+  on the same instrument two years later. Convert everything to a fraction of the current average
+  daily range before you use it, and size positions off account risk rather than off a point
+  count someone else wrote down.</p>
+</div>
+
+<h2>Intermarket confirmation</h2>
+
+<p>Two correlations that get used as a sanity check on index futures:</p>
+
+<ul>
+  <li><strong>Dollar index against equity index futures</strong> — usually inverse. A rising
+  dollar generally coincides with heavier index futures; a falling or consolidating dollar
+  supports them. When the two stop behaving inversely, take that as a signal that conditions are
+  unreliable rather than as a trade.</li>
+  <li><strong>One index against another</strong> — the S&amp;P, Nasdaq and Dow futures should make
+  matching highs and lows. When one makes a new high and another does not, that failure is the
+  SMT divergence described on the <a href="structure.html">structure</a> page, and it is the
+  standard confirmation for a reversal at a level you had already identified.</li>
+</ul>
+
+<h2>Journaling, which is where the edge actually comes from</h2>
+
+<p>The recommended record is not a profit-and-loss log. For each day, capture three things:</p>
+
+<ol class="steps">
+  <li>Where displacement occurred, and from which level.</li>
+  <li>Which clean highs or lows were neutralised, and when.</li>
+  <li>How price reacted at the swing points in between.</li>
+</ol>
+
+<p>Then, for the week: which day formed the weekly high or low, and in which killzone. Repeated
+over months, that record is what turns a list of definitions into something you can actually
+recognise in real time. There is no shortcut past it, and no model on this page substitutes for it.</p>
+
+<div class="callout warn">
+  <span class="callout-label">A closing caution</span>
+  <p>Every model here is described in terms of what a chart looked like afterwards. That is
+  exactly the condition under which patterns appear reliable and are not. Before risking anything,
+  write the rules down as testable statements — specific window, specific level, specific
+  invalidation — and check them forward against data you have not already seen. If a rule cannot
+  be written down that precisely, it is not a rule.</p>
+</div>
+
+<div class="pager">
+  <a href="time.html">← time</a>
+  <a href="glossary.html">next: jargon decoder →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+</body>
+</html>

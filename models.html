@@ -14,7 +14,10 @@
 
 <header class="masthead">
   <div class="masthead-inner">
-    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
     <nav class="site">
       <a href="index.html">start</a>
       <a href="liquidity.html">liquidity</a>
@@ -23,6 +26,7 @@
       <a href="time.html">time</a>
       <a href="models.html" aria-current="page">models</a>
       <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
     </nav>
   </div>
 </header>
@@ -347,6 +351,11 @@ recognise in real time. There is no shortcut past it, and no model on this page 
   Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
 </footer>
 </div>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
+</script>
 
 </body>
 </html>

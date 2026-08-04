@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Smart Money, Plain English</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Admin</h1>
+
+<div id="auth-root"></div>
+
+<div id="admin-body" hidden>
+
+  <p class="lede">Approve accounts, change roles, and publish members-only entries. Every action
+  here is checked again by the database — if your own role were revoked, this page would stop
+  working immediately regardless of what the browser thinks.</p>
+
+  <!-- =================== users =================== -->
+  <h2>Accounts</h2>
+
+  <div class="search-bar">
+    <input id="user-filter" type="search" placeholder="filter by email or name…" autocomplete="off">
+  </div>
+  <p class="search-meta" id="user-count">&nbsp;</p>
+
+  <div class="table-scroll">
+    <table id="users-table">
+      <thead>
+        <tr><th>Email</th><th>Name</th><th>Joined</th><th>Role</th><th></th></tr>
+      </thead>
+      <tbody id="users-body"></tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">What "remove" does</span>
+    <p>Removing deletes the profile row, which revokes all access immediately. It does
+    <em>not</em> delete the underlying login — that requires a privileged key which deliberately
+    does not exist anywhere in this site. To erase an account completely, delete the user in the
+    Supabase dashboard under Authentication → Users.</p>
+    <p>A removed person can sign up again with the same address and will land back at
+    <code>pending</code>.</p>
+  </div>
+
+  <!-- =================== lessons =================== -->
+  <h2>Members-only entries</h2>
+
+  <div class="table-scroll">
+    <table id="lessons-table">
+      <thead>
+        <tr><th>Title</th><th>Slug</th><th>Order</th><th>Published</th><th></th></tr>
+      </thead>
+      <tbody id="lessons-body"></tbody>
+    </table>
+  </div>
+
+  <h3>Add an entry</h3>
+
+  <form id="form-lesson" class="auth-form auth-form-wide">
+    <label for="l-title">Title</label>
+    <input id="l-title" type="text" required>
+
+    <label for="l-slug">Slug <span class="opt">(lowercase, dashes, unique)</span></label>
+    <input id="l-slug" type="text" pattern="[a-z0-9-]+" required>
+
+    <label for="l-summary">Summary <span class="opt">(optional, one line)</span></label>
+    <input id="l-summary" type="text">
+
+    <label for="l-body">Body <span class="opt">(HTML — use &lt;p&gt; tags)</span></label>
+    <textarea id="l-body" rows="8" required></textarea>
+
+    <label for="l-order">Sort order</label>
+    <input id="l-order" type="number" value="0">
+
+    <button type="submit" class="btn-primary">Publish entry</button>
+    <p class="form-status" id="status-lesson"></p>
+  </form>
+
+  <div class="callout risk">
+    <span class="callout-label">The body field is raw HTML</span>
+    <p>It is inserted into the members page as markup, which is what lets you format entries. That
+    also means anything you paste in there runs. Only administrators can write to this field, so
+    the risk is limited to what you paste yourself — do not paste HTML you did not write, and
+    never paste a script tag from somewhere else.</p>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus } from './app.js';
+
+renderAccountStrip();
+
+const me = await requireRole(['admin']);
+if (me) {
+  document.getElementById('admin-body').hidden = false;
+  await loadUsers();
+  await loadLessons();
+}
+
+/* ------------------------------- users ------------------------------- */
+
+let allUsers = [];
+
+async function loadUsers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    document.getElementById('users-body').innerHTML =
+      '<tr><td colspan="5">' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+
+  allUsers = data;
+  renderUsers();
+}
+
+function renderUsers() {
+  const q = document.getElementById('user-filter').value.trim().toLowerCase();
+  const rows = allUsers.filter((u) =>
+    !q || (u.email + ' ' + (u.full_name || '')).toLowerCase().includes(q)
+  );
+
+  const pending = allUsers.filter((u) => u.role === 'pending').length;
+  document.getElementById('user-count').textContent =
+    rows.length + ' of ' + allUsers.length + ' accounts' +
+    (pending ? ' — ' + pending + ' awaiting approval' : '');
+
+  document.getElementById('users-body').innerHTML = rows.map((u) => {
+    const isMe = u.id === me.id;
+    return '<tr data-id="' + escapeHtml(u.id) + '">' +
+      '<td>' + escapeHtml(u.email) + (isMe ? ' <span class="tag">you</span>' : '') + '</td>' +
+      '<td>' + escapeHtml(u.full_name || '—') + '</td>' +
+      '<td>' + new Date(u.created_at).toISOString().slice(0, 10) + '</td>' +
+      '<td>' +
+        '<select class="role-select"' + (isMe ? ' disabled title="You cannot change your own role"' : '') + '>' +
+          ['pending', 'member', 'admin'].map((r) =>
+            '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + r + '</option>'
+          ).join('') +
+        '</select>' +
+      '</td>' +
+      '<td class="row-actions">' +
+        (isMe ? '' : '<button type="button" class="btn-danger" data-act="remove">remove</button>') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+document.getElementById('user-filter').addEventListener('input', renderUsers);
+
+document.getElementById('users-body').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('role-select')) return;
+  const id = e.target.closest('tr').dataset.id;
+  const role = e.target.value;
+
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
+  if (error) {
+    alert('Could not change role: ' + error.message);
+    await loadUsers();
+    return;
+  }
+  const row = allUsers.find((u) => u.id === id);
+  if (row) row.role = role;
+  renderUsers();
+});
+
+document.getElementById('users-body').addEventListener('click', async (e) => {
+  if (e.target.dataset.act !== 'remove') return;
+  const tr = e.target.closest('tr');
+  const id = tr.dataset.id;
+  const user = allUsers.find((u) => u.id === id);
+
+  if (!confirm('Remove access for ' + user.email + '?\n\nThis deletes their profile and revokes ' +
+               'access straight away. Their login still exists in Supabase — delete it there if ' +
+               'you want the account gone entirely.')) return;
+
+  const { error } = await supabase.from('profiles').delete().eq('id', id);
+  if (error) { alert('Could not remove: ' + error.message); return; }
+  await loadUsers();
+});
+
+/* ------------------------------ lessons ------------------------------ */
+
+async function loadLessons() {
+  const { data, error } = await supabase
+    .from('lessons')
+    .select('id, slug, title, published, sort_order')
+    .order('sort_order', { ascending: true });
+
+  const body = document.getElementById('lessons-body');
+
+  if (error) {
+    body.innerHTML = '<tr><td colspan="5">' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+
+  body.innerHTML = data.length
+    ? data.map((l) =>
+        '<tr data-id="' + l.id + '">' +
+          '<td>' + escapeHtml(l.title) + '</td>' +
+          '<td><code>' + escapeHtml(l.slug) + '</code></td>' +
+          '<td>' + l.sort_order + '</td>' +
+          '<td><input type="checkbox" class="pub-toggle"' + (l.published ? ' checked' : '') + '></td>' +
+          '<td class="row-actions"><button type="button" class="btn-danger" data-act="del">delete</button></td>' +
+        '</tr>'
+      ).join('')
+    : '<tr><td colspan="5">No entries yet.</td></tr>';
+}
+
+document.getElementById('lessons-body').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('pub-toggle')) return;
+  const id = e.target.closest('tr').dataset.id;
+  const { error } = await supabase
+    .from('lessons')
+    .update({ published: e.target.checked, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { alert(error.message); await loadLessons(); }
+});
+
+document.getElementById('lessons-body').addEventListener('click', async (e) => {
+  if (e.target.dataset.act !== 'del') return;
+  const tr = e.target.closest('tr');
+  if (!confirm('Delete this entry permanently?')) return;
+  const { error } = await supabase.from('lessons').delete().eq('id', tr.dataset.id);
+  if (error) { alert(error.message); return; }
+  await loadLessons();
+});
+
+document.getElementById('form-lesson').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-lesson', 'Saving…', 'info');
+
+  const { error } = await supabase.from('lessons').insert({
+    title:      document.getElementById('l-title').value.trim(),
+    slug:       document.getElementById('l-slug').value.trim(),
+    summary:    document.getElementById('l-summary').value.trim() || null,
+    body_html:  document.getElementById('l-body').value,
+    sort_order: Number(document.getElementById('l-order').value) || 0
+  });
+
+  if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+
+  setStatus('#status-lesson', 'Published.', 'ok');
+  e.target.reset();
+  await loadLessons();
+});
+</script>
+
+</body>
+</html>

@@ -17,12 +17,36 @@ A small static site that explains ICT / Smart Money trading vocabulary in ordina
 | `glossary.html` | Searchable jargon decoder — ~95 acronyms, one plain sentence each |
 | `style.css` | Shared stylesheet (dark terminal palette, JetBrains Mono headers, Source Serif body) |
 
+## Accounts (optional)
+
+| File | Purpose |
+| --- | --- |
+| `login.html` | Sign in, create account, password reset |
+| `members.html` | Members-only area; content loads from the database, not from this repo |
+| `admin.html` | Approve accounts, set roles, publish members-only entries |
+| `app.js` | Shared auth helpers |
+| `supabase-config.js` | Project URL and anon key — both public by design |
+| `supabase/schema.sql` | Tables, roles and row-level security policies |
+
+Authentication runs on Supabase (free tier). Permissions are enforced by database policies, not by
+JavaScript. **See [SETUP.md](SETUP.md)** for the walkthrough — the site works fine without it.
+
+Three roles: `pending` (new signups, no access), `member` (reads published entries), `admin`
+(everything). New accounts start pending and need approval.
+
+Note what this does *not* do: the seven concept pages stay public. They are plain files in a public
+repo and readable by anyone with the address regardless of what the UI shows, so gating them would
+be decorative. Anything genuinely private belongs in the members area, where content lives in the
+database.
+
 ## Conventions
 
 - Plain static HTML. No build step, no bundler, no JS framework.
 - One shared `style.css` rather than duplicating styles across seven files.
-- The only JavaScript on the site is the ~20-line glossary filter, inline at the bottom of
-  `glossary.html`.
+- The concept pages carry almost no JavaScript: the glossary filter, and a one-line call to render
+  the account strip in the header. Auth code is confined to `app.js`, `login.html`, `members.html`
+  and `admin.html`.
+- Supabase's client library loads from a CDN as an ES module. No package manager, no `node_modules`.
 - Diagrams are hand-written inline SVG so they inherit the palette and need no assets.
 - Fonts load from Google Fonts with system fallbacks; the site is fully readable without them.
 

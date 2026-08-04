@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — Smart Money, Plain English</title>
+<meta name="description" content="Sign in or request an account for the members area.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<h1>Sign in</h1>
+
+<p class="lede">The seven concept pages are open to everyone and always will be. This login
+covers the members area only.</p>
+
+<div id="auth-root"></div>
+
+<div class="auth-card" id="auth-card" hidden>
+
+  <div class="auth-tabs" role="tablist">
+    <button type="button" class="auth-tab" id="tab-signin" role="tab" aria-selected="true">sign in</button>
+    <button type="button" class="auth-tab" id="tab-signup" role="tab" aria-selected="false">create account</button>
+  </div>
+
+  <!-- ---------- sign in ---------- -->
+  <form id="form-signin" class="auth-form">
+    <label for="in-email">Email</label>
+    <input id="in-email" name="email" type="email" autocomplete="email" required>
+
+    <label for="in-password">Password</label>
+    <input id="in-password" name="password" type="password" autocomplete="current-password" required>
+
+    <button type="submit" class="btn-primary">Sign in</button>
+    <p class="form-status" id="status-signin"></p>
+
+    <p class="form-aside">
+      Forgotten it? <button type="button" class="link-button" id="btn-reset">Email me a reset link</button>
+    </p>
+  </form>
+
+  <!-- ---------- sign up ---------- -->
+  <form id="form-signup" class="auth-form" hidden>
+    <label for="up-name">Name <span class="opt">(optional)</span></label>
+    <input id="up-name" name="full_name" type="text" autocomplete="name">
+
+    <label for="up-email">Email</label>
+    <input id="up-email" name="email" type="email" autocomplete="email" required>
+
+    <label for="up-password">Password <span class="opt">(at least 8 characters)</span></label>
+    <input id="up-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+
+    <button type="submit" class="btn-primary">Create account</button>
+    <p class="form-status" id="status-signup"></p>
+
+    <p class="form-aside">
+      New accounts start as <strong>pending</strong> and stay locked out until an administrator
+      approves them. Creating an account here does not grant access by itself.
+    </p>
+  </form>
+
+</div>
+
+<div class="callout" style="margin-top:36px">
+  <span class="callout-label">What this login does and does not do</span>
+  <p>Accounts are held by Supabase, and permissions are enforced by database policies on their
+  servers — not by this page. Editing the JavaScript in your browser cannot get you into anything,
+  because the browser never holds a privileged key.</p>
+  <p>It also does not protect the public concept pages. Those live as plain files in a public
+  repository and are readable by anyone with the address, which is exactly as intended. Anything
+  that genuinely should not be public belongs in the members area, where the content is stored in
+  the database rather than in the repository.</p>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireConfig, getUser, renderAccountStrip, setStatus } from './app.js';
+
+const card       = document.getElementById('auth-card');
+const tabSignin  = document.getElementById('tab-signin');
+const tabSignup  = document.getElementById('tab-signup');
+const formSignin = document.getElementById('form-signin');
+const formSignup = document.getElementById('form-signup');
+
+renderAccountStrip();
+
+if (requireConfig()) {
+  card.hidden = false;
+
+  // Already signed in? Go straight through.
+  const user = await getUser();
+  if (user) {
+    const next = new URLSearchParams(location.search).get('next');
+    location.replace(safeNext(next));
+  }
+}
+
+/** Only ever redirect to a same-directory page, never to an arbitrary URL. */
+function safeNext(value) {
+  if (!value) return 'members.html';
+  const clean = value.replace(/[^A-Za-z0-9._-]/g, '');
+  return /^[A-Za-z0-9._-]+\.html$/.test(clean) ? clean : 'members.html';
+}
+
+function showTab(which) {
+  const signin = which === 'signin';
+  formSignin.hidden = !signin;
+  formSignup.hidden = signin;
+  tabSignin.setAttribute('aria-selected', String(signin));
+  tabSignup.setAttribute('aria-selected', String(!signin));
+}
+
+tabSignin.addEventListener('click', () => showTab('signin'));
+tabSignup.addEventListener('click', () => showTab('signup'));
+
+formSignin.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-signin', 'Checking…', 'info');
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: document.getElementById('in-email').value.trim(),
+    password: document.getElementById('in-password').value
+  });
+
+  if (error) {
+    setStatus('#status-signin', error.message, 'error');
+    return;
+  }
+
+  const next = new URLSearchParams(location.search).get('next');
+  location.href = safeNext(next);
+});
+
+formSignup.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-signup', 'Creating account…', 'info');
+
+  const { data, error } = await supabase.auth.signUp({
+    email: document.getElementById('up-email').value.trim(),
+    password: document.getElementById('up-password').value,
+    options: {
+      data: { full_name: document.getElementById('up-name').value.trim() }
+    }
+  });
+
+  if (error) {
+    setStatus('#status-signup', error.message, 'error');
+    return;
+  }
+
+  setStatus(
+    '#status-signup',
+    data.session
+      ? 'Account created. It is pending approval — an administrator has to enable it before the members area opens.'
+      : 'Account created. Check your email for the confirmation link, then sign in. Access still needs administrator approval.',
+    'ok'
+  );
+  formSignup.reset();
+});
+
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  const email = document.getElementById('in-email').value.trim();
+  if (!email) {
+    setStatus('#status-signin', 'Enter your email address first, then press the reset link.', 'error');
+    return;
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: location.origin + location.pathname.replace(/login\.html$/, '') + 'login.html'
+  });
+
+  setStatus(
+    '#status-signin',
+    error ? error.message : 'If that address has an account, a reset link is on its way.',
+    error ? 'error' : 'ok'
+  );
+});
+</script>
+
+</body>
+</html>

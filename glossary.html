@@ -14,7 +14,10 @@
 
 <header class="masthead">
   <div class="masthead-inner">
-    <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
     <nav class="site">
       <a href="index.html">start</a>
       <a href="liquidity.html">liquidity</a>
@@ -23,6 +26,7 @@
       <a href="time.html">time</a>
       <a href="models.html">models</a>
       <a href="glossary.html" aria-current="page">glossary</a>
+      <a href="members.html">members</a>
     </nav>
   </div>
 </header>
@@ -295,6 +299,11 @@ to filter the list.</p>
   input.addEventListener('input', filter);
   render(items.length, '');
 })();
+</script>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
 </script>
 
 </body>

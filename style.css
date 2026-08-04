@@ -844,6 +844,116 @@ input[type="file"]::file-selector-button {
   color: var(--amber);
 }
 
+select.select-wide { width: 100%; margin-bottom: 18px; padding: 10px 12px; font-size: 0.86rem; }
+
+/* ---------- curriculum index ---------- */
+
+.phase {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  padding: 4px 24px 22px;
+  margin: 26px 0;
+}
+
+.phase h2 {
+  border-bottom: none;
+  margin-bottom: 2px;
+  padding-bottom: 0;
+}
+
+.phase h2::before { content: none; }
+
+.phase-cover {
+  display: block;
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  height: auto;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.phase-subtitle {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+
+.chapter-list {
+  counter-reset: chapter;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--border-lo);
+}
+
+.chapter-list > li {
+  counter-increment: chapter;
+  position: relative;
+  padding: 12px 0 12px 46px;
+  margin: 0;
+  border-bottom: 1px solid var(--border-lo);
+}
+
+.chapter-list > li::before {
+  content: counter(chapter, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 13px;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--accent-dk);
+}
+
+.chapter-list > li > a {
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.chapter-list > li > a:hover { text-decoration: underline; }
+
+.chapter-flag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  border: 1px solid #7a5a12;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 10px;
+  vertical-align: 1px;
+}
+
+.chapter-summary {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.chapter-empty {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.crumb {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 40px 0 0;
+}
+
+.crumb a { text-decoration: none; }
+.crumb a:hover { text-decoration: underline; }
+
+#lesson-body h1 { margin-top: 8px; }
+
 /* ---------- Quill, dragged into the dark palette ---------- */
 
 #l-editor {

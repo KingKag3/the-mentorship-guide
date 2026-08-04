@@ -46,8 +46,10 @@ The script is safe to run more than once.
 5. Repeat with [`supabase/lesson-media.sql`](supabase/lesson-media.sql). That adds the video field
    and attachment links to entries. Without it the admin page will complain about `video_url`.
 6. Repeat with [`supabase/storage.sql`](supabase/storage.sql). That creates the private
-   `lesson-media` bucket for slides and PDFs, plus the cover image and phase fields. Run it last —
-   it depends on the two files above.
+   `lesson-media` bucket for slides and PDFs, plus the cover image field.
+7. Repeat with [`supabase/phases.sql`](supabase/phases.sql). That adds phases — the parts of the
+   curriculum — and files any existing entries into a starter Phase 1. Run it last; it depends on
+   the files above.
 
 ## 3. Wire the site to the project
 
@@ -141,6 +143,30 @@ it.
 
 **Revoking** kills a code immediately but does not remove anyone who already used it — change
 their role in the accounts table for that.
+
+---
+
+## How the curriculum is structured
+
+Three levels, like a book:
+
+- **Phase** — a part of the curriculum. *Phase 1*, *Phase 2*. Has a title, an optional subtitle,
+  and a sort order.
+- **Entry** — a numbered chapter inside a phase. Numbering on the index comes from the sort order,
+  counting only published entries, so a member never sees a gap where a draft sits.
+- **Unfiled** — entries with no phase. They appear in their own section at the bottom of the index
+  rather than disappearing, which is also where a deleted phase's entries end up.
+
+The members area is two pages. `members.html` is the index — phases with their numbered entry
+lists. `lesson.html?slug=…` is one entry on its own page, with previous/next links across the
+phase and a breadcrumb showing where you are.
+
+That split is deliberate. Rendering every entry on one page would mean a member downloads every
+slide of every lesson on each visit, which is exactly the transfer budget problem described further
+down. One page per entry loads only what is being read.
+
+To reorder, change the sort numbers. To hide a whole phase from members without deleting it,
+untick its **Published** box — its entries vanish from the index along with it.
 
 ---
 

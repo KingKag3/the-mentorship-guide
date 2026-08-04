@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson — Smart Money, Plain English</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<div id="auth-root"></div>
+<article id="lesson-body" hidden></article>
+<nav class="pager" id="lesson-pager" hidden></nav>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import DOMPurify from 'https://esm.sh/dompurify@3';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, youtubeEmbed,
+         safeUrl, signedUrlMap, hydrateStorageImages, humanSize } from './app.js';
+
+renderAccountStrip();
+
+const slug = new URLSearchParams(location.search).get('slug');
+const article = document.getElementById('lesson-body');
+const profile = await requireRole(['member', 'admin']);
+
+if (profile) {
+  if (!slug) {
+    showError('No lesson was specified.');
+  } else {
+    try {
+      await renderLesson(slug);
+    } catch (err) {
+      showError(err && err.message ? err.message : String(err));
+    }
+  }
+}
+
+function showError(message) {
+  article.hidden = false;
+  article.innerHTML =
+    '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
+    escapeHtml(message) + '</p>' +
+    '<p><a href="members.html">Back to the curriculum</a></p></div>';
+}
+
+async function renderLesson(wanted) {
+  const { data: lesson, error } = await supabase
+    .from('lessons')
+    .select('id, slug, title, summary, phase_id, phase, cover_path, body_html, video_url, sort_order')
+    .eq('slug', wanted)
+    .eq('published', true)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!lesson) { showError('That lesson does not exist, or is not published.'); return; }
+
+  document.title = lesson.title + ' — Smart Money, Plain English';
+
+  // Siblings give us the chapter number and the previous/next links. Only
+  // published ones count, so numbering matches what a member can actually see.
+  let phase = null;
+  let siblings = [lesson];
+
+  if (lesson.phase_id != null) {
+    const [{ data: phaseRow }, { data: rows }] = await Promise.all([
+      supabase.from('phases')
+        .select('id, slug, title, subtitle')
+        .eq('id', lesson.phase_id)
+        .maybeSingle(),
+      supabase.from('lessons')
+        .select('id, slug, title, sort_order, created_at')
+        .eq('phase_id', lesson.phase_id)
+        .eq('published', true)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true })
+    ]);
+
+    phase = phaseRow || null;
+    if (rows && rows.length) siblings = rows;
+  }
+
+  const position = siblings.findIndex((row) => row.slug === lesson.slug);
+  const previous = position > 0 ? siblings[position - 1] : null;
+  const next = position >= 0 && position < siblings.length - 1 ? siblings[position + 1] : null;
+
+  // Attachments and the cover, signed together.
+  const { data: links } = await supabase
+    .from('lesson_links')
+    .select('label, url, storage_path, file_name, file_size, sort_order')
+    .eq('lesson_id', lesson.id)
+    .order('sort_order', { ascending: true });
+
+  const signed = await signedUrlMap([
+    lesson.cover_path,
+    ...(links || []).map((link) => link.storage_path)
+  ]);
+
+  const body = DOMPurify.sanitize(lesson.body_html || '', {
+    ADD_ATTR: ['target', 'rel', 'loading']
+  });
+
+  const coverUrl = lesson.cover_path ? signed.get(lesson.cover_path) : null;
+
+  const crumb = phase
+    ? '<a href="members.html">Curriculum</a> · ' + escapeHtml(phase.title) +
+      (position >= 0 ? ' · ' + (position + 1) + ' of ' + siblings.length : '')
+    : '<a href="members.html">Curriculum</a>';
+
+  const downloads = (links || []).map((link) => {
+    const href = link.storage_path ? signed.get(link.storage_path) : safeUrl(link.url);
+    if (!href) return '';
+
+    const meta = link.storage_path
+      ? '<span class="file-meta">' +
+        escapeHtml([link.file_name, humanSize(link.file_size)].filter(Boolean).join(' · ')) +
+        '</span>'
+      : '';
+
+    return '<li class="' + (link.storage_path ? 'file' : 'link') + '">' +
+      '<a href="' + escapeHtml(href) + '"' +
+      (link.storage_path
+        ? ' download="' + escapeHtml(link.file_name || 'download') + '"'
+        : ' target="_blank" rel="noopener noreferrer"') +
+      '>' + escapeHtml(link.label) + '</a>' + meta +
+    '</li>';
+  }).join('');
+
+  article.innerHTML =
+    '<p class="crumb">' + crumb + '</p>' +
+    (lesson.phase && !phase
+      ? '<span class="lesson-phase">' + escapeHtml(lesson.phase) + '</span>'
+      : '') +
+    '<h1>' + escapeHtml(lesson.title) + '</h1>' +
+    (lesson.summary ? '<p class="lede">' + escapeHtml(lesson.summary) + '</p>' : '') +
+    (coverUrl
+      ? '<img class="lesson-cover" src="' + escapeHtml(coverUrl) + '" alt="" loading="lazy">'
+      : '') +
+    youtubeEmbed(lesson.video_url) +
+    '<div class="lesson-body">' + body + '</div>' +
+    (downloads
+      ? '<div class="lesson-files"><h3>Downloads</h3><ul>' + downloads + '</ul></div>'
+      : '');
+
+  article.hidden = false;
+
+  // Body images carry a storage path, not a URL. Sign them now.
+  await hydrateStorageImages(article);
+
+  const pager = document.getElementById('lesson-pager');
+  pager.innerHTML =
+    (previous
+      ? '<a href="lesson.html?slug=' + encodeURIComponent(previous.slug) + '">← ' +
+        escapeHtml(previous.title) + '</a>'
+      : '<a href="members.html">← curriculum</a>') +
+    (next
+      ? '<a href="lesson.html?slug=' + encodeURIComponent(next.slug) + '">' +
+        escapeHtml(next.title) + ' →</a>'
+      : '<span></span>');
+  pager.hidden = false;
+}
+</script>
+
+</body>
+</html>

@@ -22,14 +22,16 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | File | Purpose |
 | --- | --- |
 | `login.html` | Sign in, create account, password reset |
-| `members.html` | Members-only area; content loads from the database, not from this repo |
+| `members.html` | Curriculum index — phases with their numbered entries |
+| `lesson.html` | A single entry, with previous/next navigation across its phase |
 | `admin.html` | Approve accounts, set roles, publish members-only entries |
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |
 | `supabase/schema.sql` | Tables, roles and row-level security policies |
 | `supabase/invites.sql` | Invite codes: table, audit log, and the `redeem_invite` function |
 | `supabase/lesson-media.sql` | Video field and attachment links on entries |
-| `supabase/storage.sql` | Private `lesson-media` bucket, cover image and phase fields |
+| `supabase/storage.sql` | Private `lesson-media` bucket and cover image field |
+| `supabase/phases.sql` | Phases — the parts of the curriculum entries belong to |
 
 Authentication runs on Supabase (free tier). Permissions are enforced by database policies, not by
 JavaScript. **See [SETUP.md](SETUP.md)** for the walkthrough — the site works fine without it.

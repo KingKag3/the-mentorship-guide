@@ -113,6 +113,41 @@
     their role in the accounts table above for that.</p>
   </div>
 
+  <!-- =================== phases =================== -->
+  <h2>Phases</h2>
+
+  <p>Phases are the parts of the curriculum; entries are the numbered chapters inside them. The
+  members index lists them in this order.</p>
+
+  <div class="table-scroll">
+    <table id="phases-table">
+      <thead>
+        <tr><th>Title</th><th>Slug</th><th>Entries</th><th>Order</th><th>Published</th><th></th></tr>
+      </thead>
+      <tbody id="phases-body"></tbody>
+    </table>
+  </div>
+
+  <form id="form-phase" class="auth-form auth-form-wide">
+    <input type="hidden" id="p-id">
+
+    <label for="p-title">Title</label>
+    <input id="p-title" type="text" placeholder="Phase 1" required>
+
+    <label for="p-slug">Slug <span class="opt">(lowercase, dashes, unique)</span></label>
+    <input id="p-slug" type="text" pattern="[a-z0-9-]+" placeholder="phase-1" required>
+
+    <label for="p-subtitle">Subtitle <span class="opt">(optional)</span></label>
+    <input id="p-subtitle" type="text" placeholder="Core curriculum">
+
+    <label for="p-order">Sort order</label>
+    <input id="p-order" type="number" value="0">
+
+    <button type="submit" class="btn-primary">Save phase</button>
+    <button type="button" class="acct-link" id="cancel-phase" hidden>cancel</button>
+    <p class="form-status" id="status-phase"></p>
+  </form>
+
   <!-- =================== lessons =================== -->
   <h2>Members-only entries</h2>
 
@@ -139,8 +174,10 @@
     <label for="l-summary">Summary <span class="opt">(optional, one line)</span></label>
     <input id="l-summary" type="text">
 
-    <label for="l-phase">Phase / tag <span class="opt">(optional — e.g. Phase 1)</span></label>
-    <input id="l-phase" type="text" placeholder="Phase 1">
+    <label for="l-phase-id">Phase</label>
+    <select id="l-phase-id" class="role-select select-wide">
+      <option value="">— unfiled —</option>
+    </select>
 
     <label for="l-cover">Cover image <span class="opt">(optional)</span></label>
     <input id="l-cover" type="file" accept="image/*">
@@ -233,6 +270,7 @@ if (me) {
   try {
     await loadUsers();
     await loadInvites();
+    await loadPhases();
     await loadLessons();
   } catch (err) {
     console.error('Admin page failed to load data:', err);
@@ -483,19 +521,156 @@ async function copyText(text) {
   }
 }
 
+/* ------------------------------- phases ------------------------------- */
+
+let allPhases = [];
+
+async function loadPhases() {
+  const [{ data, error }, { data: counts }] = await Promise.all([
+    supabase.from('phases')
+      .select('id, slug, title, subtitle, sort_order, published')
+      .order('sort_order', { ascending: true }),
+    supabase.from('lessons').select('phase_id')
+  ]);
+
+  const body = document.getElementById('phases-body');
+
+  if (error) {
+    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
+      ' — if this mentions <code>phases</code>, run <code>supabase/phases.sql</code>.</td></tr>';
+    return;
+  }
+
+  allPhases = data || [];
+
+  const tally = new Map();
+  for (const row of counts || []) {
+    if (row.phase_id == null) continue;
+    tally.set(row.phase_id, (tally.get(row.phase_id) || 0) + 1);
+  }
+
+  body.innerHTML = allPhases.length
+    ? allPhases.map((p) =>
+        '<tr data-id="' + p.id + '">' +
+          '<td>' + escapeHtml(p.title) +
+            (p.subtitle ? '<br><span class="file-meta">' + escapeHtml(p.subtitle) + '</span>' : '') +
+          '</td>' +
+          '<td><code>' + escapeHtml(p.slug) + '</code></td>' +
+          '<td>' + (tally.get(p.id) || 0) + '</td>' +
+          '<td>' + p.sort_order + '</td>' +
+          '<td><input type="checkbox" class="phase-pub"' + (p.published ? ' checked' : '') + '></td>' +
+          '<td class="row-actions">' +
+            '<button type="button" class="acct-link" data-act="edit-phase">edit</button> ' +
+            '<button type="button" class="btn-danger" data-act="del-phase">delete</button>' +
+          '</td>' +
+        '</tr>'
+      ).join('')
+    : '<tr><td colspan="6">No phases yet.</td></tr>';
+
+  // Keep the entry form's dropdown in step.
+  const select = document.getElementById('l-phase-id');
+  const current = select.value;
+  select.innerHTML = '<option value="">— unfiled —</option>' +
+    allPhases.map((p) =>
+      '<option value="' + p.id + '">' + escapeHtml(p.title) + '</option>'
+    ).join('');
+  select.value = current;
+}
+
+document.getElementById('phases-body').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('phase-pub')) return;
+  const id = e.target.closest('tr').dataset.id;
+  const { error } = await supabase
+    .from('phases')
+    .update({ published: e.target.checked })
+    .eq('id', id);
+  if (error) { alert(error.message); await loadPhases(); }
+});
+
+document.getElementById('phases-body').addEventListener('click', async (e) => {
+  const act = e.target.dataset.act;
+  if (!act) return;
+
+  const id = e.target.closest('tr').dataset.id;
+
+  if (act === 'edit-phase') {
+    const phase = allPhases.find((p) => String(p.id) === String(id));
+    if (!phase) return;
+    document.getElementById('p-id').value       = phase.id;
+    document.getElementById('p-title').value    = phase.title;
+    document.getElementById('p-slug').value     = phase.slug;
+    document.getElementById('p-subtitle').value = phase.subtitle || '';
+    document.getElementById('p-order').value    = phase.sort_order;
+    document.getElementById('cancel-phase').hidden = false;
+    document.getElementById('form-phase').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  if (act === 'del-phase') {
+    if (!confirm('Delete this phase?\n\nIts entries are kept — they become unfiled and can be ' +
+                 'reassigned from the entry form.')) return;
+    const { error } = await supabase.from('phases').delete().eq('id', id);
+    if (error) { alert(error.message); return; }
+    resetPhaseForm();
+    await loadPhases();
+    await loadLessons();
+  }
+});
+
+function resetPhaseForm() {
+  document.getElementById('form-phase').reset();
+  document.getElementById('p-id').value = '';
+  document.getElementById('cancel-phase').hidden = true;
+}
+
+document.getElementById('cancel-phase').addEventListener('click', () => {
+  resetPhaseForm();
+  setStatus('#status-phase', '', 'info');
+});
+
+document.getElementById('form-phase').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-phase', 'Saving…', 'info');
+
+  const id = document.getElementById('p-id').value;
+  const payload = {
+    title:      document.getElementById('p-title').value.trim(),
+    slug:       document.getElementById('p-slug').value.trim(),
+    subtitle:   document.getElementById('p-subtitle').value.trim() || null,
+    sort_order: Number(document.getElementById('p-order').value) || 0
+  };
+
+  const { error } = id
+    ? await supabase.from('phases').update(payload).eq('id', id)
+    : await supabase.from('phases').insert(payload);
+
+  if (error) { setStatus('#status-phase', error.message, 'error'); return; }
+
+  setStatus('#status-phase', id ? 'Saved.' : 'Phase added.', 'ok');
+  resetPhaseForm();
+  await loadPhases();
+});
+
 /* ------------------------------ lessons ------------------------------ */
+
+function phaseTitle(phaseId) {
+  const phase = allPhases.find((p) => String(p.id) === String(phaseId));
+  return phase ? phase.title : '—';
+}
 
 async function loadLessons() {
   const { data, error } = await supabase
     .from('lessons')
-    .select('id, slug, title, published, sort_order, video_url')
+    .select('id, slug, title, published, sort_order, video_url, phase_id')
+    .order('phase_id', { ascending: true, nullsFirst: false })
     .order('sort_order', { ascending: true });
 
   const body = document.getElementById('lessons-body');
 
   if (error) {
-    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
-      ' — if this mentions <code>video_url</code>, run <code>supabase/lesson-media.sql</code>.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7">' + escapeHtml(error.message) +
+      ' — if this mentions <code>video_url</code> run <code>supabase/lesson-media.sql</code>; ' +
+      'if it mentions <code>phase_id</code> run <code>supabase/phases.sql</code>.</td></tr>';
     return;
   }
 
@@ -504,16 +679,18 @@ async function loadLessons() {
         '<tr data-id="' + l.id + '">' +
           '<td>' + escapeHtml(l.title) + '</td>' +
           '<td><code>' + escapeHtml(l.slug) + '</code></td>' +
+          '<td>' + escapeHtml(phaseTitle(l.phase_id)) + '</td>' +
           '<td>' + (youtubeId(l.video_url) ? '<span class="tag bull">yes</span>' : '—') + '</td>' +
           '<td>' + l.sort_order + '</td>' +
           '<td><input type="checkbox" class="pub-toggle"' + (l.published ? ' checked' : '') + '></td>' +
           '<td class="row-actions">' +
             '<button type="button" class="acct-link" data-act="edit">edit</button> ' +
+            '<button type="button" class="acct-link" data-act="view">view</button> ' +
             '<button type="button" class="btn-danger" data-act="del">delete</button>' +
           '</td>' +
         '</tr>'
       ).join('')
-    : '<tr><td colspan="6">No entries yet.</td></tr>';
+    : '<tr><td colspan="7">No entries yet.</td></tr>';
 }
 
 document.getElementById('lessons-body').addEventListener('change', async (e) => {
@@ -530,9 +707,16 @@ document.getElementById('lessons-body').addEventListener('click', async (e) => {
   const act = e.target.dataset.act;
   if (!act) return;
 
-  const id = e.target.closest('tr').dataset.id;
+  const tr = e.target.closest('tr');
+  const id = tr.dataset.id;
 
   if (act === 'edit') { await startEdit(id); return; }
+
+  if (act === 'view') {
+    const slug = tr.querySelector('code').textContent;
+    window.open('lesson.html?slug=' + encodeURIComponent(slug), '_blank');
+    return;
+  }
 
   if (act === 'del') {
     if (!confirm('Delete this entry permanently?\n\nIts attachment links go with it.')) return;
@@ -729,19 +913,19 @@ async function startEdit(id) {
 
   const { data: lesson, error } = await supabase
     .from('lessons')
-    .select('id, title, slug, summary, phase, cover_path, body_html, video_url, sort_order')
+    .select('id, title, slug, summary, phase_id, cover_path, body_html, video_url, sort_order')
     .eq('id', id)
     .single();
 
   if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
 
-  document.getElementById('l-id').value      = lesson.id;
-  document.getElementById('l-title').value   = lesson.title || '';
-  document.getElementById('l-slug').value    = lesson.slug || '';
-  document.getElementById('l-summary').value = lesson.summary || '';
-  document.getElementById('l-phase').value   = lesson.phase || '';
-  document.getElementById('l-video').value   = lesson.video_url || '';
-  document.getElementById('l-order').value   = lesson.sort_order ?? 0;
+  document.getElementById('l-id').value       = lesson.id;
+  document.getElementById('l-title').value    = lesson.title || '';
+  document.getElementById('l-slug').value     = lesson.slug || '';
+  document.getElementById('l-summary').value  = lesson.summary || '';
+  document.getElementById('l-phase-id').value = lesson.phase_id ?? '';
+  document.getElementById('l-video').value    = lesson.video_url || '';
+  document.getElementById('l-order').value    = lesson.sort_order ?? 0;
 
   coverPath = lesson.cover_path || null;
   await renderCoverPreview();
@@ -830,7 +1014,7 @@ document.getElementById('form-lesson').addEventListener('submit', async (e) => {
     title:      document.getElementById('l-title').value.trim(),
     slug:       document.getElementById('l-slug').value.trim(),
     summary:    document.getElementById('l-summary').value.trim() || null,
-    phase:      document.getElementById('l-phase').value.trim() || null,
+    phase_id:   document.getElementById('l-phase-id').value || null,
     cover_path: coverPath,
     video_url:  document.getElementById('l-video').value.trim() || null,
     body_html:  bodyHtml,

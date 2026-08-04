@@ -71,6 +71,47 @@
     <code>pending</code>.</p>
   </div>
 
+  <!-- =================== invites =================== -->
+  <h2>Invite codes</h2>
+
+  <p>A code promotes whoever redeems it straight to <code>member</code>, so you do not have to
+  approve them by hand. Codes can never grant <code>admin</code> — the database function that
+  redeems them only ever writes <code>member</code>.</p>
+
+  <form id="form-invite" class="auth-form auth-form-wide">
+    <label for="i-note">Label <span class="opt">(optional — who is it for?)</span></label>
+    <input id="i-note" type="text" placeholder="e.g. Sam, from the forum">
+
+    <label for="i-uses">Number of uses</label>
+    <input id="i-uses" type="number" min="1" value="1">
+
+    <label for="i-days">Expires in <span class="opt">(days — leave blank for never)</span></label>
+    <input id="i-days" type="number" min="1" value="14">
+
+    <button type="submit" class="btn-primary">Generate code</button>
+    <p class="form-status" id="status-invite-create"></p>
+  </form>
+
+  <div id="invite-fresh" hidden></div>
+
+  <div class="table-scroll">
+    <table id="invites-table">
+      <thead>
+        <tr><th>Code</th><th>Label</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody id="invites-body"></tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">Treat a code like a password</span>
+    <p>Anyone holding it can let themselves in, so send it directly rather than posting it
+    anywhere public. Codes are long enough that guessing one is not realistic, but there is no
+    rate limiting behind them — that length is the whole defence, so do not shorten them.</p>
+    <p>Revoking kills a code immediately. It does not remove anyone who already used it; change
+    their role in the accounts table above for that.</p>
+  </div>
+
   <!-- =================== lessons =================== -->
   <h2>Members-only entries</h2>
 
@@ -124,7 +165,8 @@
 </div>
 
 <script type="module">
-import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus } from './app.js';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
+         formatCode } from './app.js';
 
 renderAccountStrip();
 
@@ -132,6 +174,7 @@ const me = await requireRole(['admin']);
 if (me) {
   document.getElementById('admin-body').hidden = false;
   await loadUsers();
+  await loadInvites();
   await loadLessons();
 }
 
@@ -218,6 +261,164 @@ document.getElementById('users-body').addEventListener('click', async (e) => {
   if (error) { alert('Could not remove: ' + error.message); return; }
   await loadUsers();
 });
+
+/* ------------------------------ invites ------------------------------ */
+
+// Ambiguous characters (I, L, O, 0, 1) are left out so codes survive being
+// read aloud or copied by hand.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 16;
+
+/**
+ * 16 characters from a 31-character alphabet, roughly 2^79 possibilities.
+ * Rejection sampling rather than plain modulo, so every character is equally
+ * likely.
+ */
+function newCode() {
+  const limit = 256 - (256 % CODE_ALPHABET.length);
+  let out = '';
+  while (out.length < CODE_LENGTH) {
+    const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+    for (const b of bytes) {
+      if (b >= limit) continue;
+      out += CODE_ALPHABET[b % CODE_ALPHABET.length];
+      if (out.length === CODE_LENGTH) break;
+    }
+  }
+  return out;
+}
+
+function inviteLink(code) {
+  return location.origin + location.pathname.replace(/admin\.html$/, 'login.html') +
+         '?invite=' + code;
+}
+
+async function loadInvites() {
+  const { data, error } = await supabase
+    .from('invites')
+    .select('code, note, max_uses, uses, expires_at, revoked, created_at')
+    .order('created_at', { ascending: false });
+
+  const body = document.getElementById('invites-body');
+
+  if (error) {
+    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
+      ' — have you run <code>supabase/invites.sql</code> yet?</td></tr>';
+    return;
+  }
+
+  if (!data.length) {
+    body.innerHTML = '<tr><td colspan="6">No codes yet.</td></tr>';
+    return;
+  }
+
+  const now = Date.now();
+
+  body.innerHTML = data.map((iv) => {
+    const expired = iv.expires_at && new Date(iv.expires_at).getTime() < now;
+    const spent = iv.uses >= iv.max_uses;
+
+    let status = '<span class="tag bull">live</span>';
+    if (iv.revoked)     status = '<span class="tag bear">revoked</span>';
+    else if (expired)   status = '<span class="tag bear">expired</span>';
+    else if (spent)     status = '<span class="tag">used up</span>';
+
+    return '<tr data-code="' + escapeHtml(iv.code) + '">' +
+      '<td><code>' + escapeHtml(formatCode(iv.code)) + '</code></td>' +
+      '<td>' + escapeHtml(iv.note || '—') + '</td>' +
+      '<td>' + iv.uses + ' / ' + iv.max_uses + '</td>' +
+      '<td>' + (iv.expires_at ? new Date(iv.expires_at).toISOString().slice(0, 10) : 'never') + '</td>' +
+      '<td>' + status + '</td>' +
+      '<td class="row-actions">' +
+        '<button type="button" class="acct-link" data-act="copy">copy link</button> ' +
+        (iv.revoked
+          ? '<button type="button" class="acct-link" data-act="restore">restore</button> '
+          : '<button type="button" class="acct-link" data-act="revoke">revoke</button> ') +
+        '<button type="button" class="btn-danger" data-act="del">delete</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+document.getElementById('form-invite').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-invite-create', 'Generating…', 'info');
+
+  const code = newCode();
+  const days = Number(document.getElementById('i-days').value);
+
+  const { error } = await supabase.from('invites').insert({
+    code,
+    note: document.getElementById('i-note').value.trim() || null,
+    max_uses: Math.max(1, Number(document.getElementById('i-uses').value) || 1),
+    expires_at: days > 0 ? new Date(Date.now() + days * 86400000).toISOString() : null,
+    created_by: me.id
+  });
+
+  if (error) { setStatus('#status-invite-create', error.message, 'error'); return; }
+
+  setStatus('#status-invite-create', '', 'info');
+
+  const fresh = document.getElementById('invite-fresh');
+  fresh.hidden = false;
+  fresh.innerHTML =
+    '<div class="callout"><span class="callout-label">New code — send this</span>' +
+    '<p class="fresh-code"><code>' + escapeHtml(formatCode(code)) + '</code></p>' +
+    '<p>Or send the link, which fills the code in for them:<br>' +
+    '<code class="fresh-link">' + escapeHtml(inviteLink(code)) + '</code></p>' +
+    '<p><button type="button" class="btn-primary" id="copy-fresh">Copy link</button></p></div>';
+
+  document.getElementById('copy-fresh').addEventListener('click', async () => {
+    await copyText(inviteLink(code));
+    document.getElementById('copy-fresh').textContent = 'Copied';
+  });
+
+  e.target.reset();
+  document.getElementById('i-uses').value = 1;
+  document.getElementById('i-days').value = 14;
+  await loadInvites();
+});
+
+document.getElementById('invites-body').addEventListener('click', async (e) => {
+  const act = e.target.dataset.act;
+  if (!act) return;
+
+  const code = e.target.closest('tr').dataset.code;
+
+  if (act === 'copy') {
+    await copyText(inviteLink(code));
+    e.target.textContent = 'copied';
+    setTimeout(() => { e.target.textContent = 'copy link'; }, 1500);
+    return;
+  }
+
+  if (act === 'revoke' || act === 'restore') {
+    const { error } = await supabase
+      .from('invites')
+      .update({ revoked: act === 'revoke' })
+      .eq('code', code);
+    if (error) { alert(error.message); return; }
+    await loadInvites();
+    return;
+  }
+
+  if (act === 'del') {
+    if (!confirm('Delete this code permanently?\n\nAnyone who already used it keeps their ' +
+                 'access — change their role in the accounts table to remove it.')) return;
+    const { error } = await supabase.from('invites').delete().eq('code', code);
+    if (error) { alert(error.message); return; }
+    await loadInvites();
+  }
+});
+
+/** Clipboard API needs a secure context; fall back to a prompt if it is absent. */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    window.prompt('Copy this:', text);
+  }
+}
 
 /* ------------------------------ lessons ------------------------------ */
 

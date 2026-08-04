@@ -40,6 +40,10 @@ what the members area does.
 
 The script is safe to run more than once.
 
+4. Repeat with [`supabase/invites.sql`](supabase/invites.sql). That adds invite codes — see
+   *Invite codes* below. Skip it if you would rather approve everyone by hand; the site works
+   either way, though the admin page will show an error where the codes table should be.
+
 ## 3. Wire the site to the project
 
 1. In Supabase, go to **Project Settings** → **API**.
@@ -96,6 +100,42 @@ Three roles exist:
 | `pending` | Nothing. Sees an "awaiting approval" notice. |
 | `member` | Read published members-only entries. |
 | `admin` | Everything, plus manage accounts and entries. |
+
+---
+
+## Invite codes
+
+An alternative to approving each account by hand. You generate a code, send it to someone, and
+they are let in the moment they use it.
+
+**To send one:** open **admin** → *Invite codes*. Give it a label, decide how many people may use
+it and when it expires, and press **Generate**. You get the code and a link. The link
+(`…/login.html?invite=CODE`) opens the signup tab with the code already filled in, so they only
+type an email and a password.
+
+**What happens when it is used:** the browser calls a database function called `redeem_invite`.
+That function checks the code exists, is not revoked, has not expired and has uses left, then
+promotes the caller to `member` and records the redemption.
+
+That function is the only path in the whole system that can change a role without an administrator
+doing it. It matters that the check runs there and not in the page: a user still has no permission
+to edit their own profile row, so they cannot promote themselves by fiddling with JavaScript.
+**The function only ever writes `member`** — a code cannot mint an admin no matter what is sent to
+it.
+
+**Security properties worth knowing:**
+
+- Codes are 16 characters from a 31-character alphabet, roughly 2^79 combinations. There is no
+  rate limiting behind them, so that length *is* the defence. Do not shorten them.
+- Nobody but an admin can read the `invites` table, so the publishable key cannot be used to list
+  valid codes.
+- An unknown code and a mistyped code return the same error, which tells a guesser nothing.
+- The row is locked during redemption, so two people racing for the last use of a code cannot both
+  succeed.
+- Treat a code like a password. Send it directly; do not post it publicly.
+
+**Revoking** kills a code immediately but does not remove anyone who already used it — change
+their role in the accounts table for that.
 
 ---
 

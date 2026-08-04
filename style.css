@@ -621,6 +621,36 @@ select.role-select:disabled { color: var(--muted); cursor: not-allowed; }
 }
 
 .row-actions { white-space: nowrap; }
+.row-actions .acct-link { margin-right: 6px; }
+
+/* ---------- invite codes ---------- */
+
+.invite-form {
+  padding: 0;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.invite-form input {
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.fresh-code code {
+  font-size: 1.05rem;
+  letter-spacing: 0.14em;
+  padding: 6px 12px;
+  color: var(--accent);
+  border-color: var(--accent-dk);
+}
+
+.fresh-link {
+  word-break: break-all;
+  font-size: 0.8rem;
+}
 
 /* ---------- members-only entries ---------- */
 

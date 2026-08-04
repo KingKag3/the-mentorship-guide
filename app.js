@@ -74,21 +74,119 @@ export async function requireRole(roles, mountSelector = '#auth-root') {
 
   if (!roles.includes(profile.role)) {
     const mount = document.querySelector(mountSelector);
-    if (mount) {
-      mount.innerHTML = profile.role === 'pending'
-        ? '<div class="callout warn"><span class="callout-label">Awaiting approval</span>' +
-          '<p>Your account was created but has not been approved yet. An administrator has to ' +
-          'let you in before the members area opens. You will not be emailed automatically — ' +
-          'check back later.</p></div>'
-        : '<div class="callout risk"><span class="callout-label">Not permitted</span>' +
-          '<p>This page requires a different account level. You are signed in as <code>' +
-          escapeHtml(profile.email) + '</code> with the role <code>' + escapeHtml(profile.role) +
-          '</code>.</p></div>';
+
+    if (mount && profile.role === 'pending') {
+      // A stashed code from the signup form redeems itself on first arrival.
+      const auto = await autoRedeemStashed();
+      if (auto && auto.ok) { location.reload(); return null; }
+
+      mount.innerHTML =
+        '<div class="callout warn"><span class="callout-label">Awaiting approval</span>' +
+        '<p>Your account exists but has not been enabled yet. Either an administrator flips it ' +
+        'on, or you enter an invite code below.</p>' +
+        '<form id="invite-form" class="invite-form">' +
+          '<label for="invite-code">Invite code</label>' +
+          '<input id="invite-code" type="text" autocomplete="off" spellcheck="false" ' +
+                 'placeholder="XXXX-XXXX-XXXX-XXXX" required>' +
+          '<button type="submit" class="btn-primary">Redeem</button>' +
+          '<p class="form-status" id="status-invite"></p>' +
+        '</form>' +
+        '</div>';
+
+      wireInviteForm();
+    } else if (mount) {
+      mount.innerHTML =
+        '<div class="callout risk"><span class="callout-label">Not permitted</span>' +
+        '<p>This page requires a different account level. You are signed in as <code>' +
+        escapeHtml(profile.email) + '</code> with the role <code>' + escapeHtml(profile.role) +
+        '</code>.</p></div>';
     }
     return null;
   }
 
   return profile;
+}
+
+/* ------------------------------ invite codes ------------------------------ */
+
+const INVITE_KEY = 'pending_invite_code';
+
+/** Codes are compared stripped and upper-cased, so dashes and case are free. */
+export function normaliseCode(value) {
+  return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/** Display form: groups of four, dash separated. */
+export function formatCode(value) {
+  return normaliseCode(value).replace(/(.{4})(?=.)/g, '$1-');
+}
+
+export function stashInvite(code) {
+  try { localStorage.setItem(INVITE_KEY, normaliseCode(code)); } catch (e) { /* private mode */ }
+}
+
+export function readStashedInvite() {
+  try { return localStorage.getItem(INVITE_KEY); } catch (e) { return null; }
+}
+
+export function clearStashedInvite() {
+  try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* private mode */ }
+}
+
+/**
+ * Hand a code to the database. Every check that matters happens there; this
+ * only relays the answer.
+ */
+export async function redeemInvite(code) {
+  if (!supabase) return { ok: false, error: 'not_configured' };
+  const { data, error } = await supabase.rpc('redeem_invite', { p_code: normaliseCode(code) });
+  if (error) return { ok: false, error: error.message };
+  return data;
+}
+
+/** Redeem a code saved at signup, if there is one. */
+export async function autoRedeemStashed() {
+  const code = readStashedInvite();
+  if (!code) return null;
+  const result = await redeemInvite(code);
+  if (result && result.ok) clearStashedInvite();
+  return result;
+}
+
+const INVITE_ERRORS = {
+  invalid:       'That code was not recognised. Check it and try again.',
+  expired:       'That code has expired. Ask for a new one.',
+  revoked:       'That code has been withdrawn.',
+  used_up:       'That code has already been used the maximum number of times.',
+  no_profile:    'No profile is attached to this login. Sign out and back in.',
+  not_signed_in: 'You need to be signed in to redeem a code.',
+  not_configured:'The site is not connected to its database yet.'
+};
+
+/** Wire the redeem form rendered by requireRole. */
+export function wireInviteForm() {
+  const form = document.getElementById('invite-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setStatus('#status-invite', 'Checking…', 'info');
+
+    const result = await redeemInvite(document.getElementById('invite-code').value);
+
+    if (result && result.ok) {
+      clearStashedInvite();
+      setStatus('#status-invite', 'Accepted. Opening…', 'ok');
+      location.reload();
+      return;
+    }
+
+    setStatus(
+      '#status-invite',
+      INVITE_ERRORS[result && result.error] || 'Could not redeem that code.',
+      'error'
+    );
+  });
 }
 
 /** Sign out and return to the homepage. */

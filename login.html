@@ -76,12 +76,16 @@ covers the members area only.</p>
     <label for="up-password">Password <span class="opt">(at least 8 characters)</span></label>
     <input id="up-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
 
+    <label for="up-invite">Invite code <span class="opt">(optional)</span></label>
+    <input id="up-invite" name="invite" type="text" autocomplete="off" spellcheck="false"
+           placeholder="XXXX-XXXX-XXXX-XXXX">
+
     <button type="submit" class="btn-primary">Create account</button>
     <p class="form-status" id="status-signup"></p>
 
     <p class="form-aside">
-      New accounts start as <strong>pending</strong> and stay locked out until an administrator
-      approves them. Creating an account here does not grant access by itself.
+      With a valid invite code you are let in as soon as you sign in. Without one, the account is
+      created as <strong>pending</strong> and stays locked out until an administrator enables it.
     </p>
   </form>
 
@@ -107,7 +111,8 @@ covers the members area only.</p>
 </div>
 
 <script type="module">
-import { supabase, requireConfig, getUser, renderAccountStrip, setStatus } from './app.js';
+import { supabase, requireConfig, getUser, renderAccountStrip, setStatus,
+         stashInvite, formatCode, autoRedeemStashed } from './app.js';
 
 const card       = document.getElementById('auth-card');
 const tabSignin  = document.getElementById('tab-signin');
@@ -117,14 +122,25 @@ const formSignup = document.getElementById('form-signup');
 
 renderAccountStrip();
 
+const params = new URLSearchParams(location.search);
+
 if (requireConfig()) {
   card.hidden = false;
+
+  // An invite link (…/login.html?invite=CODE) prefills the code and opens the
+  // signup tab, so the recipient only has to type an email and password.
+  const linkCode = params.get('invite');
+  if (linkCode) {
+    document.getElementById('up-invite').value = formatCode(linkCode);
+    stashInvite(linkCode);
+    showTab('signup');
+  }
 
   // Already signed in? Go straight through.
   const user = await getUser();
   if (user) {
-    const next = new URLSearchParams(location.search).get('next');
-    location.replace(safeNext(next));
+    await autoRedeemStashed();
+    location.replace(safeNext(params.get('next')));
   }
 }
 
@@ -160,13 +176,21 @@ formSignin.addEventListener('submit', async (e) => {
     return;
   }
 
-  const next = new URLSearchParams(location.search).get('next');
-  location.href = safeNext(next);
+  // If a code was entered at signup but could not be used yet — because email
+  // confirmation was pending — this is the moment it takes effect.
+  await autoRedeemStashed();
+
+  location.href = safeNext(params.get('next'));
 });
 
 formSignup.addEventListener('submit', async (e) => {
   e.preventDefault();
   setStatus('#status-signup', 'Creating account…', 'info');
+
+  // Keep the code for later: with email confirmation on, there is no session
+  // yet, so it cannot be redeemed until the first real sign-in.
+  const inviteCode = document.getElementById('up-invite').value.trim();
+  if (inviteCode) stashInvite(inviteCode);
 
   const { data, error } = await supabase.auth.signUp({
     email: document.getElementById('up-email').value.trim(),
@@ -181,13 +205,31 @@ formSignup.addEventListener('submit', async (e) => {
     return;
   }
 
-  setStatus(
-    '#status-signup',
-    data.session
-      ? 'Account created. It is pending approval — an administrator has to enable it before the members area opens.'
-      : 'Account created. Check your email for the confirmation link, then sign in. Access still needs administrator approval.',
-    'ok'
-  );
+  if (data.session) {
+    // Signed in straight away, so a code can be used now.
+    const redeemed = await autoRedeemStashed();
+    if (redeemed && redeemed.ok) {
+      setStatus('#status-signup', 'Account created and invite accepted. Opening…', 'ok');
+      location.href = 'members.html';
+      return;
+    }
+    setStatus(
+      '#status-signup',
+      inviteCode
+        ? 'Account created, but that invite code was not accepted. You can try again from the members page.'
+        : 'Account created. It is pending — an administrator has to enable it before the members area opens.',
+      inviteCode ? 'error' : 'ok'
+    );
+  } else {
+    setStatus(
+      '#status-signup',
+      inviteCode
+        ? 'Account created. Confirm your email, then sign in — the invite code is applied automatically.'
+        : 'Account created. Check your email for the confirmation link, then sign in. Access still needs administrator approval.',
+      'ok'
+    );
+  }
+
   formSignup.reset();
 });
 

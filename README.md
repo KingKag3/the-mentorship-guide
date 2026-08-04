@@ -27,12 +27,16 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |
 | `supabase/schema.sql` | Tables, roles and row-level security policies |
+| `supabase/invites.sql` | Invite codes: table, audit log, and the `redeem_invite` function |
 
 Authentication runs on Supabase (free tier). Permissions are enforced by database policies, not by
 JavaScript. **See [SETUP.md](SETUP.md)** for the walkthrough — the site works fine without it.
 
 Three roles: `pending` (new signups, no access), `member` (reads published entries), `admin`
-(everything). New accounts start pending and need approval.
+(everything). New accounts start pending and need approval — or an invite code, which promotes the
+holder to `member` automatically via a `SECURITY DEFINER` function that only ever writes `member`.
+Users still have no permission to update their own profile row, so self-promotion is impossible by
+any other route.
 
 Note what this does *not* do: the seven concept pages stay public. They are plain files in a public
 repo and readable by anyone with the address regardless of what the UI shows, so gating them would

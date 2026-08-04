@@ -233,11 +233,16 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
 
 renderAccountStrip();
 
-// Module state must be initialised before anything below can touch it. A `let`
-// declared further down would sit in the temporal dead zone while the loaders
-// ran, and the ReferenceError would reject this module's top-level await -
-// silently skipping the rest of the file, including every addEventListener.
+// ALL module state lives here, above the init block.
+//
+// A `let` declared further down sits in the temporal dead zone while the
+// loaders run, and assigning to it throws a ReferenceError that rejects this
+// module's top-level await - skipping the rest of the file, event listeners
+// included. That has bitten this file twice. New state goes here, not beside
+// the code that uses it.
 let allUsers = [];
+let allPhases = [];
+let coverPath = null;
 let quill = null;
 
 const me = await requireRole(['admin']);
@@ -274,10 +279,16 @@ if (me) {
     await loadLessons();
   } catch (err) {
     console.error('Admin page failed to load data:', err);
-    document.getElementById('auth-root').innerHTML =
+
+    const banner = document.getElementById('auth-root');
+    banner.innerHTML =
       '<div class="callout risk"><span class="callout-label">Load failed</span><p>' +
       escapeHtml(String(err && err.message ? err.message : err)) +
-      '</p></div>';
+      '</p><p>Tables below may be empty or stale as a result.</p></div>';
+
+    // Scroll it into view. This banner sits at the top of the page, so a
+    // failure while the reader is further down otherwise looks like silence.
+    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
@@ -522,8 +533,6 @@ async function copyText(text) {
 }
 
 /* ------------------------------- phases ------------------------------- */
-
-let allPhases = [];
 
 async function loadPhases() {
   const [{ data, error }, { data: counts }] = await Promise.all([
@@ -773,8 +782,6 @@ async function pickAndInsertImage() {
 }
 
 /* -------- cover image -------- */
-
-let coverPath = null;
 
 document.getElementById('l-cover').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];

@@ -7,7 +7,9 @@
 // wrong, nothing in this file will save you.
 // ---------------------------------------------------------------------------
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+// Pinned to the 2.x line rather than an exact patch: the project uses a modern
+// sb_publishable_ key, which older 2.x builds predate.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, IS_CONFIGURED } from './supabase-config.js';
 
 export { IS_CONFIGURED };

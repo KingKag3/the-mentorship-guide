@@ -682,6 +682,32 @@ select.role-select:disabled { color: var(--muted); cursor: not-allowed; }
   color: var(--muted);
 }
 
+.lesson-body pre,
+.ql-editor pre {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-lo);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.lesson-body u { text-decoration-color: var(--accent-dk); }
+.lesson-body s { color: var(--muted); }
+
+.editor-tools {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -10px 0 18px;
+}
+
+.editor-tools .field-note { margin: 0; }
+
 /* ---------- embedded video ---------- */
 
 .video-frame {

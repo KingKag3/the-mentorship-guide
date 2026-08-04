@@ -186,9 +186,23 @@ start offset.
 > ceiling on free YouTube. Genuinely private video needs a host with domain-locked playback (paid
 > Vimeo) or signed URLs (Cloudflare Stream).
 
-**Body.** A toolbar editor — headings, bold, lists, quotes, links, images. The HTML it produces is
-run through DOMPurify before it is inserted on the members page, so a careless paste cannot execute
-script on everyone else's browser.
+**Body.** A toolbar editor — headings, bold, italic, underline, strikethrough, code, quotes, lists,
+links, images. The HTML it produces is run through DOMPurify before it is inserted on the members
+page, so a careless paste cannot execute script on everyone else's browser.
+
+**Discord markup is understood.** Paste plain text carrying `**bold**`, `## headings`, `> quotes`,
+`- bullets`, `` `code` ``, ```` ``` ```` fences or `[label](url)` links and it arrives formatted.
+For text already typed into the editor, select it and press *convert Discord markup*.
+
+Two things to know about the dialect. Discord reads `__text__` as **underline**, where standard
+markdown would call it bold — the converter follows Discord, because getting that backwards
+silently changes how a lesson reads. And spoilers (`||text||`) have no equivalent here, so the
+markers are dropped and the text kept rather than the content disappearing.
+
+If you copy from the Discord app or the web client, the clipboard usually carries real formatting
+already, and that is used in preference to reconstructing it from the characters. The converter
+only steps in for plain text. To force it, paste with Ctrl+Shift+V and then press the convert
+button.
 
 **Slides and images.** The image button in the editor uploads rather than embedding. Pick a file
 and it is resized to 1600px wide, converted to WebP and pushed to the private bucket; the body

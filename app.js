@@ -290,6 +290,169 @@ export function safeUrl(url) {
   }
 }
 
+/* ---------------------------- Discord markup ----------------------------- */
+
+/**
+ * Cheap test for whether a lump of plain text is worth running through the
+ * converter. Deliberately conservative: a false negative just means the text
+ * pastes unformatted, which is recoverable. A false positive mangles prose.
+ */
+export function looksLikeDiscordMarkup(text) {
+  return /(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(`[^`\n]+`)|(^#{1,3} )|(^-# )|(^> )|(^>>> )|(^[-*] )|(^\d+[.)] )|(\[[^\]]+\]\(https?:)|(```)/m
+    .test(String(text || ''));
+}
+
+/**
+ * Discord markup to HTML.
+ *
+ * Follows Discord's dialect, not CommonMark - the notable divergence is that
+ * __text__ is underline here, where standard markdown would read it as bold.
+ * Getting that wrong silently changes what a lesson looks like, so it is worth
+ * being deliberate about.
+ *
+ * Output is built from escaped text, so it carries nothing executable.
+ */
+export function discordToHtml(text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+
+  let listType = null;      // 'ul' | 'ol' | null
+  let quoting = false;      // inside a >>> block
+  let index = 0;
+
+  const closeList = () => {
+    if (listType) { out.push('</' + listType + '>'); listType = null; }
+  };
+
+  const openList = (type) => {
+    if (listType !== type) { closeList(); out.push('<' + type + '>'); listType = type; }
+  };
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    // ``` fenced code, optionally with a language on the opening fence
+    if (/^```/.test(line.trim())) {
+      closeList();
+      const body = [];
+      index++;
+      while (index < lines.length && !/^```/.test(lines[index].trim())) {
+        body.push(lines[index]);
+        index++;
+      }
+      index++;                                    // skip the closing fence
+      out.push('<pre>' + escapeHtml(body.join('\n')) + '</pre>');
+      continue;
+    }
+
+    // >>> quotes everything that follows
+    if (/^>>>\s?/.test(line)) {
+      closeList();
+      quoting = true;
+      out.push('<blockquote>' + inlineMarkup(line.replace(/^>>>\s?/, '')) + '</blockquote>');
+      index++;
+      continue;
+    }
+
+    if (quoting) {
+      if (line.trim()) out.push('<blockquote>' + inlineMarkup(line) + '</blockquote>');
+      index++;
+      continue;
+    }
+
+    // > single-line quote
+    if (/^>\s?/.test(line)) {
+      closeList();
+      out.push('<blockquote>' + inlineMarkup(line.replace(/^>\s?/, '')) + '</blockquote>');
+      index++;
+      continue;
+    }
+
+    // -# subtext. Quill has no small text, so it lands as emphasis.
+    if (/^-#\s+/.test(line)) {
+      closeList();
+      out.push('<p><em>' + inlineMarkup(line.replace(/^-#\s+/, '')) + '</em></p>');
+      index++;
+      continue;
+    }
+
+    // # headings. Quill's toolbar carries two levels, so three map onto two.
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const tag = heading[1].length === 1 ? 'h2' : 'h3';
+      out.push('<' + tag + '>' + inlineMarkup(heading[2]) + '</' + tag + '>');
+      index++;
+      continue;
+    }
+
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) {
+      openList('ul');
+      out.push('<li>' + inlineMarkup(bullet[1]) + '</li>');
+      index++;
+      continue;
+    }
+
+    const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (numbered) {
+      openList('ol');
+      out.push('<li>' + inlineMarkup(numbered[1]) + '</li>');
+      index++;
+      continue;
+    }
+
+    if (!line.trim()) {
+      closeList();
+      index++;
+      continue;
+    }
+
+    closeList();
+    out.push('<p>' + inlineMarkup(line) + '</p>');
+    index++;
+  }
+
+  closeList();
+  return out.join('');
+}
+
+/** Inline spans within one line. */
+function inlineMarkup(raw) {
+  const codes = [];
+
+  // Pull code spans out first so their contents are never treated as markup.
+  // The placeholder uses a control character, which cannot survive escaping as
+  // anything else and will not appear in real prose.
+  let text = String(raw).replace(/`([^`\n]+)`/g, (match, body) => {
+    codes.push(body);
+    return '\u0000' + (codes.length - 1) + '\u0000';
+  });
+
+  text = escapeHtml(text);
+
+  // [label](url) - only http(s), so a markup link cannot smuggle javascript:
+  text = text.replace(
+    /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (match, label, url) =>
+      '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+  );
+
+  // Spoilers have no equivalent here, so the markers are dropped and the text
+  // kept rather than silently losing the content.
+  text = text.replace(/\|\|([\s\S]+?)\|\|/g, '$1');
+
+  text = text.replace(/\*\*\*([\s\S]+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__([\s\S]+?)__/g, '<u>$1</u>');       // Discord: underline
+  text = text.replace(/~~([\s\S]+?)~~/g, '<s>$1</s>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  text = text.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
+
+  return text.replace(/\u0000(\d+)\u0000/g,
+    (match, position) => '<code>' + escapeHtml(codes[Number(position)]) + '</code>');
+}
+
 /* -------------------------------- storage -------------------------------- */
 
 export const MEDIA_BUCKET = 'lesson-media';

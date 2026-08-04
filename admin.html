@@ -189,6 +189,11 @@
 
     <label for="l-editor">Body <span class="opt">(the image button uploads — paste text, insert slides as you go)</span></label>
     <div id="l-editor"></div>
+    <p class="editor-tools">
+      <button type="button" class="acct-link" id="convert-discord">convert Discord markup</button>
+      <span class="field-note">Pasting plain Discord text converts automatically. Use this for
+      text already typed in.</span>
+    </p>
 
     <label>Downloads <span class="opt">(upload a file, or point at a link)</span></label>
     <div id="l-links"></div>
@@ -229,7 +234,8 @@
 import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
-         hydrateStorageImages, humanSize } from './app.js';
+         hydrateStorageImages, humanSize, discordToHtml,
+         looksLikeDiscordMarkup } from './app.js';
 
 renderAccountStrip();
 
@@ -257,7 +263,8 @@ if (me) {
       toolbar: {
         container: [
           [{ header: [2, 3, false] }],
-          ['bold', 'italic', 'underline', 'blockquote'],
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code', 'code-block'],
           [{ list: 'ordered' }, { list: 'bullet' }],
           ['link', 'image'],
           ['clean']
@@ -269,6 +276,8 @@ if (me) {
       }
     }
   });
+
+  wireDiscordPaste();
 
   // Wrapped so one failing query cannot abort module evaluation and leave the
   // page rendered but inert.
@@ -734,6 +743,70 @@ document.getElementById('lessons-body').addEventListener('click', async (e) => {
     if (document.getElementById('l-id').value === String(id)) resetLessonForm();
     await loadLessons();
   }
+});
+
+/* -------- Discord markup -------- */
+
+/**
+ * Pasting plain text that looks like Discord markup converts it.
+ *
+ * A paste that carries text/html is left alone: copying from the Discord app
+ * or the web client hands over real formatting already, and that is better
+ * than anything reconstructed from the source characters.
+ */
+function wireDiscordPaste() {
+  quill.root.addEventListener('paste', (event) => {
+    const clip = event.clipboardData;
+    if (!clip) return;
+
+    const html = clip.getData('text/html');
+    if (html && html.trim()) return;
+
+    const text = clip.getData('text/plain');
+    if (!text || !looksLikeDiscordMarkup(text)) return;
+
+    event.preventDefault();
+
+    const range = quill.getSelection(true);
+    if (range.length) quill.deleteText(range.index, range.length, 'user');
+    quill.clipboard.dangerouslyPasteHTML(range.index, discordToHtml(text), 'user');
+
+    setStatus('#status-lesson', 'Pasted and converted from Discord markup.', 'ok');
+  });
+}
+
+/**
+ * Convert text already sitting in the editor. Works on a selection; with no
+ * selection it does the whole body, which is only safe when there is nothing
+ * it cannot rebuild - images and existing formatting come back as plain text.
+ */
+document.getElementById('convert-discord').addEventListener('click', () => {
+  const range = quill.getSelection();
+  const hasSelection = range && range.length > 0;
+
+  if (!hasSelection && quill.root.querySelector('img')) {
+    setStatus('#status-lesson',
+      'Select the text to convert first — converting everything would drop the images.',
+      'error');
+    return;
+  }
+
+  const from = hasSelection ? range.index : 0;
+  const length = hasSelection ? range.length : quill.getLength();
+  const text = quill.getText(from, length);
+
+  if (!looksLikeDiscordMarkup(text)) {
+    setStatus('#status-lesson', 'No Discord markup found in that text.', 'info');
+    return;
+  }
+
+  if (!hasSelection &&
+      !confirm('Convert the whole body?\n\nAny formatting already applied by hand will be ' +
+               'rebuilt from the markup characters.')) return;
+
+  quill.deleteText(from, length, 'user');
+  quill.clipboard.dangerouslyPasteHTML(from, discordToHtml(text), 'user');
+  setStatus('#status-lesson', 'Converted.', 'ok');
 });
 
 /* -------- body images -------- */

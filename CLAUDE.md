@@ -6,12 +6,12 @@ memory that does not travel.
 
 ## What this is
 
-A static site teaching Smart Money / ICT trading concepts in plain English, with a members area
+A static site teaching Smart Money trading concepts in plain English, with a members area
 behind Supabase auth. Public repo — it publishes itself to
 <https://kingkag3.github.io/the-mentorship-guide/>.
 
 **The TradingView indicators are not here.** They live in the private `the-mentorship-pine` repo,
-along with `knowledge/`, a distilled rule base of the ICT concepts with stable rule IDs. If a
+along with `knowledge/`, a distilled rule base of the Smart Money concepts with stable rule IDs. If a
 question is "what does this trading term mean" or "what are the killzone times", that repo answers
 it — and it records where the source books disagree, which matters more than it sounds.
 

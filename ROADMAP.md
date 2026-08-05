@@ -143,15 +143,15 @@ entry, stop and target logic, and this repo publishes itself to the web.
 
 | Script | Status | What it does |
 | --- | --- | --- |
-| `ict-day-model.pine` | **built** | Context plus setups: bias-side session ranges and deviations, true-midnight PDH/PDL, ADR; then sweep → displacement → fair value gap → limit entry with stop and target, and a running R tally for forward testing |
-| `ict-setup-state.pine` | folded in | The state machine now lives inside `ict-day-model.pine` — keeping the narrative in a second indicator meant two panels disagreeing about the same day |
-| `ict-day-model-strategy.pine` | planned | The same logic as a `strategy()`, so the built-in Strategy Tester can backtest what the indicator forward-tests |
-| `ict-smt.pine` | planned | ES against NQ via `request.security`, flagging the index that failed to confirm at a session extreme |
-| `ict-journal-bridge.pine` | planned | At 16:00, emits the day's measured values as a JSON alert payload |
+| `trade-karma-day-model.pine` | **built** | Context plus setups: bias-side session ranges and deviations, true-midnight PDH/PDL, ADR; then sweep → displacement → fair value gap → limit entry with stop and target, and a running R tally for forward testing |
+| `trade-karma-setup-state.pine` | folded in | The state machine now lives inside `trade-karma-day-model.pine` — keeping the narrative in a second indicator meant two panels disagreeing about the same day |
+| `trade-karma-day-model-strategy.pine` | planned | The same logic as a `strategy()`, so the built-in Strategy Tester can backtest what the indicator forward-tests |
+| `trade-karma-smt.pine` | planned | ES against NQ via `request.security`, flagging the index that failed to confirm at a session extreme |
+| `trade-karma-journal-bridge.pine` | planned | At 16:00, emits the day's measured values as a JSON alert payload |
 
 ### The bridge
 
-`ict-journal-bridge.pine` is the piece that makes the two halves one system. A TradingView alert
+`trade-karma-journal-bridge.pine` is the piece that makes the two halves one system. A TradingView alert
 fires a webhook carrying the day's numbers — CBDR width, Asian range width, which session posted the
 high and the low, deviations reached, ADR consumed — at a Supabase Edge Function, which writes them
 into the journal as the day's market context. The member then adds their trades against a day that

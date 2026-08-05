@@ -95,9 +95,9 @@ statistic.
   of the argument.
 - **`design.html` covers the tool components but not all of them.** The Quill editor overrides, the
   invite components, the lesson-media components and the auth card are still absent.
-- **The pine code cites no rule IDs.** `CLAUDE.md` in that repo says the code cites them in
-  comments. It does not — there are zero. The variable map in `implementation.md` is accurate, but
-  the citation convention the append-only ID scheme exists to protect is not actually in use.
+- **`trade-karma-day-model.pine` cites no rule IDs.** `CLAUDE.md` in that repo says the code cites
+  them in comments. `trade-karma-context.pine` now does — it was written to set the convention — but
+  the day model still has zero. The variable map in `implementation.md` is accurate either way.
 - **`conflicts.md` `Q-02` is unrunnable as written.** It says to toggle `gateCond`, which the RTH
   rewrite removed. `DECISIONS.md` and `implementation.md` both record that; `Q-02` itself was never
   updated and still reads as a live experiment.
@@ -162,7 +162,7 @@ whether the funnel argument in `DECISIONS.md` should be dropped.
 - `DECISIONS.md` — what was decided, what it was decided instead of, and why.
 - `ROADMAP.md` — what is worth building, in order, and what is deliberately excluded.
 - `README.md` — conventions. Read the Conventions section before adding a page.
-- The private `the-mentorship-pine` repo, `knowledge/` — distilled ICT rules with stable IDs,
+- The private `the-mentorship-pine` repo, `knowledge/` — distilled Smart Money rules with stable IDs,
   `conflicts.md` for where the source books disagree and which won, `implementation.md` for what is
   encoded in the indicator and what is still open.
 

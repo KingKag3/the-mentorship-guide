@@ -77,8 +77,29 @@ Be honest about this list before trusting anything below it.
 
 ---
 
+## Picking this up on another machine
+
+```
+gh repo clone KingKag3/the-mentorship-guide
+gh repo clone KingKag3/the-mentorship-pine
+```
+
+`CLAUDE.md` in each repo loads automatically at the start of a session, so a fresh session already
+knows the conventions and the traps. Read `DECISIONS.md` for why things are as they are.
+
+**First thing to do, before any new feature:** paste `supabase/trades.sql` into the Supabase SQL
+editor and log one trade through `journal.html`. Nothing in the journal or statistics has ever run
+against a live project, so the whole of Phase 1 is unverified until that happens. Everything on the
+Untested list above depends on it.
+
+Then, in order: `design.html` needs the new components, the pre-trade checklist (ROADMAP 2.2) closes
+a loop that is already half built, and `models.html` should link to "your results with this model"
+now that `stats.html` has the data.
+
 ## Where the reasoning lives
 
+- `CLAUDE.md` — loaded every session. The rules that must not be rediscovered.
+- `DECISIONS.md` — what was decided, what it was decided instead of, and why.
 - `ROADMAP.md` — what is worth building, in order, and what is deliberately excluded.
 - `README.md` — conventions. Read the Conventions section before adding a page.
 - The private `the-mentorship-pine` repo, `knowledge/` — distilled ICT rules with stable IDs,

@@ -96,3 +96,36 @@ result, and a forward test that flatters itself is worse than no forward test.
 
 *(Lives in the pine repo but recorded here too, because it is the kind of decision that gets
 "fixed" by someone who does not know it was deliberate.)*
+
+---
+
+## 2026-08-05 — Session knowledge goes in the repo, not in memory
+
+**Decided:** durable context lives in `CLAUDE.md` (read automatically at the start of every
+session), `DECISIONS.md` and `HANDOVER.md`. Memory files hold only what is genuinely local to one
+machine.
+
+**Instead of:** the memory system, which was the obvious answer, or exported transcripts.
+
+**Why:** memory files and session transcripts both live under `~/.claude/` and are never touched by
+git. Kag3 works from two PCs. Anything written only to memory is invisible on the other machine —
+which is precisely the failure the question was trying to avoid.
+
+Transcripts are still worth exporting occasionally — `tools/export-session.py` in the pine repo
+turns one into readable markdown — but that is archiving, not teaching. A future session will not
+read a transcript unless told to. It always reads `CLAUDE.md`.
+
+---
+
+## 2026-08-05 — Scheduled overnight runs need pre-approval
+
+**Observed, not decided.** A one-time task was scheduled for 02:08 to continue the members-area
+build. Its session file exists, so it started. It committed nothing, and the repo was untouched.
+
+**Most likely cause:** it stalled waiting on a tool permission prompt with nobody awake to answer.
+Approvals granted during a run are stored on the task and reused, which implies the *first* run is
+the one that blocks.
+
+**How to apply:** before relying on an overnight run, trigger it once manually with "Run now" while
+awake, so the approvals are banked. Until then, treat scheduled builds as best-effort and do the
+work in-session — which is what happened here, and why the five tools exist at all.

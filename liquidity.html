@@ -7,27 +7,32 @@
 <meta name="description" content="Buyside and sellside liquidity, internal vs external range liquidity, draw on liquidity, low- and high-resistance runs, stop hunts and the Judas swing, explained in plain English.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html" aria-current="page">Liquidity</a>
+        <a href="pd-arrays.html">PD Arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html">start</a>
-      <a href="liquidity.html" aria-current="page">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -94,27 +99,26 @@ further reason to hold price up.</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 300" role="img" aria-label="Diagram showing buy stops resting above equal highs and sell stops resting below equal lows">
-  <rect x="40" y="46" width="640" height="26" fill="#f87171" opacity="0.10"/>
-  <line x1="40" y1="72" x2="680" y2="72" stroke="#f87171" stroke-width="1.5"/>
+  <rect class="svg-f-down" x="40" y="46" width="640" height="26" opacity="0.10"/>
+  <line class="svg-s-down" x1="40" y1="72" x2="680" y2="72" stroke-width="1.5"/>
   <text x="46" y="40" class="svg-label-em">BUYSIDE — buy stops of shorts + breakout buys</text>
 
-  <rect x="40" y="214" width="640" height="26" fill="#4ade80" opacity="0.10"/>
-  <line x1="40" y1="214" x2="680" y2="214" stroke="#4ade80" stroke-width="1.5"/>
+  <rect class="svg-f-up" x="40" y="214" width="640" height="26" opacity="0.10"/>
+  <line class="svg-s-up" x1="40" y1="214" x2="680" y2="214" stroke-width="1.5"/>
   <text x="46" y="264" class="svg-label-em">SELLSIDE — sell stops of longs + breakdown sells</text>
 
   <!-- equal highs markers -->
-  <circle cx="180" cy="72" r="4" fill="#f87171"/>
-  <circle cx="330" cy="72" r="4" fill="#f87171"/>
-  <circle cx="470" cy="72" r="4" fill="#f87171"/>
+  <circle class="svg-f-down" cx="180" cy="72" r="4"/>
+  <circle class="svg-f-down" cx="330" cy="72" r="4"/>
+  <circle class="svg-f-down" cx="470" cy="72" r="4"/>
   <text x="500" y="66" class="svg-label">equal highs = a bigger, more obvious pool</text>
 
   <!-- equal lows markers -->
-  <circle cx="230" cy="214" r="4" fill="#4ade80"/>
-  <circle cx="390" cy="214" r="4" fill="#4ade80"/>
+  <circle class="svg-f-up" cx="230" cy="214" r="4"/>
+  <circle class="svg-f-up" cx="390" cy="214" r="4"/>
 
   <!-- price squiggle between -->
-  <path d="M 60 190 L 120 120 L 180 74 L 230 212 L 290 140 L 330 74 L 390 212 L 440 150 L 470 74 L 520 130 L 570 190 L 640 216"
-        fill="none" stroke="#8b98a5" stroke-width="1.8" stroke-linejoin="round"/>
+  <path class="svg-s-mute" d="M 60 190 L 120 120 L 180 74 L 230 212 L 290 140 L 330 74 L 390 212 L 440 150 L 470 74 L 520 130 L 570 190 L 640 216" fill="none" stroke-width="1.8" stroke-linejoin="round"/>
 
   <text x="46" y="150" class="svg-label">price oscillates between the two pools…</text>
   <text x="46" y="168" class="svg-label">…each touch of a pool is a chance for size to be filled</text>
@@ -169,22 +173,21 @@ Take any range you can see — a swing low to a swing high. Then:</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 300" role="img" aria-label="Diagram of the alternation between external range liquidity and internal range liquidity">
-  <line x1="60" y1="60"  x2="660" y2="60"  stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <line x1="60" y1="250" x2="660" y2="250" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <line class="svg-s-down" x1="60" y1="60" x2="660" y2="60" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <line class="svg-s-up" x1="60" y1="250" x2="660" y2="250" stroke-width="1.5" stroke-dasharray="6 4"/>
   <text x="60" y="50" class="svg-label-em">EXTERNAL — old high</text>
   <text x="60" y="272" class="svg-label-em">EXTERNAL — old low</text>
 
-  <rect x="60" y="140" width="600" height="28" fill="#60a5fa" opacity="0.13"/>
-  <text x="66" y="132" class="svg-label-em" fill="#60a5fa">INTERNAL — an unfilled gap sitting inside the range</text>
+  <rect class="svg-f-info" x="60" y="140" width="600" height="28" opacity="0.13"/>
+  <text x="66" y="132" class="svg-label-em svg-f-info">INTERNAL — an unfilled gap sitting inside the range</text>
 
-  <path d="M 80 240 L 140 100 L 190 62 L 250 150 L 310 154 L 370 90 L 420 62 L 470 160 L 520 200 L 580 250 L 630 200"
-        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+  <path class="svg-s-ink" d="M 80 240 L 140 100 L 190 62 L 250 150 L 310 154 L 370 90 L 420 62 L 470 160 L 520 200 L 580 250 L 630 200" fill="none" stroke-width="2" stroke-linejoin="round"/>
 
-  <circle cx="190" cy="62"  r="5" fill="#f87171"/>
-  <circle cx="250" cy="150" r="5" fill="#60a5fa"/>
-  <circle cx="420" cy="62"  r="5" fill="#f87171"/>
-  <circle cx="470" cy="160" r="5" fill="#60a5fa"/>
-  <circle cx="580" cy="250" r="5" fill="#4ade80"/>
+  <circle class="svg-f-down" cx="190" cy="62" r="5"/>
+  <circle class="svg-f-info" cx="250" cy="150" r="5"/>
+  <circle class="svg-f-down" cx="420" cy="62" r="5"/>
+  <circle class="svg-f-info" cx="470" cy="160" r="5"/>
+  <circle class="svg-f-up" cx="580" cy="250" r="5"/>
 
   <text x="196" y="86"  class="svg-label">1 · take external</text>
   <text x="256" y="192" class="svg-label">2 · fill internal</text>
@@ -331,8 +334,50 @@ business back there" — and gaps more for <em>entries</em>. Both are covered in
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-legal">
+    <p><strong>Educational content only. Not financial advice.</strong> Trading
+    involves substantial risk of loss, and most people who day-trade lose money.
+    Nothing here is a recommendation to trade anything.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually
+    labelled Smart Money Concepts. All wording, diagrams and examples on this site
+    were written from scratch.</p>
+  </div>
 </footer>
 </div>
 

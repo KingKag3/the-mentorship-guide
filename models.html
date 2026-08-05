@@ -7,27 +7,32 @@
 <meta name="description" content="The 2022 entry model, the ATM method, market maker buy and sell curves, silver bullet, turtle soup, daily templates, intermarket checks and risk rules.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD Arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html" aria-current="page">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html" aria-current="page">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -95,35 +100,32 @@ describes a complete round trip: a position being built, walked to a target, and
 <figure class="figure">
 <svg viewBox="0 0 720 340" role="img" aria-label="Market maker sell model: a buy program up to a higher timeframe level, a smart money reversal, then a sell program down past the initial consolidation">
   <!-- HTF level -->
-  <rect x="40" y="46" width="650" height="22" fill="#f87171" opacity="0.12"/>
-  <line x1="40" y1="68" x2="690" y2="68" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="46" y="40" class="svg-label-em" fill="#f87171">higher-timeframe premium level + buy stops above an old high</text>
+  <rect class="svg-f-down" x="40" y="46" width="650" height="22" opacity="0.12"/>
+  <line class="svg-s-down" x1="40" y1="68" x2="690" y2="68" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="40" class="svg-label-em svg-f-down">higher-timeframe premium level + buy stops above an old high</text>
 
   <!-- initial consolidation -->
-  <rect x="55" y="196" width="90" height="42" fill="#8b98a5" opacity="0.14" stroke="#8b98a5" stroke-dasharray="3 3"/>
+  <rect class="svg-f-mute svg-s-mute" x="55" y="196" width="90" height="42" opacity="0.14" stroke-dasharray="3 3"/>
   <text x="52" y="190" class="svg-label">initial consolidation</text>
 
   <!-- terminus -->
-  <line x1="40" y1="290" x2="690" y2="290" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="46" y="308" class="svg-label-em" fill="#4ade80">terminus — sell stops below the consolidation</text>
+  <line class="svg-s-up" x1="40" y1="290" x2="690" y2="290" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="308" class="svg-label-em svg-f-up">terminus — sell stops below the consolidation</text>
 
   <!-- buy program -->
-  <path d="M 60 222 L 95 205 L 130 228 L 160 190 L 195 214 L 235 160 L 270 186 L 310 128
-           L 345 152 L 385 92 L 415 110 L 450 64"
-        fill="none" stroke="#4ade80" stroke-width="2.3" stroke-linejoin="round"/>
-  <text x="150" y="150" class="svg-label" fill="#4ade80">buy program — accumulation, then re-accumulation</text>
+  <path class="svg-s-up" d="M 60 222 L 95 205 L 130 228 L 160 190 L 195 214 L 235 160 L 270 186 L 310 128 L 345 152 L 385 92 L 415 110 L 450 64" fill="none" stroke-width="2.3" stroke-linejoin="round"/>
+  <text x="150" y="150" class="svg-label svg-f-up">buy program — accumulation, then re-accumulation</text>
 
   <!-- SMR -->
-  <circle cx="450" cy="64" r="6" fill="#fbbf24"/>
-  <text x="404" y="34" class="svg-label-em" fill="#fbbf24">smart money reversal</text>
+  <circle class="svg-f-warn" cx="450" cy="64" r="6"/>
+  <text x="404" y="34" class="svg-label-em svg-f-warn">smart money reversal</text>
 
   <!-- sell program -->
-  <path d="M 450 64 L 480 120 L 505 96 L 540 165 L 570 140 L 600 215 L 630 190 L 665 292"
-        fill="none" stroke="#f87171" stroke-width="2.5" stroke-linejoin="round"/>
-  <text x="530" y="250" class="svg-label" fill="#f87171">sell program — distribution, then redistribution</text>
+  <path class="svg-s-down" d="M 450 64 L 480 120 L 505 96 L 540 165 L 570 140 L 600 215 L 630 190 L 665 292" fill="none" stroke-width="2.5" stroke-linejoin="round"/>
+  <text x="530" y="250" class="svg-label svg-f-down">sell program — distribution, then redistribution</text>
 
   <!-- quadrant grading -->
-  <g stroke="#232b33" stroke-dasharray="2 5">
+  <g class="svg-s-line" stroke-dasharray="2 5">
     <line x1="40" y1="124" x2="690" y2="124"/>
     <line x1="40" y1="180" x2="690" y2="180"/>
     <line x1="40" y1="236" x2="690" y2="236"/>
@@ -347,8 +349,50 @@ recognise in real time. There is no shortcut past it, and no model on this page 
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-legal">
+    <p><strong>Educational content only. Not financial advice.</strong> Trading
+    involves substantial risk of loss, and most people who day-trade lose money.
+    Nothing here is a recommendation to trade anything.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually
+    labelled Smart Money Concepts. All wording, diagrams and examples on this site
+    were written from scratch.</p>
+  </div>
 </footer>
 </div>
 

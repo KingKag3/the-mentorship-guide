@@ -15,7 +15,8 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `time.html` | The five killzones, daily rhythm, hours of operation, power of three, CBDR, day-of-week tendencies, news days, seasonality, IPDA look-back ranges |
 | `models.html` | 2022 entry model, ATM method, market maker buy/sell curves, silver bullet, turtle soup, daily templates, risk rules, journaling |
 | `glossary.html` | Searchable jargon decoder — ~95 acronyms, one plain sentence each |
-| `style.css` | Shared stylesheet (dark terminal palette, JetBrains Mono headers, Source Serif body) |
+| `style.css` | Shared stylesheet — tokens, light and dark themes, every component |
+| `theme.js` | Theme bootstrap: applies the stored choice before first paint, wires the toggle |
 | `design.html` | Live design system — tokens, type scale, spacing, every component rendered |
 
 ## Accounts (optional)
@@ -87,7 +88,12 @@ work. It also records what is deliberately not being built, and why.
 - The tool list lives once, in `TOOLS` in `app.js`. Every page that shows tools renders from it —
   the members index as cards, each tool page as a compact rail. Three pages had already drifted
   into three different hand-written link rows before this existed.
-- One shared `style.css` rather than duplicating styles across seven files.
+- One shared `style.css` rather than duplicating styles across seven files. Every colour is a
+  token, and every token has a light and a dark value — a hardcoded hex is wrong in one theme by
+  definition, including inside the inline SVG diagrams, which use `svg-f-*` / `svg-s-*` classes
+  because a presentation attribute cannot hold a `var()`.
+- Three type families with one job each: Source Serif for content, Inter for interface, JetBrains
+  Mono for data. Green and red are reserved for market direction; the interface is blue.
 - The concept pages carry almost no JavaScript: the glossary filter, and a one-line call to render
   the account strip in the header. Auth code is confined to `app.js`, `login.html`, `members.html`
   and `admin.html`.

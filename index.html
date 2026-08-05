@@ -7,38 +7,70 @@
 <meta name="description" content="Smart Money trading concepts explained in plain English: liquidity, PD arrays, market structure, killzones, and the day-trading models built on them.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html" aria-current="page">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD Arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html" aria-current="page">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
 <div class="wrap">
 <main>
 
-<h1>Trade Karma</h1>
+<section class="hero">
+  <span class="eyebrow">A trading concept decoder</span>
+  <h1>Smart Money, in plain English.</h1>
 
-<p class="lede">Smart Money material is famously hard to read — not because the ideas are
-complicated, but because it is delivered in a private vocabulary. This site translates that
-vocabulary into ordinary language, one concept at a time.</p>
+  <p class="lede">Smart Money material is famously hard to read — not because the ideas are
+  complicated, but because it is delivered in a private vocabulary. This site translates that
+  vocabulary into ordinary language, one concept at a time.</p>
+
+  <div class="hero-actions">
+    <a class="btn-primary" href="liquidity.html">Start with liquidity</a>
+    <a class="btn-secondary" href="glossary.html">Open the jargon decoder</a>
+  </div>
+
+  <div class="hero-stats">
+    <div>
+      <span class="stat-value">6</span>
+      <span class="stat-label">Concept modules</span>
+    </div>
+    <div>
+      <span class="stat-value">~95</span>
+      <span class="stat-label">Acronyms defined</span>
+    </div>
+    <div>
+      <span class="stat-value">3</span>
+      <span class="stat-label">Free tools, no login</span>
+    </div>
+    <div>
+      <span class="stat-value">0</span>
+      <span class="stat-label">Signals sold</span>
+    </div>
+  </div>
+</section>
 
 <p>Every page here answers three questions about a concept: <strong>what it actually is</strong>,
 <strong>why anyone claims it works</strong>, and <strong>what you would have to see on a chart</strong>
@@ -70,36 +102,42 @@ happen</strong> (a killzone).</p>
 <div class="card-grid">
 
   <a class="card" href="liquidity.html">
-    <h3>1 · Liquidity</h3>
+    <span class="card-num">01</span>
+    <h3>Liquidity</h3>
     <p>Why stop-losses are the fuel. Buyside and sellside, internal vs external range,
     draw on liquidity, stop hunts and the Judas swing.</p>
   </a>
 
   <a class="card" href="pd-arrays.html">
-    <h3>2 · PD arrays</h3>
+    <span class="card-num">02</span>
+    <h3>PD arrays</h3>
     <p>The catalogue of levels: fair value gaps, order blocks, breakers, mitigation and
     rejection blocks, opening gaps, premium and discount.</p>
   </a>
 
   <a class="card" href="structure.html">
-    <h3>3 · Market structure</h3>
+    <span class="card-num">03</span>
+    <h3>Market structure</h3>
     <p>Short-, intermediate- and long-term highs and lows. Displacement, market structure
     shifts, and how a directional bias is actually formed.</p>
   </a>
 
   <a class="card" href="time.html">
-    <h3>4 · Time</h3>
+    <span class="card-num">04</span>
+    <h3>Time</h3>
     <p>Sessions and killzones, the daily rhythm, power of three, the central bank dealers
     range, day-of-week tendencies, and news days to avoid.</p>
   </a>
 
   <a class="card" href="models.html">
-    <h3>5 · Models</h3>
+    <span class="card-num">05</span>
+    <h3>Models</h3>
     <p>Where the pieces get assembled: the 2022 entry model, the market maker buy/sell
     curve, silver bullet, turtle soup, and risk rules.</p>
   </a>
 
   <a class="card" href="glossary.html">
+    <span class="card-num">Reference</span>
     <h3>Jargon decoder</h3>
     <p>Searchable list of every acronym — BISI, CBDR, IOFED, IPDA, NWOG, OTE, RDRB — with a
     one-line plain-English meaning.</p>
@@ -116,32 +154,32 @@ happen</strong> (a killzone).</p>
   <line x1="40" y1="270" x2="700" y2="270" class="svg-axis" stroke-dasharray="2 5"/>
 
   <!-- old high / liquidity band -->
-  <rect x="40" y="72" width="660" height="20" fill="#f87171" opacity="0.10"/>
-  <line x1="40" y1="92" x2="700" y2="92" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <rect x="40" y="72" width="660" height="20" class="svg-zone-down"/>
+  <line x1="40" y1="92" x2="700" y2="92" class="svg-down" stroke-width="1.5" stroke-dasharray="6 4"/>
   <text x="46" y="66" class="svg-label-em">old high — buy stops resting here (buyside liquidity)</text>
 
   <!-- price path -->
   <path d="M 60 230 L 130 175 L 175 205 L 240 130 L 285 165 L 350 84 L 380 100 L 420 150 L 470 128 L 520 196 L 580 240 L 650 262"
-        fill="none" stroke="#4ade80" stroke-width="2.2" stroke-linejoin="round"/>
+        class="svg-up" stroke-width="2.2" stroke-linejoin="round"/>
   <path d="M 350 84 L 380 100 L 420 150 L 470 128 L 520 196 L 580 240 L 650 262"
-        fill="none" stroke="#f87171" stroke-width="2.2" stroke-linejoin="round"/>
+        class="svg-down" stroke-width="2.2" stroke-linejoin="round"/>
 
   <!-- the raid -->
-  <circle cx="350" cy="84" r="5" fill="#fbbf24"/>
-  <text x="300" y="52" class="svg-label-em" fill="#fbbf24">the raid</text>
-  <line x1="352" y1="60" x2="352" y2="76" stroke="#fbbf24" stroke-width="1"/>
+  <circle cx="350" cy="84" r="5" class="svg-warn-f"/>
+  <text x="300" y="52" class="svg-t-warn">the raid</text>
+  <line x1="352" y1="60" x2="352" y2="76" class="svg-warn" stroke-width="1"/>
 
   <!-- gap left behind on the way down -->
-  <rect x="420" y="128" width="280" height="22" fill="#4ade80" opacity="0.12"/>
-  <line x1="420" y1="128" x2="700" y2="128" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 4"/>
-  <line x1="420" y1="150" x2="700" y2="150" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 4"/>
+  <rect x="420" y="128" width="280" height="22" class="svg-zone-up"/>
+  <line x1="420" y1="128" x2="700" y2="128" class="svg-up" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="420" y1="150" x2="700" y2="150" class="svg-up" stroke-width="1" stroke-dasharray="4 4"/>
   <text x="500" y="122" class="svg-label">gap left by the fast move down…</text>
   <text x="500" y="170" class="svg-label">…price returns to it before continuing</text>
-  <circle cx="470" cy="128" r="4" fill="#4ade80"/>
+  <circle cx="470" cy="128" r="4" class="svg-up-f"/>
 
   <!-- target below -->
-  <rect x="40" y="255" width="660" height="18" fill="#4ade80" opacity="0.08"/>
-  <line x1="40" y1="255" x2="700" y2="255" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <rect x="40" y="255" width="660" height="18" class="svg-zone-up"/>
+  <line x1="40" y1="255" x2="700" y2="255" class="svg-up" stroke-width="1.5" stroke-dasharray="6 4"/>
   <text x="46" y="292" class="svg-label-em">old low — sell stops resting here (sellside liquidity). The next destination.</text>
 </svg>
 <figcaption>Left to right: price is pushed above an obvious high so that the stop orders
@@ -204,6 +242,42 @@ what it does.</p>
   things above. Learning the model before the pieces produces confident nonsense.</li>
 </ol>
 
+<h2>Tools you can use without an account</h2>
+
+<p>Three of these need no login, because they hold no private data and a gate on a file in a
+public repository would be decorative. They take numbers you paste in from your own platform —
+none of them carry live market data, and none of them tell you what to trade.</p>
+
+<div class="card-grid">
+
+  <a class="card" href="sizer.html">
+    <span class="card-num">Calculator</span>
+    <h3>Position sizer</h3>
+    <p>Contracts from a stop and a risk budget, across ES, NQ and the micros — including when
+    the honest answer is that the trade is too large for the account.</p>
+  </a>
+
+  <a class="card" href="clock.html">
+    <span class="card-num">Reference</span>
+    <h3>Killzone clock</h3>
+    <p>Which window is running right now, the countdown to the next, and the daily close —
+    computed in New York time, so it stays correct across both clock changes.</p>
+  </a>
+
+  <a class="card" href="smt.html">
+    <span class="card-num">Checker</span>
+    <h3>SMT divergence</h3>
+    <p>ES against NQ at a session extreme, and which of the two failed to confirm. The one
+    tool here that only makes sense for this specific pair.</p>
+  </a>
+
+</div>
+
+<p class="stat-note">A trade journal and a statistics page live behind the
+<a href="members.html">members area</a>: every entry tags itself against the vocabulary above,
+so the numbers answer "which of the things I was taught actually works for me" rather than
+"how did I do last month".</p>
+
 <div class="callout warn">
   <span class="callout-label">Honest caveat</span>
   <p>Much of this framework is unfalsifiable as stated. "Price seeks liquidity or rebalances an
@@ -232,8 +306,50 @@ definition is described in plain language rather than quoted.</p>
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-legal">
+    <p><strong>Educational content only. Not financial advice.</strong> Trading
+    involves substantial risk of loss, and most people who day-trade lose money.
+    Nothing here is a recommendation to trade anything.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually
+    labelled Smart Money Concepts. All wording, diagrams and examples on this site
+    were written from scratch.</p>
+  </div>
 </footer>
 </div>
 

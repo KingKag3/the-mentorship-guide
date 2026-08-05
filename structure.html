@@ -7,27 +7,32 @@
 <meta name="description" content="Swing points, short/intermediate/long-term highs and lows, displacement, market structure shifts, the three drives pattern, SMT divergence and how a daily bias is formed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD Arrays</a>
+        <a href="structure.html" aria-current="page">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html" aria-current="page">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -86,13 +91,10 @@ what turns a messy chart into a hierarchy.</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 300" role="img" aria-label="Price path with short-term, intermediate-term and long-term highs and lows marked">
-  <path d="M 40 250 L 80 200 L 110 235 L 150 160 L 185 200 L 220 120 L 255 175 L 295 95
-           L 330 150 L 365 60 L 400 130 L 440 100 L 470 155 L 510 115 L 545 185 L 580 140
-           L 615 210 L 660 250"
-        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+  <path class="svg-s-ink" d="M 40 250 L 80 200 L 110 235 L 150 160 L 185 200 L 220 120 L 255 175 L 295 95 L 330 150 L 365 60 L 400 130 L 440 100 L 470 155 L 510 115 L 545 185 L 580 140 L 615 210 L 660 250" fill="none" stroke-width="2" stroke-linejoin="round"/>
 
   <!-- STH/STL small dots -->
-  <g fill="#8b98a5">
+  <g class="svg-f-mute">
     <circle cx="80"  cy="200" r="3.5"/>
     <circle cx="150" cy="160" r="3.5"/>
     <circle cx="220" cy="120" r="3.5"/>
@@ -108,20 +110,20 @@ what turns a messy chart into a hierarchy.</p>
   </g>
 
   <!-- ITH/ITL -->
-  <circle cx="330" cy="150" r="6" fill="none" stroke="#60a5fa" stroke-width="2"/>
-  <circle cx="545" cy="185" r="6" fill="none" stroke="#60a5fa" stroke-width="2"/>
-  <text x="308" y="176" class="svg-label" fill="#60a5fa">ITL</text>
-  <text x="524" y="212" class="svg-label" fill="#60a5fa">ITL</text>
+  <circle class="svg-s-info" cx="330" cy="150" r="6" fill="none" stroke-width="2"/>
+  <circle class="svg-s-info" cx="545" cy="185" r="6" fill="none" stroke-width="2"/>
+  <text x="308" y="176" class="svg-label svg-f-info">ITL</text>
+  <text x="524" y="212" class="svg-label svg-f-info">ITL</text>
 
   <!-- LTH -->
-  <circle cx="365" cy="60" r="7" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
-  <text x="352" y="46" class="svg-label-em" fill="#fbbf24">LTH</text>
-  <circle cx="40" cy="250" r="7" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
-  <text x="30" y="276" class="svg-label-em" fill="#fbbf24">LTL</text>
+  <circle class="svg-s-warn" cx="365" cy="60" r="7" fill="none" stroke-width="2.5"/>
+  <text x="352" y="46" class="svg-label-em svg-f-warn">LTH</text>
+  <circle class="svg-s-warn" cx="40" cy="250" r="7" fill="none" stroke-width="2.5"/>
+  <text x="30" y="276" class="svg-label-em svg-f-warn">LTL</text>
 
   <text x="600" y="60" class="svg-label">grey · short-term</text>
-  <text x="600" y="78" class="svg-label" fill="#60a5fa">blue · intermediate</text>
-  <text x="600" y="96" class="svg-label" fill="#fbbf24">amber · long-term</text>
+  <text x="600" y="78" class="svg-label svg-f-info">blue · intermediate</text>
+  <text x="600" y="96" class="svg-label svg-f-warn">amber · long-term</text>
 </svg>
 <figcaption>The hierarchy in one picture. Breaking a short-term low happens constantly and means
 little. Breaking an intermediate-term low is the event the framework calls a genuine break of
@@ -186,26 +188,24 @@ distinction that is actually useful:</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 300" role="img" aria-label="Bearish market structure shift: rally above an old high, then a displaced break below a recent low">
-  <line x1="40" y1="80" x2="690" y2="80" stroke="#f87171" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <line class="svg-s-down" x1="40" y1="80" x2="690" y2="80" stroke-width="1.3" stroke-dasharray="6 4"/>
   <text x="44" y="72" class="svg-label">old high — buy stops</text>
 
-  <line x1="40" y1="185" x2="690" y2="185" stroke="#60a5fa" stroke-width="1.3" stroke-dasharray="6 4"/>
-  <text x="44" y="203" class="svg-label" fill="#60a5fa">most recent short-term low</text>
+  <line class="svg-s-info" x1="40" y1="185" x2="690" y2="185" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="44" y="203" class="svg-label svg-f-info">most recent short-term low</text>
 
-  <path d="M 60 230 L 110 150 L 155 195 L 205 110 L 250 145 L 300 62 L 335 100 L 370 150"
-        fill="none" stroke="#4ade80" stroke-width="2.2" stroke-linejoin="round"/>
-  <path d="M 370 150 L 400 235 L 440 205 L 480 262 L 540 230 L 600 275"
-        fill="none" stroke="#f87171" stroke-width="2.6" stroke-linejoin="round"/>
+  <path class="svg-s-up" d="M 60 230 L 110 150 L 155 195 L 205 110 L 250 145 L 300 62 L 335 100 L 370 150" fill="none" stroke-width="2.2" stroke-linejoin="round"/>
+  <path class="svg-s-down" d="M 370 150 L 400 235 L 440 205 L 480 262 L 540 230 L 600 275" fill="none" stroke-width="2.6" stroke-linejoin="round"/>
 
-  <circle cx="300" cy="62" r="5" fill="#fbbf24"/>
-  <text x="258" y="46" class="svg-label-em" fill="#fbbf24">1 · liquidity taken</text>
+  <circle class="svg-f-warn" cx="300" cy="62" r="5"/>
+  <text x="258" y="46" class="svg-label-em svg-f-warn">1 · liquidity taken</text>
 
-  <rect x="370" y="150" width="30" height="85" fill="#f87171" opacity="0.2"/>
-  <text x="404" y="196" class="svg-label-em" fill="#f87171">2 · displacement through the low</text>
+  <rect class="svg-f-down" x="370" y="150" width="30" height="85" opacity="0.2"/>
+  <text x="404" y="196" class="svg-label-em svg-f-down">2 · displacement through the low</text>
 
-  <rect x="400" y="170" width="290" height="26" fill="#f87171" opacity="0.13"/>
+  <rect class="svg-f-down" x="400" y="170" width="290" height="26" opacity="0.13"/>
   <text x="470" y="164" class="svg-label">3 · the gap it left behind — the entry</text>
-  <circle cx="440" cy="185" r="5" fill="#f87171"/>
+  <circle class="svg-f-down" cx="440" cy="185" r="5"/>
 </svg>
 <figcaption>The canonical bearish shift. Price rallies above an obvious high (taking buy stops),
 then drops through the most recent short-term low with real force, leaving a gap. The entry is the
@@ -341,8 +341,50 @@ you find a usable fair value gap, stop. Do not keep descending. If there is no g
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-legal">
+    <p><strong>Educational content only. Not financial advice.</strong> Trading
+    involves substantial risk of loss, and most people who day-trade lose money.
+    Nothing here is a recommendation to trade anything.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually
+    labelled Smart Money Concepts. All wording, diagrams and examples on this site
+    were written from scratch.</p>
+  </div>
 </footer>
 </div>
 

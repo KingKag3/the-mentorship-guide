@@ -7,27 +7,32 @@
 <meta name="description" content="Fair value gaps, order blocks, breakers, mitigation blocks, rejection blocks, propulsion and vacuum blocks, opening gaps, premium and discount — the full Smart Money price-level catalogue in plain English.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html" aria-current="page">PD Arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html" aria-current="page">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -59,25 +64,25 @@ daily. When those disagree, the higher timeframe wins.</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 280" role="img" aria-label="Premium, equilibrium and discount zones within a dealing range">
-  <rect x="120" y="40"  width="480" height="80"  fill="#f87171" opacity="0.08"/>
-  <rect x="120" y="160" width="480" height="80"  fill="#4ade80" opacity="0.08"/>
+  <rect class="svg-f-down" x="120" y="40" width="480" height="80" opacity="0.08"/>
+  <rect class="svg-f-up" x="120" y="160" width="480" height="80" opacity="0.08"/>
 
-  <line x1="120" y1="40"  x2="600" y2="40"  stroke="#f87171" stroke-width="1.5"/>
-  <line x1="120" y1="140" x2="600" y2="140" stroke="#8b98a5" stroke-width="1.5" stroke-dasharray="8 5"/>
-  <line x1="120" y1="240" x2="600" y2="240" stroke="#4ade80" stroke-width="1.5"/>
+  <line class="svg-s-down" x1="120" y1="40" x2="600" y2="40" stroke-width="1.5"/>
+  <line class="svg-s-mute" x1="120" y1="140" x2="600" y2="140" stroke-width="1.5" stroke-dasharray="8 5"/>
+  <line class="svg-s-up" x1="120" y1="240" x2="600" y2="240" stroke-width="1.5"/>
 
-  <text x="612" y="45"  class="svg-label-em" fill="#f87171">1.00 · range high</text>
+  <text x="612" y="45" class="svg-label-em svg-f-down">1.00 · range high</text>
   <text x="612" y="145" class="svg-label-em">0.50 · equilibrium</text>
-  <text x="612" y="245" class="svg-label-em" fill="#4ade80">0.00 · range low</text>
+  <text x="612" y="245" class="svg-label-em svg-f-up">0.00 · range low</text>
 
-  <text x="132" y="76"  class="svg-label-em" fill="#f87171">PREMIUM — expensive — look to sell</text>
+  <text x="132" y="76" class="svg-label-em svg-f-down">PREMIUM — expensive — look to sell</text>
   <text x="132" y="96"  class="svg-label">bearish arrays live here: −FVG, −OB, −BB</text>
 
-  <text x="132" y="196" class="svg-label-em" fill="#4ade80">DISCOUNT — cheap — look to buy</text>
+  <text x="132" y="196" class="svg-label-em svg-f-up">DISCOUNT — cheap — look to buy</text>
   <text x="132" y="216" class="svg-label">bullish arrays live here: +FVG, +OB, +BB</text>
 
-  <line x1="120" y1="62" x2="600" y2="62" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="3 4"/>
-  <text x="132" y="58" class="svg-label" fill="#c4b5fd">0.79 / 0.705 — the OTE band</text>
+  <line class="svg-s-alt" x1="120" y1="62" x2="600" y2="62" stroke-width="1" stroke-dasharray="3 4"/>
+  <text x="132" y="58" class="svg-label svg-f-alt">0.79 / 0.705 — the OTE band</text>
 </svg>
 <figcaption>The dealing range and its zones. The OTE ("optimal trade entry") band marked in
 violet is a favoured slice of the retracement — roughly the 62% to 79% pullback — where the
@@ -101,37 +106,36 @@ overlap</strong>. The untouched space between them is the gap.</p>
 <svg viewBox="0 0 720 300" role="img" aria-label="Three candle formation creating a bullish fair value gap">
   <!-- bullish FVG -->
   <g>
-    <text x="60" y="30" class="svg-label-em" fill="#4ade80">BULLISH FVG (BISI)</text>
+    <text x="60" y="30" class="svg-label-em svg-f-up">BULLISH FVG (BISI)</text>
     <!-- candle 1 -->
-    <line x1="110" y1="200" x2="110" y2="250" stroke="#8b98a5" stroke-width="1.5"/>
-    <rect x="98" y="215" width="24" height="28" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+    <line class="svg-s-mute" x1="110" y1="200" x2="110" y2="250" stroke-width="1.5"/>
+    <rect class="svg-f-surface svg-s-mute" x="98" y="215" width="24" height="28" stroke-width="1.5"/>
     <text x="90" y="272" class="svg-label">candle 1</text>
     <!-- candle 2 big up -->
-    <line x1="180" y1="80" x2="180" y2="235" stroke="#4ade80" stroke-width="1.5"/>
-    <rect x="168" y="95" width="24" height="125" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+    <line class="svg-s-up" x1="180" y1="80" x2="180" y2="235" stroke-width="1.5"/>
+    <rect class="svg-f-up svg-s-up" x="168" y="95" width="24" height="125" opacity="0.35" stroke-width="1.5"/>
     <text x="160" y="272" class="svg-label">candle 2</text>
     <!-- candle 3 -->
-    <line x1="250" y1="70" x2="250" y2="150" stroke="#8b98a5" stroke-width="1.5"/>
-    <rect x="238" y="85" width="24" height="40" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+    <line class="svg-s-mute" x1="250" y1="70" x2="250" y2="150" stroke-width="1.5"/>
+    <rect class="svg-f-surface svg-s-mute" x="238" y="85" width="24" height="40" stroke-width="1.5"/>
     <text x="230" y="272" class="svg-label">candle 3</text>
 
     <!-- the gap -->
-    <rect x="90" y="150" width="180" height="50" fill="#4ade80" opacity="0.18"/>
-    <line x1="90" y1="150" x2="300" y2="150" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 3"/>
-    <line x1="90" y1="175" x2="300" y2="175" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
-    <line x1="90" y1="200" x2="300" y2="200" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 3"/>
+    <rect class="svg-f-up" x="90" y="150" width="180" height="50" opacity="0.18"/>
+    <line class="svg-s-up" x1="90" y1="150" x2="300" y2="150" stroke-width="1" stroke-dasharray="4 3"/>
+    <line class="svg-s-alt" x1="90" y1="175" x2="300" y2="175" stroke-width="1" stroke-dasharray="2 4"/>
+    <line class="svg-s-up" x1="90" y1="200" x2="300" y2="200" stroke-width="1" stroke-dasharray="4 3"/>
     <text x="305" y="154" class="svg-label">low of candle 3</text>
-    <text x="305" y="179" class="svg-label" fill="#c4b5fd">consequent encroachment (50%)</text>
+    <text x="305" y="179" class="svg-label svg-f-alt">consequent encroachment (50%)</text>
     <text x="305" y="204" class="svg-label">high of candle 1</text>
   </g>
 
   <!-- the return -->
   <g transform="translate(430,0)">
-    <path d="M 20 90 L 60 60 L 100 130 L 140 175 L 180 120 L 230 60"
-          fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
-    <rect x="0" y="150" width="250" height="50" fill="#4ade80" opacity="0.10"/>
-    <line x1="0" y1="175" x2="250" y2="175" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
-    <circle cx="140" cy="175" r="5" fill="#4ade80"/>
+    <path class="svg-s-ink" d="M 20 90 L 60 60 L 100 130 L 140 175 L 180 120 L 230 60" fill="none" stroke-width="2" stroke-linejoin="round"/>
+    <rect class="svg-f-up" x="0" y="150" width="250" height="50" opacity="0.10"/>
+    <line class="svg-s-alt" x1="0" y1="175" x2="250" y2="175" stroke-width="1" stroke-dasharray="2 4"/>
+    <circle class="svg-f-up" cx="140" cy="175" r="5"/>
     <text x="0" y="30" class="svg-label-em">…later, price returns to the gap</text>
     <text x="60" y="215" class="svg-label">touch, react, continue</text>
   </g>
@@ -219,40 +223,39 @@ manage without being underwater — so the level is defended.</p>
 <figure class="figure">
 <svg viewBox="0 0 720 280" role="img" aria-label="A bullish order block: the last down candle before a rally, revisited later">
   <!-- down candles -->
-  <g stroke="#8b98a5" stroke-width="1.5">
+  <g class="svg-s-mute" stroke-width="1.5">
     <line x1="90"  y1="70"  x2="90"  y2="130"/>
     <line x1="130" y1="90"  x2="130" y2="160"/>
     <line x1="170" y1="120" x2="170" y2="205"/>
   </g>
-  <rect x="80"  y="80"  width="20" height="42" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
-  <rect x="120" y="100" width="20" height="52" fill="#12171d" stroke="#8b98a5" stroke-width="1.5"/>
+  <rect class="svg-f-surface svg-s-mute" x="80" y="80" width="20" height="42" stroke-width="1.5"/>
+  <rect class="svg-f-surface svg-s-mute" x="120" y="100" width="20" height="52" stroke-width="1.5"/>
 
   <!-- the OB candle, highlighted -->
-  <rect x="160" y="130" width="20" height="62" fill="#f87171" opacity="0.3" stroke="#f87171" stroke-width="2"/>
-  <rect x="60" y="130" width="600" height="62" fill="#4ade80" opacity="0.08"/>
-  <line x1="60" y1="130" x2="660" y2="130" stroke="#4ade80" stroke-width="1" stroke-dasharray="5 4"/>
-  <line x1="60" y1="161" x2="660" y2="161" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
-  <line x1="60" y1="192" x2="660" y2="192" stroke="#4ade80" stroke-width="1" stroke-dasharray="5 4"/>
+  <rect class="svg-f-down svg-s-down" x="160" y="130" width="20" height="62" opacity="0.3" stroke-width="2"/>
+  <rect class="svg-f-up" x="60" y="130" width="600" height="62" opacity="0.08"/>
+  <line class="svg-s-up" x1="60" y1="130" x2="660" y2="130" stroke-width="1" stroke-dasharray="5 4"/>
+  <line class="svg-s-alt" x1="60" y1="161" x2="660" y2="161" stroke-width="1" stroke-dasharray="2 4"/>
+  <line class="svg-s-up" x1="60" y1="192" x2="660" y2="192" stroke-width="1" stroke-dasharray="5 4"/>
 
-  <text x="188" y="228" class="svg-label-em" fill="#f87171">the order block: last down-close candle</text>
+  <text x="188" y="228" class="svg-label-em svg-f-down">the order block: last down-close candle</text>
   <text x="470" y="126" class="svg-label">open (top of body)</text>
-  <text x="470" y="157" class="svg-label" fill="#c4b5fd">mean threshold — 50% of the body</text>
+  <text x="470" y="157" class="svg-label svg-f-alt">mean threshold — 50% of the body</text>
   <text x="470" y="205" class="svg-label">close (bottom of body)</text>
 
   <!-- rally away -->
-  <g stroke="#4ade80" stroke-width="1.5">
+  <g class="svg-s-up" stroke-width="1.5">
     <line x1="210" y1="90"  x2="210" y2="150"/>
     <line x1="250" y1="55"  x2="250" y2="110"/>
     <line x1="290" y1="40"  x2="290" y2="80"/>
   </g>
-  <rect x="200" y="100" width="20" height="45" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
-  <rect x="240" y="62"  width="20" height="44" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
-  <rect x="280" y="46"  width="20" height="30" fill="#4ade80" opacity="0.35" stroke="#4ade80" stroke-width="1.5"/>
+  <rect class="svg-f-up svg-s-up" x="200" y="100" width="20" height="45" opacity="0.35" stroke-width="1.5"/>
+  <rect class="svg-f-up svg-s-up" x="240" y="62" width="20" height="44" opacity="0.35" stroke-width="1.5"/>
+  <rect class="svg-f-up svg-s-up" x="280" y="46" width="20" height="30" opacity="0.35" stroke-width="1.5"/>
 
   <!-- return -->
-  <path d="M 310 55 L 350 40 L 400 95 L 450 70 L 500 140 L 545 158 L 590 90 L 640 45"
-        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
-  <circle cx="545" cy="158" r="5" fill="#4ade80"/>
+  <path class="svg-s-ink" d="M 310 55 L 350 40 L 400 95 L 450 70 L 500 140 L 545 158 L 590 90 L 640 45" fill="none" stroke-width="2" stroke-linejoin="round"/>
+  <circle class="svg-f-up" cx="545" cy="158" r="5"/>
   <text x="500" y="252" class="svg-label">price returns, respects the mean threshold, continues</text>
 </svg>
 <figcaption>The block is measured from the body, not the wick — open to close on the down candle
@@ -299,20 +302,19 @@ earlier swing high — which were supposed to be resistance — become support o
 
 <figure class="figure">
 <svg viewBox="0 0 720 280" role="img" aria-label="Bullish breaker block formation: low, high, lower low, then break above the high">
-  <path d="M 60 170 L 130 90 L 200 155 L 270 225 L 340 130 L 410 70 L 470 120 L 530 148 L 590 95 L 650 45"
-        fill="none" stroke="#d7dde3" stroke-width="2.2" stroke-linejoin="round"/>
+  <path class="svg-s-ink" d="M 60 170 L 130 90 L 200 155 L 270 225 L 340 130 L 410 70 L 470 120 L 530 148 L 590 95 L 650 45" fill="none" stroke-width="2.2" stroke-linejoin="round"/>
 
-  <line x1="40" y1="170" x2="690" y2="170" stroke="#8b98a5" stroke-width="1" stroke-dasharray="4 4"/>
-  <line x1="40" y1="90"  x2="690" y2="90"  stroke="#8b98a5" stroke-width="1" stroke-dasharray="4 4"/>
+  <line class="svg-s-mute" x1="40" y1="170" x2="690" y2="170" stroke-width="1" stroke-dasharray="4 4"/>
+  <line class="svg-s-mute" x1="40" y1="90" x2="690" y2="90" stroke-width="1" stroke-dasharray="4 4"/>
 
-  <circle cx="60"  cy="170" r="5" fill="#8b98a5"/><text x="42"  y="192" class="svg-label">low</text>
-  <circle cx="130" cy="90"  r="5" fill="#8b98a5"/><text x="112" y="80"  class="svg-label">high</text>
-  <circle cx="270" cy="225" r="5" fill="#f87171"/><text x="230" y="248" class="svg-label" fill="#f87171">lower low — stops taken</text>
-  <circle cx="410" cy="70"  r="5" fill="#4ade80"/><text x="392" y="58"  class="svg-label" fill="#4ade80">higher high — structure broken</text>
+  <circle class="svg-f-mute" cx="60" cy="170" r="5"/><text x="42"  y="192" class="svg-label">low</text>
+  <circle class="svg-f-mute" cx="130" cy="90" r="5"/><text x="112" y="80"  class="svg-label">high</text>
+  <circle class="svg-f-down" cx="270" cy="225" r="5"/><text x="230" y="248" class="svg-label svg-f-down">lower low — stops taken</text>
+  <circle class="svg-f-up" cx="410" cy="70" r="5"/><text x="392" y="58" class="svg-label svg-f-up">higher high — structure broken</text>
 
-  <rect x="120" y="130" width="570" height="34" fill="#4ade80" opacity="0.14"/>
-  <text x="440" y="152" class="svg-label-em" fill="#4ade80">breaker zone — retested as support</text>
-  <circle cx="530" cy="148" r="5" fill="#4ade80"/>
+  <rect class="svg-f-up" x="120" y="130" width="570" height="34" opacity="0.14"/>
+  <text x="440" y="152" class="svg-label-em svg-f-up">breaker zone — retested as support</text>
+  <circle class="svg-f-up" cx="530" cy="148" r="5"/>
 </svg>
 <figcaption>Key sequence for a bullish breaker: low → high → <em>lower</em> low → higher high.
 The lower low is the stop run; the break above the high is the confirmation. The zone is then
@@ -423,8 +425,50 @@ than escaping.</p>
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-legal">
+    <p><strong>Educational content only. Not financial advice.</strong> Trading
+    involves substantial risk of loss, and most people who day-trade lose money.
+    Nothing here is a recommendation to trade anything.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually
+    labelled Smart Money Concepts. All wording, diagrams and examples on this site
+    were written from scratch.</p>
+  </div>
 </footer>
 </div>
 

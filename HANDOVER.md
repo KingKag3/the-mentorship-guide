@@ -28,6 +28,46 @@ rows from any key the site holds. It needs an authenticated session.
 
 ---
 
+## The `ui-overhaul` branch
+
+A visual redesign lives on `ui-overhaul`, unmerged. **Not one word of content changed** — same
+pages, same copy, same arguments, same diagram geometry. What changed is the presentation:
+
+- Editorial light theme by default, with a full dark theme and a masthead toggle.
+- Green and red now mean market direction only; the interface moved to a navy/blue scale.
+- Serif for content, Inter for interface, JetBrains Mono for data. Previously every heading was
+  monospace, which is most of what made the site read as a terminal.
+- `h2::before { content: "## " }` removed — it printed a literal `## ` before every heading.
+- 161 hardcoded hex values in the SVG diagrams converted to themed classes.
+- `index.html` opens with a hero and now links the tools; every page has a real footer.
+
+### What was actually verified
+
+Measured in a browser against the running site, not asserted:
+
+- Every page loads with no console errors, and all 18 pass a structural check (masthead, footer,
+  theme bootstrap, balanced tags, no leftover hex attributes).
+- Contrast was computed for 19 foreground/background pairs in **both** themes. Everything clears
+  WCAG AA; most clear AAA. Nothing measured below 4.5:1.
+- The theme toggle, the token cascade and `--on-brand` were checked under forced light and forced
+  dark.
+
+### What was not
+
+**Nobody has looked at it.** The browser pane would not composite during the session, so no
+screenshot was ever taken — the verification above is computed, not seen. Layout, rhythm, and
+whether the thing is actually *good* are unjudged. Run it locally before forming a view:
+
+```
+python -m http.server 8765
+```
+
+Also unchecked: the members-area pages behind auth (`journal`, `stats`, `admin`, `lesson`,
+`scripts`) were validated structurally but never rendered with real data, and no page has been
+looked at on a narrow viewport.
+
+---
+
 ## Decisions made without asking
 
 The user was asleep. These went the way that seemed most defensible; all are cheap to reverse.
@@ -92,7 +132,8 @@ statistic.
 - **The tools are unreachable from the public site.** `DECISIONS.md` justifies leaving the sizer,
   clock and SMT checker ungated partly because they work as a funnel. Nothing on `index.html` or any
   concept page links to them, so as shipped they funnel nobody. Either link them or drop that half
-  of the argument.
+  of the argument. *(Closed on the `ui-overhaul` branch — `index.html` gained a tools section and
+  every page's footer links all five. Still open on `main`.)*
 - **`design.html` covers the tool components but not all of them.** The Quill editor overrides, the
   invite components, the lesson-media components and the auth card are still absent.
 - **`trade-karma-day-model.pine` cites no rule IDs.** `CLAUDE.md` in that repo says the code cites

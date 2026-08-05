@@ -210,3 +210,80 @@ site whose journal and statistics pages were deployed, reachable, and backed by 
 happens to open decides the outcome. The install steps belong in exactly one place.
 
 ---
+
+## 2026-08-05 — The interface is blue so that green can mean something
+
+**Decided:** the brand and every interactive affordance — links, buttons, focus rings, the active
+nav item, badges — use a navy/blue scale. Green and red are reserved for market direction: bull and
+bear, profit and loss, and the diagrams.
+
+**Instead of:** the terminal green (`#4ade80`) used for all of it, which is what shipped.
+
+**Why:** the old palette used one green for the brand, the links, the buttons, the active nav item,
+the focus ring, the member badge, the bullish tag *and* the bullish half of every diagram. It
+appeared several hundred times on a page, which meant that by the time a reader reached a chart
+where green carried actual information, green had been trained to mean nothing. On a site whose
+entire subject is reading direction off a chart, that is an expensive thing to give away for a
+house style.
+
+Separating the two axes also fixes the reverse problem: a red "delete" button and a bearish
+candle no longer have to be the same red by coincidence.
+
+**This is a branch, not a merge.** It lives on `ui-overhaul` for review.
+
+---
+
+## 2026-08-05 — Light by default, with a real dark theme rather than a dark-only site
+
+**Decided:** an editorial light theme is the default. A dark theme is defined token-for-token
+alongside it, follows the operating system, and is pinned by a toggle in the masthead.
+
+**Instead of:** keeping the dark-only palette, or converting to light-only.
+
+**Why:** dark-on-black with a saturated accent is the visual grammar of a terminal, a game overlay
+or a crypto landing page — it was the single largest reason the site did not read as a finance
+publication. But a trading audience genuinely does work in the dark, so removing it would have
+traded one complaint for another. Defining both means the default sets the tone and nobody loses
+anything.
+
+The cost is that every token is declared three times: once light, once inside
+`prefers-color-scheme: dark`, once under `[data-theme="dark"]`. With no build step there is no way
+around that duplication. It is why `--on-brand` exists rather than a literal `#fff` on the primary
+button — the button's fill is navy in one theme and pale blue in the other, so its text colour
+cannot be a constant.
+
+**Consequence worth stating:** nothing may hardcode a colour, because a literal is now wrong in one
+of the two themes by definition. That was already the rule in `CLAUDE.md`; it is now load-bearing
+rather than aspirational.
+
+---
+
+## 2026-08-05 — Diagram colours moved out of SVG attributes into classes
+
+**Decided:** the inline SVG diagrams carry `class="svg-f-up"` / `class="svg-s-down"` instead of
+`fill="#4ade80"` / `stroke="#f87171"`. Fill and stroke are separate class namespaces; per-element
+`opacity` is untouched, so the zone washes keep their individual strengths.
+
+**Instead of:** substituting one set of hex values for another.
+
+**Why:** a presentation attribute cannot hold a `var()`. Any hex left in the markup would have been
+correct in one theme and wrong in the other, and the diagrams are the part of this site where a
+wrong colour is not cosmetic — green and red *are* the content. 161 attributes across six pages
+were converted mechanically.
+
+---
+
+## 2026-08-05 — Headings stop pretending to be markdown
+
+**Decided:** removed `h2::before { content: "## " }`.
+
+**Instead of:** keeping it as part of the terminal styling.
+
+**Why:** it rendered a literal `## ` in front of every section heading on every page. Read as
+intended it is a knowing reference to the markdown the content is written in; read cold — which is
+how every visitor reads it — it looks like a rendering bug that nobody noticed. Someone looking at
+the site for the first time asked whether it was a mistake, which is the only test that matters.
+`.lesson h2` and `.phase h2` already suppressed it, so the judgement had effectively been made
+twice before.
+
+---

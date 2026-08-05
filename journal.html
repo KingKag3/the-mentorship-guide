@@ -175,10 +175,37 @@
       <option value="scratch">Scratch</option>
     </select>
 
-    <label class="check-line">
-      <input id="checklist_done" type="checkbox">
-      <span>I completed the pre-trade checklist before entering</span>
-    </label>
+    <fieldset class="checklist">
+      <legend>Pre-trade checklist</legend>
+      <p class="checklist-intro">Ticked <em>before</em> entering, not reconstructed afterwards. An
+      honest incomplete checklist is worth more than a complete one filled in from memory — the
+      statistics page compares the two, and that comparison is the only thing that can settle
+      whether the discipline pays.</p>
+
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_bias">
+        <span>I had a daily bias, and this trade agreed with it</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_draw">
+        <span>I named the draw on liquidity before entering</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_array">
+        <span>The entry came from a PD array I identified in advance</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_kz">
+        <span>The entry was inside a killzone, not chased outside one</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_risk">
+        <span>I sized the position before entering, and the stop was placed at once</span>
+      </label>
+
+      <p class="field-note" id="checklist-count">0 of 5</p>
+      <input id="checklist_done" type="checkbox" hidden>
+    </fieldset>
 
     <label for="management">How it was managed <span class="opt">— optional</span></label>
     <input id="management" type="text" placeholder="held to target / moved to breakeven at 1R">
@@ -245,6 +272,33 @@ $('opened_at').value = nowLocal();
 // --- derived numbers -------------------------------------------------------
 // Points and R are never typed. A journal where the member can enter an R that
 // disagrees with the prices is a journal whose statistics mean nothing.
+
+/**
+ * Roll the five boxes up into the single stored boolean and show the count.
+ *
+ * Deliberately does not block saving. ROADMAP 2.2 asks for the checklist to be
+ * required before the journal accepts an entry; requiring it would mean every
+ * stored trade is checklist-complete, which destroys the one comparison the
+ * checklist exists to make. Friction is applied at save time instead, as a
+ * confirmation the member has to read.
+ */
+function syncChecklist() {
+  const boxes = Array.from(document.querySelectorAll('.ck'));
+  const done = boxes.filter((b) => b.checked).length;
+
+  $('checklist_done').checked = done === boxes.length;
+
+  const note = $('checklist-count');
+  note.textContent = done + ' of ' + boxes.length +
+    (done === boxes.length ? ' - complete' : '');
+  note.className = 'field-note ' + (done === boxes.length ? 'field-note-ok' : '');
+}
+
+document.querySelectorAll('.ck').forEach((box) => {
+  box.addEventListener('change', syncChecklist);
+});
+
+syncChecklist();
 
 function derive() {
   const dir = $('direction').value === 'short' ? -1 : 1;
@@ -337,6 +391,24 @@ form.addEventListener('submit', async (e) => {
   $('save-btn').disabled = true;
 
   try {
+    // The friction ROADMAP 2.2 asks for, applied without falsifying the record.
+    // Saving is still allowed; the member has to look at what they skipped.
+    if (!$('checklist_done').checked) {
+      const missed = Array.from(document.querySelectorAll('.ck'))
+        .filter((b) => !b.checked)
+        .map((b) => b.parentElement.querySelector('span').textContent.trim());
+
+      const ok = confirm(
+        'Save with an incomplete checklist?\n\n' +
+        'Not ticked:\n  - ' + missed.join('\n  - ') + '\n\n' +
+        'Recording it honestly is the right thing to do. The statistics page compares ' +
+        'checklist-complete trades against the rest, and that comparison only means something ' +
+        'if this box reflects what actually happened.'
+      );
+
+      if (!ok) { $('save-btn').disabled = false; return; }
+    }
+
     const shotPath = await uploadShot();
     const row = readForm(derive(), shotPath);
 
@@ -508,7 +580,12 @@ function fillForm(r) {
   $('bias').value = r.bias || '';
   $('agreed').value = r.agreed_with_bias === null || r.agreed_with_bias === undefined
     ? '' : (r.agreed_with_bias ? 'yes' : 'no');
-  $('checklist_done').checked = !!r.checklist_done;
+  // Only the rolled-up boolean is stored, so editing an old trade restores all
+  // five boxes or none. Which individual step was skipped is not recoverable -
+  // recording that would need five more columns and another migration, and the
+  // comparison the statistics page makes only needs the boolean.
+  document.querySelectorAll('.ck').forEach((box) => { box.checked = !!r.checklist_done; });
+  syncChecklist();
   $('entry').value = r.entry ?? '';
   $('stop').value = r.stop ?? '';
   $('target').value = r.target ?? '';

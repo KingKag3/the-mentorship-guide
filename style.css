@@ -1373,6 +1373,35 @@ tbody tr { transition: background-color var(--fast); }
 
 .check-line input { width: auto !important; margin: 0; }
 
+/* ---------- pre-trade checklist ---------- */
+
+.checklist {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  margin: var(--s-4) 0 var(--s-5);
+}
+
+.checklist legend {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 var(--s-2);
+}
+
+.checklist-intro {
+  font-size: var(--step--1);
+  color: var(--muted);
+  margin: 0 0 var(--s-3);
+  max-width: 60ch;
+}
+
+.checklist .check-line { margin: var(--s-2) 0 !important; }
+.checklist .field-note { margin: var(--s-3) 0 0; }
+
 /* ---------- scrollbars ---------- */
 
 * { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }

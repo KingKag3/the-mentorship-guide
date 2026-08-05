@@ -3,7 +3,7 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 5 August 2026.
+Last updated: 5 August 2026, second session.
 
 ---
 
@@ -17,9 +17,14 @@ Last updated: 5 August 2026.
 | `clock.html` | no | no | yes — in a browser |
 | `smt.html` | no | no | yes — in a browser |
 
-`supabase/trades.sql` creates the `trades` table, its row-level security, and two storage policies.
-**It has not been run against a live project.** Nothing in the journal or statistics works until
-somebody pastes it into the Supabase SQL editor.
+`supabase/trades.sql` **has now been run against the live project.** Verified from outside the
+application, with the anon key: the `trades` table exists, an anonymous select returns `[]` rather
+than rows, and all 26 columns `journal.html` writes are present with no mismatch. So the SQL parses,
+the table shape matches the insert, and the row-level security is not accidentally open.
+
+That is as far as verification goes. Whether a row actually lands, and whether `points` and
+`r_multiple` compute correctly, cannot be checked from outside — the policies correctly hide member
+rows from any key the site holds. It needs an authenticated session.
 
 ---
 
@@ -51,26 +56,52 @@ returns for daily; the curriculum is what they read once.
 
 Be honest about this list before trusting anything below it.
 
-- **Everything touching Supabase.** `journal.html` and `stats.html` have never run against a
-  configured project. The insert path, the RLS policies, the storage policy for
-  `journal/<user id>/`, and the screenshot upload are all unexercised.
-- **`supabase/trades.sql` has never been executed.** It is written to be idempotent and follows the
-  style of `schema.sql`, but a syntax error would not be visible until it is run.
-- **The storage policies assume `storage.foldername()` behaves as documented** — that
-  `(storage.foldername(name))[1]` is the first path segment. Worth confirming on first run.
+- **That a trade row actually saves.** A trade was logged and did not appear in the statistics — see
+  below. The insert reports no error and the table accepts the shape, but no row has been observed
+  by anyone but the member who wrote it.
+- **`points` and `r_multiple` arithmetic.** Derived in the browser, never checked against a hand
+  calculation. If this is wrong, every number the statistics page ever shows is wrong and looks
+  entirely plausible.
+- **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
+  image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
+- **`admins read shared`** — needs a second account with `shared_with_mentor` set.
+- **The pre-trade checklist end to end.** The roll-up logic was run in a browser across all five
+  states; the module load, the save-time confirmation and the value reaching the database were not.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at
   on a narrow viewport.
-- **`design.html` has not been updated** with the new components, so it is currently an incomplete
-  regression check.
+
+### The open statistics question
+
+A trade was logged and `stats.html` showed nothing. The page has since been changed to distinguish
+"no trades" from "trades logged, none closed", which should identify it immediately on next load. If
+it reports open trades, the system was working and the message was lying. If it still reports no
+trades at all, the insert is not landing and that is the next task.
+
+Settle it from the Supabase SQL editor, which bypasses row-level security:
+
+```sql
+select id, opened_at, entry, stop, exit_price, points, r_multiple from public.trades order by created_at desc;
+```
 
 ---
 
 ## Known gaps
 
-- **No pre-trade checklist yet.** `trades.checklist_done` exists and `stats.html` already slices by
-  it, but nothing sets it except a bare checkbox. ROADMAP 2.2 closes this.
 - **`models.html` does not link to "your results with this model."** The roadmap calls for it and
-  `stats.html` now has the data to serve it.
+  `stats.html` has the data to serve it. Left until the statistics are proven against real rows —
+  linking members at a page that may be miscounting would be worse than not linking at all.
+- **The tools are unreachable from the public site.** `DECISIONS.md` justifies leaving the sizer,
+  clock and SMT checker ungated partly because they work as a funnel. Nothing on `index.html` or any
+  concept page links to them, so as shipped they funnel nobody. Either link them or drop that half
+  of the argument.
+- **`design.html` covers the tool components but not all of them.** The Quill editor overrides, the
+  invite components, the lesson-media components and the auth card are still absent.
+- **The pine code cites no rule IDs.** `CLAUDE.md` in that repo says the code cites them in
+  comments. It does not — there are zero. The variable map in `implementation.md` is accurate, but
+  the citation convention the append-only ID scheme exists to protect is not actually in use.
+- **`conflicts.md` `Q-02` is unrunnable as written.** It says to toggle `gateCond`, which the RTH
+  rewrite removed. `DECISIONS.md` and `implementation.md` both record that; `Q-02` itself was never
+  updated and still reads as a live experiment.
 - **The SMT checker is manual only.** Eight numbers typed by hand. A daily-bar version behind a
   Supabase Edge Function is the roadmap's version.
 - **No CME holiday handling in the clock.** It knows the daily halt and the weekend, not holidays.
@@ -116,14 +147,17 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
-**First thing to do, before any new feature:** paste `supabase/trades.sql` into the Supabase SQL
-editor and log one trade through `journal.html`. Nothing in the journal or statistics has ever run
-against a live project, so the whole of Phase 1 is unverified until that happens. Everything on the
-Untested list above depends on it.
+**First thing to do:** settle the open statistics question above with that one `select`. Everything
+else in Phase 1 is downstream of knowing whether rows are landing.
 
-Then, in order: `design.html` needs the new components, the pre-trade checklist (ROADMAP 2.2) closes
-a loop that is already half built, and `models.html` should link to "your results with this model"
-now that `stats.html` has the data.
+**Second:** apply the Supabase **Site URL** fix. `SETUP.md` step 4 now specifies it, but the setting
+itself is in the dashboard and was still wrong at the end of this session — new members confirming
+their email land on a 404. Emails already sent stay broken; affected accounts need a fresh
+confirmation from **Authentication → Users**.
+
+Then, in order: prove `points` and `r_multiple` against a hand calculation, link `models.html` to
+"your results with this model" once the statistics are trustworthy, and decide whether the tools
+should be reachable from the public site or whether the funnel argument should be dropped.
 
 ## Where the reasoning lives
 

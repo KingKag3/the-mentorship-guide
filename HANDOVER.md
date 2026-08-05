@@ -56,12 +56,6 @@ returns for daily; the curriculum is what they read once.
 
 Be honest about this list before trusting anything below it.
 
-- **That a trade row actually saves.** A trade was logged and did not appear in the statistics — see
-  below. The insert reports no error and the table accepts the shape, but no row has been observed
-  by anyone but the member who wrote it.
-- **`points` and `r_multiple` arithmetic.** Derived in the browser, never checked against a hand
-  calculation. If this is wrong, every number the statistics page ever shows is wrong and looks
-  entirely plausible.
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
 - **`admins read shared`** — needs a second account with `shared_with_mentor` set.
@@ -70,18 +64,23 @@ Be honest about this list before trusting anything below it.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at
   on a narrow viewport.
 
-### The open statistics question
+### The statistics question — settled
 
-A trade was logged and `stats.html` showed nothing. The page has since been changed to distinguish
-"no trades" from "trades logged, none closed", which should identify it immediately on next load. If
-it reports open trades, the system was working and the message was lying. If it still reports no
-trades at all, the insert is not landing and that is the next task.
+A trade was logged and `stats.html` showed nothing, which read as a broken insert. It was not.
+Queried from the SQL editor, row `id 1` exists with `exit_price` null, therefore `r_multiple` null,
+therefore correctly excluded. **The insert path works.** The empty-state message was the fault, and
+it has been fixed.
 
-Settle it from the Supabase SQL editor, which bypasses row-level security:
+**The derived arithmetic is now verified too.** `derive()` was run in a browser against nine cases:
+long and short wins, full stops and breakevens, a missing exit, and entry equal to stop. All nine
+produce the expected points and R, including the sign flip on shorts and the guard that stops a
+zero risk yielding infinite R. This was the largest remaining risk on this list, because wrong
+arithmetic here would have been invisible — every statistic wrong and every statistic plausible.
 
-```sql
-select id, opened_at, entry, stop, exit_price, points, r_multiple from public.trades order by created_at desc;
-```
+Note on the surviving test row: its prices are negative (`entry -0.5`, `stop -1.5`), which is not a
+price any index future trades at. It came from clicking the number spinners down from empty. The
+price fields now carry `min="0"`. The row is harmless but worth deleting before it reaches a
+statistic.
 
 ---
 
@@ -147,17 +146,15 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
-**First thing to do:** settle the open statistics question above with that one `select`. Everything
-else in Phase 1 is downstream of knowing whether rows are landing.
-
-**Second:** apply the Supabase **Site URL** fix. `SETUP.md` step 4 now specifies it, but the setting
+**First thing to do:** apply the Supabase **Site URL** fix. `SETUP.md` step 4 now specifies it, but the setting
 itself is in the dashboard and was still wrong at the end of this session — new members confirming
 their email land on a 404. Emails already sent stay broken; affected accounts need a fresh
 confirmation from **Authentication → Users**.
 
-Then, in order: prove `points` and `r_multiple` against a hand calculation, link `models.html` to
-"your results with this model" once the statistics are trustworthy, and decide whether the tools
-should be reachable from the public site or whether the funnel argument should be dropped.
+Then, in order: log one real closed trade and confirm the statistics page renders it — the
+arithmetic is proven but the round trip through the database is not; link `models.html` to "your
+results with this model"; and decide whether the tools should be reachable from the public site or
+whether the funnel argument in `DECISIONS.md` should be dropped.
 
 ## Where the reasoning lives
 

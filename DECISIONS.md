@@ -129,3 +129,84 @@ the one that blocks.
 **How to apply:** before relying on an overnight run, trigger it once manually with "Run now" while
 awake, so the approvals are banked. Until then, treat scheduled builds as best-effort and do the
 work in-session — which is what happened here, and why the five tools exist at all.
+
+---
+
+## 2026-08-05 — The checklist records honesty rather than enforcing completion
+
+**Decided:** the pre-trade checklist is five named items rolling up into
+`trades.checklist_done`. An incomplete checklist raises a confirmation naming what was skipped, and
+then saves anyway.
+
+**Instead of:** ROADMAP 2.2 as written — "all ticked before the journal will accept an entry".
+
+**Why:** a hard gate makes every stored trade checklist-complete, which destroys the only
+comparison the checklist exists to support. `stats.html` already slices by `checklist_done` in
+order to test whether the discipline pays; if the journal refuses incomplete entries, there is
+nothing to compare against and the slice always reads 100%. Worse, a gate teaches members to tick
+boxes to get past it, so the column stops describing reality and the statistic silently becomes a
+lie.
+
+The friction ROADMAP 2.2 wants is real and worth keeping — it is applied at save time as a
+confirmation the member has to read, listing the steps they skipped.
+
+**Reversible:** the gate is four lines in the submit handler. If the mentorship would rather refuse
+incomplete entries, that is a product decision, and this entry is the argument against it rather
+than a technical obstacle.
+
+**Known limit:** only the rolled-up boolean is stored, so editing an old trade restores all five
+boxes or none. Recovering which individual step was skipped needs five more columns and another
+migration; the comparison does not need it.
+
+---
+
+## 2026-08-05 — Empty states must say which kind of empty they are
+
+**Decided:** `stats.html` distinguishes "no trades logged" from "trades logged, none closed", and
+names the count in the second case.
+
+**Instead of:** one message covering both, which is what shipped.
+
+**Why:** a member logged a trade, opened the statistics page, and was told there was nothing to
+measure. Everything was working — the trade had no exit, so it had no R, and trades without an R
+are deliberately excluded. But the page said the same thing it would have said if the insert had
+failed, and a real session was spent hunting a bug in a working insert path.
+
+The reasoning was already recorded in this file and in a code comment. Neither is visible to
+somebody looking at the page. **An invariant that only exists in the documentation will be
+rediscovered as a bug.**
+
+Generalises: any empty state covering two causes with one message will eventually send someone
+looking for a fault that is not there.
+
+---
+
+## 2026-08-05 — Site URL must carry the repository path
+
+**Observed, then fixed in the documentation.** Confirmation emails were landing on
+`https://kingkag3.github.io/#access_token=…` — the root of the github.io domain, which belongs to a
+user-site repo that does not exist. GitHub serves its own 404 there and nothing in this repository
+can intercept it. A real signup was blocked by this.
+
+**Site URL is now specified as** `https://kingkag3.github.io/the-mentorship-guide/login.html`, with
+a wildcard redirect entry over the project path. Pointing at `login.html` rather than the site root
+is deliberate: that page already forwards an authenticated visitor, so a member who has just
+confirmed lands somewhere that acts.
+
+`SETUP.md` step 4 now states the failure mode explicitly, because the setting looks plausible when
+it is wrong and the resulting email looks correct until it is clicked.
+
+---
+
+## 2026-08-05 — SETUP.md and HANDOVER.md disagreed about a complete install
+
+**Observed.** The migration list in `SETUP.md` stopped at `phases.sql`. `HANDOVER.md` said the
+first thing to do was run `trades.sql`. Following the setup guide end to end therefore produced a
+site whose journal and statistics pages were deployed, reachable, and backed by no table.
+
+**Fixed** by completing the list and stating that all eight files are required.
+
+**Worth generalising:** when two documents describe the same procedure, whichever one the reader
+happens to open decides the outcome. The install steps belong in exactly one place.
+
+---

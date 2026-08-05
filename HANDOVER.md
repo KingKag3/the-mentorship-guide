@@ -3,7 +3,21 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 5 August 2026, second session.
+Last updated: 5 August 2026, third session.
+
+## Since the last update
+
+- **The site is Trade Karma now.** Masthead, titles, footers, docs. "Smart Money" survives in 18
+  places as the name of the *subject*, which is deliberate — the glossary and the credit line depend
+  on it meaning something. Do not run a blanket replace on it.
+- **The indicators are Trade Karma too**, and the pine repo has no occurrence of the old term
+  outside `knowledge/sources.md`, where two cited book titles keep it because renaming a citation
+  falsifies it.
+- **Three distributed scripts now**: `trade-karma-context.pine`, `trade-karma-pd-arrays.pine`,
+  `trade-karma-htf.pine`. The day model stays private.
+- **`scripts.html` ships indicators to members**, source held in the `scripts` table rather than as
+  a file. `supabase/scripts.sql` has been run.
+- **Tools appear on every tool page** as a rail, and the members index flags new indicators.
 
 ---
 
@@ -63,6 +77,25 @@ Be honest about this list before trusting anything below it.
   states; the module load, the save-time confirmation and the value reaching the database were not.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at
   on a narrow viewport.
+- **The new-indicator badge count.** The rendering is exercised; the count against real rows needs a
+  signed-in session. Publish something and check the members index reads `new`.
+- **`trade-karma-pd-arrays.pine` since the model marker.** It compiled before the 2022-model block,
+  the session shading and the label rework went in. `trade-karma-htf.pine` has never compiled at
+  all.
+
+### The blank members page — settled
+
+The page rendered a heading, a footer and nothing between, with an empty account strip. Ruled out
+in order: deployed `app.js` byte-identical to local, parses clean under node, every imported name
+exported, and all four Supabase endpoints answering 200 in under a second.
+
+The cause was `supabase.auth.getUser()` not settling — almost certainly a stored session that could
+no longer be refreshed. Everything downstream was still awaiting it, so nothing had been written to
+the page.
+
+Auth calls before first paint now carry a twelve second deadline and write a placeholder before
+their first `await`. **If a page is ever blank again, that is no longer a possible explanation** —
+it will say what failed.
 
 ### The statistics question — settled
 
@@ -146,7 +179,12 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
-**First thing to do:** apply the Supabase **Site URL** fix. `SETUP.md` step 4 now specifies it, but the setting
+**First thing to do:** compile `trade-karma-htf.pine` and the current
+`trade-karma-pd-arrays.pine`. Both carry unverified subsystems, and the pine work is where this
+session left off. Paste over the whole editor buffer — pasting *into* it leaves the old
+declaration and produces "your script has 2".
+
+**Then:** apply the Supabase **Site URL** fix if it is still outstanding. `SETUP.md` step 4 now specifies it, but the setting
 itself is in the dashboard and was still wrong at the end of this session — new members confirming
 their email land on a 404. Emails already sent stay broken; affected accounts need a fresh
 confirmation from **Authentication → Users**.

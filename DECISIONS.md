@@ -210,3 +210,66 @@ site whose journal and statistics pages were deployed, reachable, and backed by 
 happens to open decides the outcome. The install steps belong in exactly one place.
 
 ---
+
+---
+
+## 2026-08-05 - The site is Trade Karma; the subject is still Smart Money
+
+**Decided:** the brand string becomes Trade Karma everywhere - masthead, titles, footers, docs. The
+eighteen places `Smart Money` names the *subject* are left alone.
+
+**Instead of:** a search and replace on "Smart Money".
+
+**Why:** that would have looked like it worked and quietly broken the vocabulary the site teaches.
+"Smart Money Concepts or SMC refer to the same body of material" becomes a sentence about a brand,
+which is a different claim and a false one. The glossary, the concept pages and the credit line all
+depend on that term meaning something. Counted before and after: 18 either side.
+
+The same reasoning stopped the rename touching `knowledge/sources.md` in the pine repo, where two
+cited book titles contain the old term. Renaming a citation falsifies it.
+
+---
+
+## 2026-08-05 - The new-indicator badge lives in localStorage
+
+**Decided:** the members index flags indicators changed since **this browser** last opened the
+indicators page, stored in `localStorage`.
+
+**Instead of:** a `last_seen_scripts` column on `profiles`.
+
+**Why:** it is a per-device convenience, not a fact about the member, and it needs no migration - on
+a project that had already shipped a page depending on an unrun SQL file, that mattered more than
+the tidier model. The cost is that a second device shows the badge again, which is the right way
+round: better told twice than never.
+
+---
+
+## 2026-08-05 - Tools are defined once
+
+**Decided:** `TOOLS` in `app.js` is the only place a tool is named. The members index renders it
+as cards, every tool page as a rail.
+
+**Instead of:** a hand-written link row per page, which is what existed.
+
+**Why:** three pages had already drifted into three different lists - statistics did not link to the
+clock, the journal did not link to the indicators, none linked to the SMT checker - and a fourth was
+about to be written. Adding a tool is now one entry rather than seven edits.
+
+---
+
+## 2026-08-05 - Anything awaited before first paint gets a deadline
+
+**Decided:** auth calls on the path to first paint carry a twelve second timeout and write a
+placeholder before their first `await`.
+
+**Instead of:** awaiting them bare, which is what every page did.
+
+**Why:** a members page rendered a heading, a footer and nothing between. The code was correct, the
+deployed files were byte-identical to local, and every Supabase endpoint answered in under a second.
+`supabase.auth.getUser()` simply had not settled, so nothing downstream had written anything, and
+the result was indistinguishable from a broken build.
+
+**Generalises past auth.** This is the second time a silent state has cost a session - the
+statistics page showing "nothing to measure" when a trade existed was the same shape. An
+unreachable state and a slow one look identical if neither writes to the page, so both a deadline
+and a placeholder are required, not optional.

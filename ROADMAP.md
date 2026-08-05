@@ -22,7 +22,7 @@ Two rules hold across everything here:
 
 These three are one product. Build them together; each is much less useful alone.
 
-### 1.1 Position sizer
+### 1.1 Position sizer — **built** (`sizer.html`)
 
 Account size, risk percentage, entry and stop in. Contracts out, with the mini-versus-micro answer
 made explicit.
@@ -43,7 +43,7 @@ sentence is the one nobody says to themselves.
 
 No database. One page, one form, pure arithmetic.
 
-### 1.2 Trade journal
+### 1.2 Trade journal — **built** (`journal.html`, `supabase/trades.sql`)
 
 Not a generic journal. Every entry tags itself against the curriculum's own vocabulary, so the
 journal and the lessons describe the same world:
@@ -60,7 +60,7 @@ Screenshots go into the existing private `lesson-media` bucket. A new `trades` t
 see their own rows — plus an optional `shared_with_mentor` flag that widens the select policy to
 admins for that row alone.
 
-### 1.3 Statistics
+### 1.3 Statistics — **built** (`stats.html`)
 
 The payoff for all that tagging, and the reason someone renews rather than reading the free pages
 once and leaving.
@@ -76,7 +76,7 @@ Each entry in `models.html` then links to "your results with this model."
 
 ## Phase 2 — daily-use utilities
 
-### 2.1 Killzone clock
+### 2.1 Killzone clock — **built** (`clock.html`)
 
 Current killzone, countdown to the next, the 17:00 close and the Sunday reopen. Small, used every
 day, and easy to get wrong in exactly one way: everything in the model is New York local, so it must
@@ -97,8 +97,8 @@ and the deviation ladder. Then the two qualifiers the model actually states: is 
 threshold, is the Asian range inside its band. When both fail, the model's own answer is to stand
 down, and having that said by a tool rather than by willpower is the point.
 
-The indicator in `pine/` already draws this on a chart. The page exists for planning away from the
-chart and for logging the numbers into the journal.
+The indicator in the private `the-mentorship-pine` repo already draws this on a chart. The page
+exists for planning away from the chart and for logging the numbers into the journal.
 
 ### 2.4 Rollover and event calendar
 
@@ -110,7 +110,7 @@ CPI and NFP dates and a no-trade window marker. A static JSON file in the repo, 
 
 ## Phase 3 — the ES/NQ-specific work
 
-### 3.1 SMT divergence checker
+### 3.1 SMT divergence checker — **built** (`smt.html`)
 
 The one tool that only makes sense for these two instruments, and already described in
 `structure.html`. Feed it the ES and NQ session highs and lows; it reports which index failed to

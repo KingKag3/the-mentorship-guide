@@ -26,6 +26,8 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `members.html` | Curriculum index — phases with their numbered entries |
 | `lesson.html` | A single entry, with previous/next navigation across its phase |
 | `admin.html` | Approve accounts, set roles, publish members-only entries |
+| `journal.html` | Trade journal — tagged against the curriculum's vocabulary, private per member |
+| `stats.html` | Statistics over the journal, sliced by model, session, array and bias |
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |
 | `supabase/schema.sql` | Tables, roles and row-level security policies |
@@ -33,6 +35,18 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `supabase/lesson-media.sql` | Video field and attachment links on entries |
 | `supabase/storage.sql` | Private `lesson-media` bucket and cover image field |
 | `supabase/phases.sql` | Phases — the parts of the curriculum entries belong to |
+| `supabase/trades.sql` | Trade journal: table, row-level security, per-member storage policies |
+
+## Tools
+
+Calculators that need no login, because they hold no private data and a gate on a file in a public
+repo would be decorative.
+
+| File | Covers |
+| --- | --- |
+| `sizer.html` | Position sizer — contracts from a stop and a risk budget, ES/NQ and the micros |
+| `clock.html` | Killzone clock — which window is running, computed in `America/New_York` |
+| `smt.html` | SMT checker — ES against NQ at a swing, and which index failed to confirm |
 
 Authentication runs on Supabase (free tier). Permissions are enforced by database policies, not by
 JavaScript. **See [SETUP.md](SETUP.md)** for the walkthrough — the site works fine without it.

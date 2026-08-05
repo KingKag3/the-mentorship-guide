@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMT checker — Smart Money, Plain English</title>
+<meta name="description" content="Check ES against NQ for a divergence at a swing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html" aria-current="page">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>SMT checker</h1>
+
+<p class="lede">Two indices that normally move together, and a moment where one of them refuses.
+Read the four numbers off your charts and this says which one failed to confirm, and therefore which
+way the disagreement points.</p>
+
+<div class="tool-grid">
+
+  <form class="auth-form auth-form-wide" id="smt" autocomplete="off">
+
+    <div class="field-pair">
+      <div>
+        <label for="a-name">First index</label>
+        <input id="a-name" type="text" value="ES">
+      </div>
+      <div>
+        <label for="b-name">Second index</label>
+        <input id="b-name" type="text" value="NQ">
+      </div>
+    </div>
+
+    <h3 class="form-aside">Earlier swing</h3>
+
+    <div class="field-pair">
+      <div>
+        <label for="a1h">High</label>
+        <input id="a1h" type="number" inputmode="decimal" step="0.25" placeholder="ES high">
+      </div>
+      <div>
+        <label for="b1h">High</label>
+        <input id="b1h" type="number" inputmode="decimal" step="0.25" placeholder="NQ high">
+      </div>
+    </div>
+
+    <div class="field-pair">
+      <div>
+        <label for="a1l">Low</label>
+        <input id="a1l" type="number" inputmode="decimal" step="0.25" placeholder="ES low">
+      </div>
+      <div>
+        <label for="b1l">Low</label>
+        <input id="b1l" type="number" inputmode="decimal" step="0.25" placeholder="NQ low">
+      </div>
+    </div>
+
+    <h3 class="form-aside">Later swing</h3>
+
+    <div class="field-pair">
+      <div>
+        <label for="a2h">High</label>
+        <input id="a2h" type="number" inputmode="decimal" step="0.25" placeholder="ES high">
+      </div>
+      <div>
+        <label for="b2h">High</label>
+        <input id="b2h" type="number" inputmode="decimal" step="0.25" placeholder="NQ high">
+      </div>
+    </div>
+
+    <div class="field-pair">
+      <div>
+        <label for="a2l">Low</label>
+        <input id="a2l" type="number" inputmode="decimal" step="0.25" placeholder="ES low">
+      </div>
+      <div>
+        <label for="b2l">Low</label>
+        <input id="b2l" type="number" inputmode="decimal" step="0.25" placeholder="NQ low">
+      </div>
+    </div>
+
+    <p class="field-note">Both swings must be read off the same two moments in time on both charts,
+    or the comparison is meaningless.</p>
+
+  </form>
+
+  <div class="readout" id="readout"></div>
+
+</div>
+
+<h2>What the tool is comparing</h2>
+
+<p>ES and NQ are driven by overlapping money and normally make their highs and lows together. When
+one of them runs an old high and the other cannot, the two are disagreeing about whether the move is
+real &mdash; and the index that failed to confirm is the one telling you what the other is doing was
+a raid on stops rather than a genuine expansion.</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>At the highs</th><th>What it means</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>One makes a higher high, the other a lower high</td>
+      <td>Bearish divergence. The higher high raided buyside liquidity that the other index would
+      not follow.</td>
+    </tr>
+    <tr>
+      <td>Both make higher highs</td>
+      <td>No divergence. They agree, which is the ordinary case and not a signal.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>At the lows</th><th>What it means</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>One makes a lower low, the other a higher low</td>
+      <td>Bullish divergence. The lower low raided sellside liquidity the other index refused to
+      confirm.</td>
+    </tr>
+    <tr>
+      <td>Both make lower lows</td>
+      <td>No divergence.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <span class="callout-label">A divergence is a condition, not a trade</span>
+  <p>It says the two indices disagree at a level. It says nothing about when, or where your stop
+  goes. On its own it is a reason to look, not a reason to click.</p>
+</div>
+
+<p>More on the idea in <a href="structure.html">structure</a>.</p>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// No price data. The member reads eight numbers off two charts; this does the
+// comparison and says it in words. Live quotes for both indices would be
+// licensed data, and the arithmetic is not the hard part anyway.
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const num = (id) => {
+  const v = parseFloat($(id).value);
+  return Number.isFinite(v) ? v : null;
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function render() {
+  const A = $('a-name').value.trim() || 'ES';
+  const B = $('b-name').value.trim() || 'NQ';
+
+  const a1h = num('a1h'), a2h = num('a2h'), b1h = num('b1h'), b2h = num('b2h');
+  const a1l = num('a1l'), a2l = num('a2l'), b1l = num('b1l'), b2l = num('b2l');
+
+  const out = [];
+  let anything = false;
+
+  // --- highs ---
+  if ([a1h, a2h, b1h, b2h].every((v) => v !== null)) {
+    anything = true;
+    const aUp = a2h > a1h;
+    const bUp = b2h > b1h;
+
+    if (aUp !== bUp) {
+      const raider = aUp ? A : B;
+      const refuser = aUp ? B : A;
+      out.push('<div class="callout risk">' +
+        '<span class="callout-label">Bearish SMT at the highs</span>' +
+        '<p>' + esc(raider) + ' made a higher high; ' + esc(refuser) +
+        ' made a lower high and refused to confirm it.</p>' +
+        '<p>The higher high took buyside liquidity that the other index would not follow, which is ' +
+        'the case for the move up being a raid rather than an expansion.</p></div>');
+    } else {
+      out.push('<div class="readout-row"><span>At the highs</span><b>' +
+        (aUp ? 'both higher' : 'both lower') + ', no divergence</b></div>');
+    }
+  }
+
+  // --- lows ---
+  if ([a1l, a2l, b1l, b2l].every((v) => v !== null)) {
+    anything = true;
+    const aDn = a2l < a1l;
+    const bDn = b2l < b1l;
+
+    if (aDn !== bDn) {
+      const raider = aDn ? A : B;
+      const refuser = aDn ? B : A;
+      out.push('<div class="callout">' +
+        '<span class="callout-label">Bullish SMT at the lows</span>' +
+        '<p>' + esc(raider) + ' made a lower low; ' + esc(refuser) +
+        ' made a higher low and refused to confirm it.</p>' +
+        '<p>The lower low took sellside liquidity that the other index would not follow, which is ' +
+        'the case for the move down being a raid rather than an expansion.</p></div>');
+    } else {
+      out.push('<div class="readout-row"><span>At the lows</span><b>' +
+        (aDn ? 'both lower' : 'both higher') + ', no divergence</b></div>');
+    }
+  }
+
+  $('readout').innerHTML = anything
+    ? out.join('')
+    : '<div class="readout-empty">Enter the high and low of the same two swings on both charts. ' +
+      'Highs and lows are checked independently, so filling in just one pair works.</div>';
+}
+
+document.getElementById('smt').addEventListener('input', render);
+document.getElementById('smt').addEventListener('submit', (e) => e.preventDefault());
+render();
+</script>
+
+</body>
+</html>

@@ -48,8 +48,15 @@ The script is safe to run more than once.
 6. Repeat with [`supabase/storage.sql`](supabase/storage.sql). That creates the private
    `lesson-media` bucket for slides and PDFs, plus the cover image field.
 7. Repeat with [`supabase/phases.sql`](supabase/phases.sql). That adds phases — the parts of the
-   curriculum — and files any existing entries into a starter Phase 1. Run it last; it depends on
-   the files above.
+   curriculum — and files any existing entries into a starter Phase 1. It depends on the files
+   above.
+8. Repeat with [`supabase/trades.sql`](supabase/trades.sql). That adds the `trades` table behind
+   the journal and the statistics page, its row-level security, and the storage policies for
+   trade screenshots. Run it last.
+
+**All eight are required for a working install.** Skipping the last one leaves `journal.html` and
+`stats.html` deployed but non-functional — they will report a missing table rather than fail
+quietly, but nothing in Phase 1 works until it has been run.
 
 ## 3. Wire the site to the project
 
@@ -71,14 +78,34 @@ git add supabase-config.js && git commit -m "Connect Supabase project" && git pu
 
 ## 4. Point Supabase at the live site
 
-Confirmation and password-reset emails contain links back to your site. If this step is skipped,
-those links go nowhere.
+Confirmation and password-reset emails contain links back to your site. If this step is skipped or
+the path is wrong, those links land on a 404 and new members cannot get in.
 
 1. Go to **Authentication** → **URL Configuration**.
-2. Set **Site URL** to `https://kingkag3.github.io/the-mentorship-guide/`
+2. Set **Site URL** to exactly:
+
+   ```
+   https://kingkag3.github.io/the-mentorship-guide/login.html
+   ```
+
 3. Under **Redirect URLs**, add:
-   - `https://kingkag3.github.io/the-mentorship-guide/login.html`
-   - `https://kingkag3.github.io/the-mentorship-guide/members.html`
+
+   ```
+   https://kingkag3.github.io/the-mentorship-guide/**
+   ```
+
+> **The path is the part that goes wrong.** `https://kingkag3.github.io` on its own is the root of
+> the github.io domain, which belongs to a user-site repo that does not exist — GitHub serves its
+> own 404 there and nothing in this repository can intercept it. The confirmation link will look
+> correct in the email and dead on arrival. This has happened once already.
+>
+> Pointing **Site URL** at `login.html` rather than the site root is deliberate: that page already
+> handles "already signed in, go through", so a member who has just confirmed lands somewhere that
+> does something instead of on the public start page.
+
+Changing this does not repair emails already sent — the URL is baked in when the message is
+generated. Anyone stuck on a dead link needs a fresh confirmation from
+**Authentication → Users → ⋯ → send confirmation email**.
 
 ## 5. Make yourself the admin
 

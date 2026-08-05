@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Killzone clock — Smart Money, Plain English</title>
+<meta name="description" content="Which window the market is in right now, in New York time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html" aria-current="page">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Killzone clock</h1>
+
+<p class="lede">Everything in the model is New York local, and the whole thing shifts twice a year.
+This reads the clock in <code>America/New_York</code> rather than assuming an offset, so it is right
+in March and November too.</p>
+
+<div class="tool-grid">
+  <div class="readout" id="now"></div>
+  <div class="readout" id="schedule"></div>
+</div>
+
+<h2>Why the timezone matters more than it sounds</h2>
+
+<p>A killzone written as 14:00 UTC is correct for four months of the year and an hour wrong for the
+rest. New York observes daylight saving from the second Sunday in March to the first Sunday in
+November, so the same session appears at UTC−5 in January and UTC−4 in July. Every window below is
+defined in New York local time and converted by the browser, which is the only arrangement that
+does not silently drift.</p>
+
+<div class="callout">
+  <span class="callout-label">Set your chart to match</span>
+  <p>TradingView's timezone selector is bottom-right on the chart. Choosing New York rather than a
+  fixed offset means your chart and this page agree on where the boundaries fall, all year.</p>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Times are New York local, always. Read the clock through Intl rather than
+// applying an offset: the offset is the thing that goes wrong twice a year.
+//
+// Windows are half-open [start, end) so a boundary belongs to exactly one of
+// them and 10:00 is never both London Close and Silver Bullet at once.
+// ---------------------------------------------------------------------------
+const NY = 'America/New_York';
+
+const hm = (h, m) => h * 60 + (m || 0);
+
+// Ordered by when they start. Overlapping windows are fine and expected - the
+// Silver Bullet hour sits inside the London Close window on purpose.
+const WINDOWS = [
+  { name: 'Asian range',        from: hm(20),     to: hm(24),    note: 'Consolidation. The range measured here frames the rest.' },
+  { name: 'London killzone',    from: hm(2),      to: hm(5),     note: 'Posts the day low when bullish, the day high when bearish.' },
+  { name: 'New York killzone',  from: hm(7),      to: hm(10),    note: 'Continuation of London unless price reached a higher-timeframe array.' },
+  { name: 'Opening range',      from: hm(9, 30),  to: hm(10),    note: 'Classify, do not trade. The range deciding the day is still forming.' },
+  { name: 'Silver Bullet',      from: hm(10),     to: hm(11),    note: 'Displacement here is what the morning was building toward.' },
+  { name: 'London close',       from: hm(10),     to: hm(12),    note: 'Corrective. Can reverse the whole morning.' },
+  { name: 'Lunch',              from: hm(12),     to: hm(13, 30), note: 'Consolidation. Stand down.' },
+  { name: 'PM session',         from: hm(13, 30), to: hm(16),    note: 'Measured-move continuation, or a reversal of the morning.' },
+  { name: 'CBDR',               from: hm(14),     to: hm(20),    note: 'Measured off candle bodies. Its width qualifies tomorrow.' }
+];
+
+// CME equity index futures: closed 17:00-18:00 Monday to Thursday, and from
+// Friday 17:00 until Sunday 18:00.
+function marketState(dow, mins) {
+  if (dow === 6) return 'closed';                                  // Saturday
+  if (dow === 5 && mins >= hm(17)) return 'closed';                // Friday evening
+  if (dow === 0 && mins < hm(18)) return 'closed';                 // Sunday daytime
+  if (dow >= 1 && dow <= 4 && mins >= hm(17) && mins < hm(18)) return 'halt';
+  if (dow === 5 && mins >= hm(17)) return 'closed';
+  return 'open';
+}
+
+function nyParts() {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: NY, hour12: false,
+    weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const parts = {};
+  for (const p of fmt.formatToParts(new Date())) parts[p.type] = p.value;
+
+  // Intl gives 24 for midnight in some engines; normalise so arithmetic works.
+  const hour = parseInt(parts.hour, 10) % 24;
+  const days = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+  return {
+    dow: days[parts.weekday],
+    weekday: parts.weekday,
+    h: hour,
+    m: parseInt(parts.minute, 10),
+    s: parseInt(parts.second, 10),
+    mins: hour * 60 + parseInt(parts.minute, 10)
+  };
+}
+
+const pad = (n) => String(n).padStart(2, '0');
+const clock = (mins) => pad(Math.floor(mins / 60) % 24) + ':' + pad(mins % 60);
+
+function countdown(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor(totalSeconds % 3600 / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return (h ? h + 'h ' : '') + pad(m) + 'm ' + pad(s) + 's';
+}
+
+function activeWindows(mins) {
+  return WINDOWS.filter((w) => mins >= w.from && mins < w.to);
+}
+
+// Minutes until a window starts, wrapping past midnight.
+function untilStart(mins, w) {
+  const diff = w.from - mins;
+  return diff > 0 ? diff : diff + 1440;
+}
+
+function nextWindow(mins) {
+  let best = null;
+  let bestGap = Infinity;
+  for (const w of WINDOWS) {
+    const gap = untilStart(mins, w);
+    if (gap < bestGap) { bestGap = gap; best = w; }
+  }
+  return { window: best, gap: bestGap };
+}
+
+function render() {
+  const t = nyParts();
+  const state = marketState(t.dow, t.mins);
+  const active = activeWindows(t.mins);
+  const next = nextWindow(t.mins);
+
+  // Seconds remaining is computed off the live second hand so the countdown
+  // ticks rather than jumping a minute at a time.
+  const gapSeconds = next.gap * 60 - t.s;
+
+  const stateLine =
+    state === 'closed' ? '<div class="callout risk"><span class="callout-label">Market closed</span>' +
+      '<p>CME equity index futures reopen Sunday at 18:00 New York.</p></div>' :
+    state === 'halt' ? '<div class="callout warn"><span class="callout-label">Daily halt</span>' +
+      '<p>Closed 17:00 to 18:00. Trading resumes at 18:00 New York.</p></div>' : '';
+
+  document.getElementById('now').innerHTML =
+    '<div class="readout-big">' + pad(t.h) + ':' + pad(t.m) + ':' + pad(t.s) + '</div>' +
+    '<div class="readout-rows">' +
+      rowHtml('New York', t.weekday) +
+      rowHtml('Your clock', new Date().toLocaleTimeString()) +
+      rowHtml('In progress', active.length ? active.map((w) => w.name).join(', ') : 'nothing') +
+      rowHtml('Next', next.window.name + ' at ' + clock(next.window.from)) +
+      rowHtml('In', countdown(gapSeconds), 'ok') +
+    '</div>' +
+    (active.length
+      ? '<div class="callout"><span class="callout-label">' + active[0].name + '</span><p>' +
+        active[0].note + '</p></div>'
+      : '') +
+    stateLine;
+
+  document.getElementById('schedule').innerHTML =
+    '<div class="readout-rows">' +
+    WINDOWS.map((w) => {
+      const on = active.includes(w);
+      const done = t.mins >= w.to;
+      return '<div class="readout-row' + (on ? ' is-ok' : '') + '">' +
+        '<span>' + (on ? '&rsaquo; ' : done ? '&nbsp;&nbsp;' : '&nbsp;&nbsp;') + w.name + '</span>' +
+        '<b>' + clock(w.from) + '&ndash;' + clock(w.to) + '</b>' +
+      '</div>';
+    }).join('') +
+    '</div>' +
+    '<p class="stat-note">Windows overlap on purpose. The Silver Bullet hour sits inside the ' +
+    'London close window, and the CBDR runs into the Asian session.</p>';
+}
+
+function rowHtml(label, value, tone) {
+  return '<div class="readout-row' + (tone ? ' is-' + tone : '') + '">' +
+    '<span>' + label + '</span><b>' + value + '</b></div>';
+}
+
+render();
+setInterval(render, 1000);
+</script>
+
+</body>
+</html>

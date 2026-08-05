@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistics — Smart Money, Plain English</title>
+<meta name="description" content="What your journal says about which parts of the model work for you.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Statistics</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">Your journal, sliced by the things you were taught. The useful discovery here is
+  usually not that you are up or down &mdash; it is that one model carries the account and another
+  quietly drains it.</p>
+
+  <div class="link-row">
+    <a class="link-button" href="journal.html">Journal</a>
+    <a class="link-button" href="sizer.html">Position sizer</a>
+  </div>
+
+  <div id="summary"></div>
+  <div id="slices"></div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireRole, renderAccountStrip, escapeHtml } from './app.js';
+
+renderAccountStrip();
+
+const profile = await requireRole(['member', 'admin']);
+if (!profile) { throw new Error('not signed in'); }
+
+document.getElementById('body').hidden = false;
+
+// Below this, a slice is noise wearing the shape of a result. Shown anyway,
+// but marked, because hiding it would just make the member wonder where it went.
+const MIN_SAMPLE = 10;
+
+const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const { data, error } = await supabase
+  .from('trades')
+  .select('*')
+  .order('opened_at', { ascending: true })
+  .limit(2000);
+
+if (error) {
+  document.getElementById('summary').innerHTML =
+    '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
+    escapeHtml(error.message) +
+    '</p><p>If this mentions <code>trades</code>, run <code>supabase/trades.sql</code> in the ' +
+    'Supabase SQL editor.</p></div>';
+  throw error;
+}
+
+// Only closed trades count. An open position has no result to average, and
+// counting it as a zero would drag every number toward nothing.
+const closed = (data || []).filter(
+  (r) => r.r_multiple !== null && r.r_multiple !== undefined && Number.isFinite(Number(r.r_multiple))
+);
+
+if (!closed.length) {
+  document.getElementById('summary').innerHTML =
+    '<div class="callout"><span class="callout-label">Nothing to measure yet</span>' +
+    '<p>Log some trades with an entry, a stop and an exit and this page fills in. Until then ' +
+    'there is nothing here that would not be invented.</p>' +
+    '<p><a href="journal.html">Go to the journal</a></p></div>';
+} else {
+  renderSummary(closed);
+  renderSlices(closed);
+}
+
+// --- maths -----------------------------------------------------------------
+
+function summarise(list) {
+  const n = list.length;
+  const rs = list.map((r) => Number(r.r_multiple));
+  const wins = rs.filter((r) => r > 0).length;
+  const losses = rs.filter((r) => r < 0).length;
+  const total = rs.reduce((a, b) => a + b, 0);
+  return {
+    n, wins, losses,
+    winRate: n ? wins / n * 100 : 0,
+    total,
+    avg: n ? total / n : 0
+  };
+}
+
+// Worst peak-to-trough run through the trades in the order they were taken.
+// Order matters, which is why the query sorts ascending rather than newest first.
+function drawdown(list) {
+  let curve = 0, peak = 0, worst = 0;
+  for (const r of list) {
+    curve += Number(r.r_multiple);
+    peak = Math.max(peak, curve);
+    worst = Math.max(worst, peak - curve);
+  }
+  return worst;
+}
+
+function groupBy(list, keyFn) {
+  const map = new Map();
+  for (const row of list) {
+    const key = keyFn(row);
+    if (key === null || key === undefined || key === '') continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  }
+  return map;
+}
+
+// --- rendering -------------------------------------------------------------
+
+const r2 = (n) => (n > 0 ? '+' : '') + n.toFixed(2);
+
+function renderSummary(list) {
+  const s = summarise(list);
+  const dd = drawdown(list);
+
+  document.getElementById('summary').innerHTML =
+    '<h2>Overall</h2>' +
+    '<div class="card-grid">' +
+      statCard('Closed trades', String(s.n),
+        s.n < 50 ? 'Fifty is roughly where this starts meaning something.' : 'A usable sample.') +
+      statCard('Win rate', s.winRate.toFixed(0) + '%',
+        s.wins + ' won, ' + s.losses + ' lost') +
+      statCard('Total', r2(s.total) + 'R', 'Sum of every closed trade') +
+      statCard('Expectancy', r2(s.avg) + 'R',
+        s.avg > 0 ? 'What an average trade is worth' : 'An average trade currently costs you') +
+      statCard('Worst drawdown', dd.toFixed(2) + 'R', 'Peak to trough, in order taken') +
+    '</div>' +
+    (s.n < MIN_SAMPLE
+      ? '<div class="callout warn"><span class="callout-label">Too few</span><p>Under ' +
+        MIN_SAMPLE + ' trades, none of the breakdowns below are telling you anything about your ' +
+        'trading. They are telling you about your last ' + s.n + ' trades, which is a different ' +
+        'thing.</p></div>'
+      : '');
+}
+
+function statCard(label, value, note) {
+  return '<div class="card">' +
+    '<h3>' + escapeHtml(label) + '</h3>' +
+    '<div class="readout-big">' + escapeHtml(value) + '</div>' +
+    '<p>' + escapeHtml(note) + '</p>' +
+  '</div>';
+}
+
+function renderSlices(list) {
+  const sections = [
+    ['By model', 'Which of the things you were taught actually pays.', (r) => r.model],
+    ['By session', 'When you trade well, and when you are just present.', (r) => r.session_kz],
+    ['By what you entered from', 'Fair value gap, order block, breaker.', (r) => r.pd_array],
+    ['By liquidity taken first', 'Which pools precede your good trades.', (r) => r.liquidity],
+    ['By day of week', null, (r) => DOW[new Date(r.opened_at).getDay()]],
+    ['By agreement with your bias', 'Whether trading against your own read costs you.',
+      (r) => r.agreed_with_bias === true ? 'Agreed with bias'
+           : r.agreed_with_bias === false ? 'Against bias' : ''],
+    ['By checklist', 'The discipline question, answered with numbers rather than assertion.',
+      (r) => r.checklist_done ? 'Checklist done' : 'No checklist']
+  ];
+
+  document.getElementById('slices').innerHTML = sections
+    .map(([title, note, keyFn]) => renderSlice(title, note, groupBy(list, keyFn)))
+    .filter(Boolean)
+    .join('');
+}
+
+function renderSlice(title, note, map) {
+  if (!map.size) return '';
+
+  const entries = [...map.entries()]
+    .map(([key, rows]) => [key, summarise(rows)])
+    .sort((a, b) => b[1].total - a[1].total);
+
+  // Bars are scaled against the largest absolute total in this slice, so a
+  // slice with one dominant group does not render six invisible bars.
+  const scale = Math.max(...entries.map(([, s]) => Math.abs(s.total)), 1);
+
+  const rows = entries.map(([key, s]) => {
+    const pct = Math.abs(s.total) / scale * 100;
+    const bad = s.total < 0;
+    const thin = s.n < MIN_SAMPLE;
+
+    return '<div class="bar-row">' +
+      '<span>' + escapeHtml(key) + (thin ? ' <span class="tag">n=' + s.n + '</span>' : '') + '</span>' +
+      '<span class="bar-track">' +
+        '<span class="bar-fill' + (bad ? ' is-bad' : '') + '" style="width:' + pct.toFixed(1) + '%">' +
+        '</span>' +
+      '</span>' +
+      '<b>' + r2(s.total) + 'R</b>' +
+    '</div>';
+  }).join('');
+
+  const detail = '<div class="table-scroll"><table><thead><tr>' +
+    '<th>' + escapeHtml(title.replace(/^By /, '')) + '</th><th>Trades</th><th>Win rate</th>' +
+    '<th>Total</th><th>Expectancy</th></tr></thead><tbody>' +
+    entries.map(([key, s]) =>
+      '<tr>' +
+        '<td>' + escapeHtml(key) + '</td>' +
+        '<td>' + s.n + (s.n < MIN_SAMPLE ? ' <span class="tag">thin</span>' : '') + '</td>' +
+        '<td>' + s.winRate.toFixed(0) + '%</td>' +
+        '<td>' + r2(s.total) + 'R</td>' +
+        '<td>' + r2(s.avg) + 'R</td>' +
+      '</tr>').join('') +
+    '</tbody></table></div>';
+
+  return '<h2>' + escapeHtml(title) + '</h2>' +
+    (note ? '<p class="stat-note">' + escapeHtml(note) + '</p>' : '') +
+    '<div class="bars">' + rows + '</div>' +
+    detail;
+}
+</script>
+
+</body>
+</html>

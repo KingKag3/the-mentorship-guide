@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicators — Smart Money, Plain English</title>
+<meta name="description" content="Members-only TradingView indicators.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Indicators</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">TradingView indicators for the concepts on this site. Copy the source, paste it
+  into the Pine editor, add it to a chart. No account linking, no invite lists, nothing to
+  install.</p>
+
+  <div class="link-row">
+    <a class="link-button" href="members.html">Curriculum</a>
+    <a class="link-button" href="journal.html">Journal</a>
+    <a class="link-button" href="clock.html">Killzone clock</a>
+  </div>
+
+  <h2>Installing one</h2>
+
+  <p>The same five steps for every script here. It takes about a minute, and nothing you do can
+  break your account — a Pine script only draws on a chart.</p>
+
+  <ol class="steps">
+    <li><strong>Copy the source.</strong> Use the copy button on the script below. It puts the whole
+    file on your clipboard.</li>
+    <li><strong>Open the Pine editor.</strong> On any TradingView chart, the <strong>Pine
+    Editor</strong> tab sits along the bottom edge of the window. Click it to open the panel.</li>
+    <li><strong>Paste over everything.</strong> Select all in the editor (Ctrl&nbsp;A, or Cmd&nbsp;A
+    on a Mac) and paste. The editor opens with a template in it; that template must be replaced, not
+    added to.</li>
+    <li><strong>Save, then add to chart.</strong> Press <strong>Save</strong> and give it a name —
+    TradingView will not add an unsaved script. Then press <strong>Add to chart</strong>. The
+    indicator appears on the chart and in the legend at the top left.</li>
+    <li><strong>Set the inputs.</strong> Click the gear icon beside the name in the legend. Every
+    script here ships with defaults that suit index futures on a 5-minute chart; the notes under
+    each script say what is worth changing.</li>
+  </ol>
+
+  <div class="callout warn">
+    <span class="callout-label">Two things that catch people out</span>
+    <p><strong>Your chart must be on New York time for the session boxes to look right.</strong>
+    Every window in this methodology is New York local. The scripts compute their sessions in
+    <code>America/New_York</code> regardless of your chart setting, so the boxes land correctly
+    either way — but the axis labels will not match what you read on this site unless the chart
+    agrees. Right-click the time axis, and set the timezone to New York.</p>
+    <p><strong>A saved script belongs to you, not to us.</strong> Editing your copy changes nothing
+    here, and an update posted on this page does not reach a copy you already saved. When a version
+    number changes, paste the new source over the old one.</p>
+  </div>
+
+  <div class="callout risk">
+    <span class="callout-label">What these are and are not</span>
+    <p>These indicators mark context — sessions, ranges, levels that the lessons describe. They do
+    not tell you when to buy or sell, and a box drawn on a chart is not a reason to take a trade.
+    Read <a href="models.html">the models page</a> for what is supposed to happen inside them.</p>
+    <p>Nothing here is a recommendation, and none of it is backed by a track record. Test anything
+    forward, on a simulator, before it touches money.</p>
+  </div>
+
+  <h2 id="list-heading">Available scripts</h2>
+  <div id="scripts"></div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import DOMPurify from 'https://esm.sh/dompurify@3';
+import { supabase, requireRole, renderAccountStrip, escapeHtml } from './app.js';
+
+renderAccountStrip();
+
+const profile = await requireRole(['member', 'admin']);
+
+if (profile) {
+  document.getElementById('body').hidden = false;
+  const mount = document.getElementById('scripts');
+
+  try {
+    const { data, error } = await supabase
+      .from('scripts')
+      .select('id, slug, title, summary, version, source, notes_html, pine_version, updated_at')
+      .eq('published', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    if (!data.length) {
+      mount.innerHTML =
+        '<div class="callout"><span class="callout-label">Nothing published yet</span>' +
+        '<p>No indicators have been posted. They appear here as they are released.</p></div>';
+    } else {
+      mount.innerHTML = data.map((row, index) => {
+        const notes = row.notes_html
+          ? '<div class="script-notes">' + DOMPurify.sanitize(row.notes_html,
+              { ADD_ATTR: ['target', 'rel'] }) + '</div>'
+          : '';
+
+        return '<section class="script" id="' + escapeHtml(row.slug) + '">' +
+          '<h3>' + escapeHtml(row.title) + '</h3>' +
+          '<p class="script-meta">' +
+            (row.version ? '<span class="tag">' + escapeHtml(row.version) + '</span> ' : '') +
+            '<span class="tag">Pine ' + escapeHtml(row.pine_version) + '</span> ' +
+            '<span class="file-meta">updated ' +
+              new Date(row.updated_at).toISOString().slice(0, 10) + '</span>' +
+          '</p>' +
+          (row.summary ? '<p>' + escapeHtml(row.summary) + '</p>' : '') +
+          notes +
+          '<div class="script-actions">' +
+            '<button type="button" class="btn-primary" data-copy="' + index + '">' +
+              'Copy source</button>' +
+            '<button type="button" class="acct-link" data-toggle="' + index + '">' +
+              'show source</button>' +
+          '</div>' +
+          '<pre class="script-source" id="src-' + index + '" hidden>' +
+            escapeHtml(row.source) + '</pre>' +
+        '</section>';
+      }).join('');
+
+      // The source is held in memory rather than read back out of the DOM, so
+      // copying is unaffected by whether the block is expanded.
+      mount.addEventListener('click', async (e) => {
+        const copyIndex = e.target.dataset.copy;
+        const toggleIndex = e.target.dataset.toggle;
+
+        if (copyIndex !== undefined) {
+          const source = data[Number(copyIndex)].source;
+          try {
+            await navigator.clipboard.writeText(source);
+            e.target.textContent = 'Copied';
+            setTimeout(() => { e.target.textContent = 'Copy source'; }, 1800);
+          } catch (err) {
+            // Clipboard needs a secure context and permission; fall back to
+            // showing the block so it can be selected by hand.
+            const pre = document.getElementById('src-' + copyIndex);
+            pre.hidden = false;
+            e.target.textContent = 'Select it below';
+          }
+        }
+
+        if (toggleIndex !== undefined) {
+          const pre = document.getElementById('src-' + toggleIndex);
+          pre.hidden = !pre.hidden;
+          e.target.textContent = pre.hidden ? 'show source' : 'hide source';
+        }
+      });
+    }
+  } catch (err) {
+    mount.innerHTML =
+      '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
+      escapeHtml(err && err.message ? err.message : String(err)) +
+      '</p><p>If this mentions <code>scripts</code>, run <code>supabase/scripts.sql</code> in the ' +
+      'Supabase SQL editor.</p></div>';
+  }
+}
+</script>
+
+</body>
+</html>

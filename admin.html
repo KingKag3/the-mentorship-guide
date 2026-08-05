@@ -113,6 +113,69 @@
     their role in the accounts table above for that.</p>
   </div>
 
+  <!-- =================== scripts =================== -->
+  <h2>Indicators</h2>
+
+  <p>Pine source is stored here, in the database, and never as a file in this repository — this repo
+  publishes itself to the web, so a committed <code>.pine</code> would be readable by anyone with
+  the address. The private <code>the-mentorship-pine</code> repo remains the source of truth; paste
+  a version in here to distribute it.</p>
+
+  <div class="table-scroll">
+    <table id="scripts-table">
+      <thead>
+        <tr><th>Title</th><th>Slug</th><th>Version</th><th>Order</th><th>Published</th><th></th></tr>
+      </thead>
+      <tbody id="scripts-body"></tbody>
+    </table>
+  </div>
+
+  <h3 id="script-form-heading">Add an indicator</h3>
+
+  <form id="form-script" class="auth-form auth-form-wide">
+    <input type="hidden" id="s-id">
+
+    <label for="s-title">Title</label>
+    <input id="s-title" type="text" required>
+
+    <label for="s-slug">Slug <span class="opt">(lowercase, dashes, unique)</span></label>
+    <input id="s-slug" type="text" pattern="[a-z0-9-]+" required>
+
+    <label for="s-summary">Summary <span class="opt">(one line)</span></label>
+    <input id="s-summary" type="text">
+
+    <div class="field-pair">
+      <div>
+        <label for="s-version">Version <span class="opt">(e.g. 1.0.0)</span></label>
+        <input id="s-version" type="text" placeholder="1.0.0">
+      </div>
+      <div>
+        <label for="s-pine">Pine version</label>
+        <input id="s-pine" type="text" value="v6">
+      </div>
+    </div>
+
+    <label for="s-source">Pine source <span class="opt">(paste the whole file)</span></label>
+    <textarea id="s-source" rows="12" spellcheck="false" required></textarea>
+    <p class="field-note" id="s-source-check">&nbsp;</p>
+
+    <label for="s-notes">Notes <span class="opt">(HTML — inputs worth changing, known limits)</span></label>
+    <textarea id="s-notes" rows="4"></textarea>
+
+    <label for="s-order">Sort order</label>
+    <input id="s-order" type="number" value="0">
+
+    <button type="submit" class="btn-primary">Save indicator</button>
+    <button type="button" class="acct-link" id="cancel-script" hidden>cancel</button>
+    <p class="form-status" id="status-script"></p>
+  </form>
+
+  <div class="callout warn">
+    <span class="callout-label">Saving does not publish</span>
+    <p>New indicators are created unpublished. Tick <strong>Published</strong> in the table when the
+    version is one members should actually be pasting into a chart.</p>
+  </div>
+
   <!-- =================== phases =================== -->
   <h2>Phases</h2>
 
@@ -248,6 +311,7 @@ renderAccountStrip();
 // the code that uses it.
 let allUsers = [];
 let allPhases = [];
+let allScripts = [];
 let coverPath = null;
 let quill = null;
 
@@ -284,6 +348,7 @@ if (me) {
   try {
     await loadUsers();
     await loadInvites();
+    await loadScripts();
     await loadPhases();
     await loadLessons();
   } catch (err) {
@@ -540,6 +605,165 @@ async function copyText(text) {
     window.prompt('Copy this:', text);
   }
 }
+
+/* ------------------------------ scripts ------------------------------- */
+
+async function loadScripts() {
+  const { data, error } = await supabase
+    .from('scripts')
+    .select('id, slug, title, summary, version, pine_version, source, notes_html, published, sort_order')
+    .order('sort_order', { ascending: true });
+
+  const body = document.getElementById('scripts-body');
+
+  if (error) {
+    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
+      ' — if this mentions <code>scripts</code>, run <code>supabase/scripts.sql</code>.</td></tr>';
+    return;
+  }
+
+  allScripts = data || [];
+
+  body.innerHTML = allScripts.length
+    ? allScripts.map((s) =>
+        '<tr data-id="' + s.id + '">' +
+          '<td>' + escapeHtml(s.title) + '</td>' +
+          '<td><code>' + escapeHtml(s.slug) + '</code></td>' +
+          '<td>' + escapeHtml(s.version || '—') + '</td>' +
+          '<td>' + s.sort_order + '</td>' +
+          '<td><input type="checkbox" class="script-pub"' + (s.published ? ' checked' : '') + '></td>' +
+          '<td class="row-actions">' +
+            '<button type="button" class="acct-link" data-act="edit-script">edit</button> ' +
+            '<button type="button" class="btn-danger" data-act="del-script">delete</button>' +
+          '</td>' +
+        '</tr>'
+      ).join('')
+    : '<tr><td colspan="6">No indicators yet.</td></tr>';
+}
+
+document.getElementById('scripts-body').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('script-pub')) return;
+  const id = e.target.closest('tr').dataset.id;
+  const { error } = await supabase
+    .from('scripts')
+    .update({ published: e.target.checked })
+    .eq('id', id);
+  if (error) { alert(error.message); await loadScripts(); }
+});
+
+document.getElementById('scripts-body').addEventListener('click', async (e) => {
+  const act = e.target.dataset.act;
+  if (!act) return;
+
+  const id = e.target.closest('tr').dataset.id;
+
+  if (act === 'edit-script') {
+    const s = allScripts.find((row) => String(row.id) === String(id));
+    if (!s) return;
+    document.getElementById('s-id').value      = s.id;
+    document.getElementById('s-title').value   = s.title;
+    document.getElementById('s-slug').value    = s.slug;
+    document.getElementById('s-summary').value = s.summary || '';
+    document.getElementById('s-version').value = s.version || '';
+    document.getElementById('s-pine').value    = s.pine_version || 'v6';
+    document.getElementById('s-source').value  = s.source || '';
+    document.getElementById('s-notes').value   = s.notes_html || '';
+    document.getElementById('s-order').value   = s.sort_order;
+    document.getElementById('script-form-heading').textContent = 'Editing: ' + s.title;
+    document.getElementById('cancel-script').hidden = false;
+    checkSource();
+    document.getElementById('form-script').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
+  if (act === 'del-script') {
+    if (!confirm('Delete this indicator?\n\nMembers who already pasted it into TradingView keep ' +
+                 'their copy — a saved script belongs to their account, not to this site.')) return;
+    const { error } = await supabase.from('scripts').delete().eq('id', id);
+    if (error) { alert(error.message); return; }
+    resetScriptForm();
+    await loadScripts();
+  }
+});
+
+/**
+ * Cheap sanity checks on pasted Pine, none of which can be caught by the
+ * database. Two of these are traps recorded in the pine repo's CLAUDE.md as
+ * having already shipped once.
+ */
+function checkSource() {
+  const src = document.getElementById('s-source').value;
+  const note = document.getElementById('s-source-check');
+
+  if (!src.trim()) { note.textContent = ''; note.className = 'field-note'; return; }
+
+  const problems = [];
+
+  const nonAscii = src.match(/[^\x00-\x7F]/g);
+  if (nonAscii) {
+    const shown = [...new Set(nonAscii)].slice(0, 6).join(' ');
+    problems.push(nonAscii.length + ' non-ASCII character' +
+      (nonAscii.length === 1 ? '' : 's') + ' (' + shown + ') - these get mangled on paste');
+  }
+
+  if (!/^\/\/@version=\d/m.test(src)) {
+    problems.push('no //@version= line');
+  }
+
+  if (!/\b(indicator|strategy|library)\s*\(/.test(src)) {
+    problems.push('no indicator() or strategy() declaration');
+  }
+
+  note.textContent = problems.length
+    ? problems.join('. ') + '.'
+    : 'Looks like Pine: version line present, declaration present, ASCII clean.';
+  note.className = 'field-note ' + (problems.length ? 'field-note-bad' : 'field-note-ok');
+}
+
+document.getElementById('s-source').addEventListener('input', checkSource);
+
+function resetScriptForm() {
+  document.getElementById('form-script').reset();
+  document.getElementById('s-id').value = '';
+  document.getElementById('s-pine').value = 'v6';
+  document.getElementById('s-source-check').textContent = '';
+  document.getElementById('script-form-heading').textContent = 'Add an indicator';
+  document.getElementById('cancel-script').hidden = true;
+}
+
+document.getElementById('cancel-script').addEventListener('click', () => {
+  resetScriptForm();
+  setStatus('#status-script', '', 'info');
+});
+
+document.getElementById('form-script').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('#status-script', 'Saving...', 'info');
+
+  const id = document.getElementById('s-id').value;
+
+  const payload = {
+    title:        document.getElementById('s-title').value.trim(),
+    slug:         document.getElementById('s-slug').value.trim(),
+    summary:      document.getElementById('s-summary').value.trim() || null,
+    version:      document.getElementById('s-version').value.trim() || null,
+    pine_version: document.getElementById('s-pine').value.trim() || 'v6',
+    source:       document.getElementById('s-source').value,
+    notes_html:   document.getElementById('s-notes').value.trim() || null,
+    sort_order:   Number(document.getElementById('s-order').value) || 0
+  };
+
+  const { error } = id
+    ? await supabase.from('scripts').update(payload).eq('id', id)
+    : await supabase.from('scripts').insert(payload);
+
+  if (error) { setStatus('#status-script', error.message, 'error'); return; }
+
+  setStatus('#status-script',
+    id ? 'Saved.' : 'Added, unpublished. Tick Published in the table to release it.', 'ok');
+  resetScriptForm();
+  await loadScripts();
+});
 
 /* ------------------------------- phases ------------------------------- */
 

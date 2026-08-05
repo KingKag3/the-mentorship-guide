@@ -52,11 +52,13 @@ The script is safe to run more than once.
    above.
 8. Repeat with [`supabase/trades.sql`](supabase/trades.sql). That adds the `trades` table behind
    the journal and the statistics page, its row-level security, and the storage policies for
-   trade screenshots. Run it last.
+   trade screenshots.
+9. Repeat with [`supabase/scripts.sql`](supabase/scripts.sql). That adds the `scripts` table behind
+   `scripts.html`, where members get the TradingView indicators.
 
-**All eight are required for a working install.** Skipping the last one leaves `journal.html` and
-`stats.html` deployed but non-functional — they will report a missing table rather than fail
-quietly, but nothing in Phase 1 works until it has been run.
+**All nine are required for a working install.** Each page reports its own missing table rather
+than failing quietly, but the journal, the statistics and the indicators pages are all inert until
+their file has been run.
 
 ## 3. Wire the site to the project
 
@@ -261,6 +263,34 @@ month; check the current figures, they move. A lesson built from a dozen compres
 PDF lands around 1–2MB, so storage is unlikely to be the limit — transfer is. Every member reading
 that lesson pulls the images again. If the members area gets busy, that is the number that runs out
 first, and it is what the automatic compression is there to stretch.
+
+---
+
+## Distributing an indicator
+
+`scripts.html` is where members get the TradingView scripts. The page holds the install steps; the
+admin page holds the source.
+
+**The source lives in the database, never as a file in this repository.** That is the same argument
+`README.md` makes about the concept pages and `DECISIONS.md` makes about moving the indicators to a
+private repo: this repo publishes itself to the web, so a committed `.pine` is readable by anyone
+with the address no matter what the members page shows. A row behind the `scripts` policy is not.
+
+**The private `the-mentorship-pine` repo stays the source of truth.** Edit the file there, commit
+it, then paste that version into the admin form. Never the reverse — a change made only in the admin
+form exists in no version history at all, which is the same trap `CLAUDE.md` warns about for the
+Pine editor itself.
+
+**Publishing is a separate step.** A new indicator is created unpublished so a half-pasted file
+cannot reach a member's chart. Tick **Published** in the table when it is ready.
+
+**Version numbers matter more here than elsewhere.** A member who has already saved a script has
+their own copy; nothing you publish reaches it. Changing the version number is the signal for them
+to paste over what they have.
+
+The admin form runs three checks on paste and reports rather than blocking: non-ASCII characters,
+which get mangled going into the Pine editor and have shipped broken once before; a missing
+`//@version=` line; and a missing `indicator()` or `strategy()` declaration.
 
 ---
 

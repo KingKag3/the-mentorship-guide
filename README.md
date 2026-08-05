@@ -27,6 +27,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `lesson.html` | A single entry, with previous/next navigation across its phase |
 | `admin.html` | Approve accounts, set roles, publish members-only entries |
 | `journal.html` | Trade journal — tagged against the curriculum's vocabulary, private per member |
+| `scripts.html` | TradingView indicators for members, with install instructions |
 | `stats.html` | Statistics over the journal, sliced by model, session, array and bias |
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |
@@ -36,6 +37,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `supabase/storage.sql` | Private `lesson-media` bucket and cover image field |
 | `supabase/phases.sql` | Phases — the parts of the curriculum entries belong to |
 | `supabase/trades.sql` | Trade journal: table, row-level security, per-member storage policies |
+| `supabase/scripts.sql` | Pine source for members - stored in the database, never as a file here |
 
 ## Tools
 
@@ -66,7 +68,12 @@ database.
 
 The TradingView indicators live in a separate **private** repository, `the-mentorship-pine`. They
 carry entry, stop and target logic, which is exactly the kind of thing that should not sit in a
-repo that publishes itself to the web. Members receive the script; the source stays private.
+repo that publishes itself to the web.
+
+Members receive a script through `scripts.html`, which reads it from the `scripts` table behind
+row-level security. The source is therefore never a file in this repository — publishing one here
+would defeat the reason the indicators were moved out in the first place. The private repo stays
+the source of truth; a version is pasted into the admin page to distribute it.
 
 ## Where this is going
 

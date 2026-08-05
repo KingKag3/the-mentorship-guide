@@ -1255,6 +1255,124 @@ tbody tr { transition: background-color var(--fast); }
 #l-editor { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .ql-toolbar.ql-snow { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 
+/* ---------- tools ----------
+   Shared by the sizer, the journal, the stats page and the clock. A tool page
+   is a form beside a readout: the form collapses under the readout on a phone,
+   because on a phone you want to see the answer without scrolling past what
+   you just typed. */
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) 1fr;
+  gap: var(--s-4);
+  align-items: start;
+  margin: var(--s-5) 0;
+}
+
+@media (max-width: 780px) {
+  .tool-grid { grid-template-columns: 1fr; }
+}
+
+.tool-grid .auth-form-wide { max-width: none; margin: 0; }
+
+.readout {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  padding: var(--s-4);
+  min-height: 160px;
+}
+
+.readout-empty {
+  color: var(--muted);
+  font-size: var(--step--1);
+  max-width: 42ch;
+}
+
+.readout-big {
+  font-family: var(--mono);
+  font-size: var(--step-3);
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--s-3);
+}
+
+.readout-big.is-bad { color: var(--red); }
+
+.readout-rows { border-top: 1px solid var(--border-lo); }
+
+.readout-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-lo);
+  font-size: var(--step--1);
+}
+
+.readout-row span { color: var(--muted); }
+.readout-row b { font-family: var(--mono); font-weight: 500; color: var(--fg-strong); }
+.readout-row.is-ok b { color: var(--accent); }
+.readout-row.is-bad b { color: var(--red); }
+
+.readout .callout { margin: var(--s-4) 0 0; }
+
+/* A bar that is drawn with a width rather than a chart library. Used by the
+   stats page; kept here so design.html can render it. */
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 150px) 1fr auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: 6px 0;
+  font-size: var(--step--1);
+}
+
+.bar-row > span:first-child { color: var(--muted); }
+
+.bar-track {
+  background: var(--surface-2);
+  border: 1px solid var(--border-lo);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.bar-fill { height: 100%; background: var(--accent-dk); }
+.bar-fill.is-bad { background: #7f3535; }
+.bar-row > b { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+
+.stat-note { color: var(--muted); font-size: var(--step--1); margin-top: var(--s-2); }
+
+/* Two fields on one line, stacking on a phone. Used heavily by the journal,
+   where entry/stop and target/exit belong side by side or not at all. */
+
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+@media (max-width: 520px) {
+  .field-pair { grid-template-columns: 1fr; gap: 0; }
+}
+
+.check-line {
+  display: flex !important;
+  align-items: center;
+  gap: var(--s-2);
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-family: var(--serif) !important;
+  font-size: var(--step--1) !important;
+  color: var(--fg) !important;
+  margin: var(--s-3) 0 !important;
+}
+
+.check-line input { width: auto !important; margin: 0; }
+
 /* ---------- scrollbars ---------- */
 
 * { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }

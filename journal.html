@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journal — Smart Money, Plain English</title>
+<meta name="description" content="Members-only trade journal.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Journal</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">Every trade tagged against the vocabulary you are being taught, so that
+  <a href="stats.html">the statistics</a> can tell you which parts of it actually work for you.
+  Nobody else can read these rows unless you flag one for the mentor.</p>
+
+  <div class="link-row">
+    <a class="link-button" href="stats.html">Statistics</a>
+    <a class="link-button" href="sizer.html">Position sizer</a>
+    <a class="link-button" href="clock.html">Killzone clock</a>
+  </div>
+
+  <h2 id="form-heading">Log a trade</h2>
+
+  <form class="auth-form auth-form-wide" id="trade-form" autocomplete="off">
+    <input type="hidden" id="trade-id">
+
+    <div class="field-pair">
+      <div>
+        <label for="opened_at">When</label>
+        <input id="opened_at" type="datetime-local" required>
+      </div>
+      <div>
+        <label for="symbol">Symbol</label>
+        <input id="symbol" type="text" list="dl-symbol" value="NQ" required>
+        <datalist id="dl-symbol">
+          <option>ES</option><option>MES</option><option>NQ</option><option>MNQ</option>
+        </datalist>
+      </div>
+    </div>
+
+    <div class="field-pair">
+      <div>
+        <label for="direction">Direction</label>
+        <select id="direction" class="role-select">
+          <option value="long">Long</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
+      <div>
+        <label for="contracts">Contracts</label>
+        <input id="contracts" type="number" inputmode="decimal" step="1" min="0" value="1">
+      </div>
+    </div>
+
+    <label for="model">Model <span class="opt">— which one you were actually running</span></label>
+    <input id="model" type="text" list="dl-model" placeholder="silver bullet">
+    <datalist id="dl-model">
+      <option>2022 entry model</option><option>Silver bullet</option><option>Turtle soup</option>
+      <option>ATM</option><option>London protraction</option><option>Judas swing</option>
+      <option>Measured move</option><option>Order block retrace</option>
+    </datalist>
+
+    <label for="session_kz">Session</label>
+    <input id="session_kz" type="text" list="dl-session" placeholder="silver bullet 10:00-11:00">
+    <datalist id="dl-session">
+      <option>Asian 20:00-00:00</option><option>London 02:00-05:00</option>
+      <option>New York 07:00-10:00</option><option>Opening range 09:30-10:00</option>
+      <option>Silver bullet 10:00-11:00</option><option>Late morning 11:00-12:00</option>
+      <option>Lunch 12:00-13:30</option><option>Afternoon 13:30-15:00</option>
+      <option>Into the close 15:00-16:00</option>
+    </datalist>
+
+    <label for="pd_array">Entered from</label>
+    <input id="pd_array" type="text" list="dl-array" placeholder="fair value gap">
+    <datalist id="dl-array">
+      <option>Fair value gap</option><option>Consequent encroachment</option>
+      <option>Order block</option><option>Breaker</option><option>Mitigation block</option>
+      <option>Rejection block</option><option>Liquidity void</option>
+      <option>62% retracement</option>
+    </datalist>
+
+    <label for="liquidity">Liquidity taken first</label>
+    <input id="liquidity" type="text" list="dl-liq" placeholder="overnight low">
+    <datalist id="dl-liq">
+      <option>Asian high</option><option>Asian low</option>
+      <option>Previous day high</option><option>Previous day low</option>
+      <option>PM high</option><option>PM low</option>
+      <option>Overnight high</option><option>Overnight low</option>
+      <option>Opening range high</option><option>Opening range low</option>
+      <option>Equal highs</option><option>Equal lows</option>
+    </datalist>
+
+    <div class="field-pair">
+      <div>
+        <label for="bias">Bias you held</label>
+        <select id="bias" class="role-select">
+          <option value="">—</option>
+          <option value="bullish">Bullish</option>
+          <option value="bearish">Bearish</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+      <div>
+        <label for="agreed">Trade agreed with it</label>
+        <select id="agreed" class="role-select">
+          <option value="">—</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-pair">
+      <div>
+        <label for="entry">Entry</label>
+        <input id="entry" type="number" inputmode="decimal" step="0.25">
+      </div>
+      <div>
+        <label for="stop">Stop</label>
+        <input id="stop" type="number" inputmode="decimal" step="0.25">
+      </div>
+    </div>
+
+    <div class="field-pair">
+      <div>
+        <label for="target">Target</label>
+        <input id="target" type="number" inputmode="decimal" step="0.25">
+      </div>
+      <div>
+        <label for="exit_price">Exit</label>
+        <input id="exit_price" type="number" inputmode="decimal" step="0.25">
+      </div>
+    </div>
+
+    <p class="field-note" id="derived">Points and R are worked out from entry, stop and exit.</p>
+
+    <label for="outcome">Outcome</label>
+    <select id="outcome" class="role-select">
+      <option value="">—</option>
+      <option value="win">Win</option>
+      <option value="loss">Loss</option>
+      <option value="breakeven">Breakeven</option>
+      <option value="scratch">Scratch</option>
+    </select>
+
+    <label class="check-line">
+      <input id="checklist_done" type="checkbox">
+      <span>I completed the pre-trade checklist before entering</span>
+    </label>
+
+    <label for="management">How it was managed <span class="opt">— optional</span></label>
+    <input id="management" type="text" placeholder="held to target / moved to breakeven at 1R">
+
+    <label for="notes">Notes <span class="opt">— optional</span></label>
+    <textarea id="notes" rows="4" placeholder="What you saw, what you would do differently."></textarea>
+
+    <label for="shot">Screenshot <span class="opt">— optional</span></label>
+    <input id="shot" type="file" accept="image/*">
+    <p class="field-note" id="shot-note"></p>
+
+    <label class="check-line">
+      <input id="shared_with_mentor" type="checkbox">
+      <span>Share this one with the mentor</span>
+    </label>
+
+    <div class="row-actions">
+      <button class="btn-primary" type="submit" id="save-btn">Save trade</button>
+      <button class="link-button" type="button" id="cancel-btn" hidden>Cancel edit</button>
+    </div>
+
+    <p class="form-status" id="status"></p>
+  </form>
+
+  <h2>Your trades</h2>
+  <p class="stat-note" id="count-note"></p>
+  <div id="list"></div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import {
+  supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
+  compressImage, signedUrlMap, MEDIA_BUCKET
+} from './app.js';
+
+renderAccountStrip();
+
+const profile = await requireRole(['member', 'admin']);
+if (!profile) { throw new Error('not signed in'); }
+
+document.getElementById('body').hidden = false;
+
+const $ = (id) => document.getElementById(id);
+const form = $('trade-form');
+
+// Local datetime string for the datetime-local input, in the browser's own
+// timezone. Stored as a timestamptz, so the database keeps the absolute moment.
+function nowLocal() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+$('opened_at').value = nowLocal();
+
+// --- derived numbers -------------------------------------------------------
+// Points and R are never typed. A journal where the member can enter an R that
+// disagrees with the prices is a journal whose statistics mean nothing.
+
+function derive() {
+  const dir = $('direction').value === 'short' ? -1 : 1;
+  const entry = parseFloat($('entry').value);
+  const stop = parseFloat($('stop').value);
+  const exit = parseFloat($('exit_price').value);
+
+  let points = null;
+  let r = null;
+
+  if (Number.isFinite(entry) && Number.isFinite(exit)) {
+    points = (exit - entry) * dir;
+  }
+  if (points !== null && Number.isFinite(stop)) {
+    const risk = Math.abs(entry - stop);
+    if (risk > 0) r = points / risk;
+  }
+
+  $('derived').textContent = points === null
+    ? 'Points and R are worked out from entry, stop and exit.'
+    : points.toFixed(2) + ' points' + (r === null ? '' : ', ' + r.toFixed(2) + 'R');
+
+  return { points, r };
+}
+
+form.addEventListener('input', derive);
+form.addEventListener('change', derive);
+
+// --- save ------------------------------------------------------------------
+
+let editingId = null;
+
+async function uploadShot() {
+  const file = $('shot').files[0];
+  if (!file) return null;
+
+  setStatus('#status', 'Uploading screenshot...');
+  const small = await compressImage(file, 1600, 0.82);
+  const ext = (file.name.match(/\.(\w+)$/) || [, 'jpg'])[1].toLowerCase();
+  // The path shape is what the storage policy checks: journal/<uid>/<uuid>.
+  const path = 'journal/' + profile.id + '/' + crypto.randomUUID() + '.' + ext;
+
+  const { error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .upload(path, small, { contentType: small.type || 'image/jpeg' });
+
+  if (error) throw error;
+  return path;
+}
+
+function readForm(derived, shotPath) {
+  const num = (id) => {
+    const v = parseFloat($(id).value);
+    return Number.isFinite(v) ? v : null;
+  };
+  const txt = (id) => $(id).value.trim() || null;
+  const agreed = $('agreed').value;
+
+  const row = {
+    opened_at: new Date($('opened_at').value).toISOString(),
+    symbol: $('symbol').value.trim() || 'NQ',
+    direction: $('direction').value,
+    contracts: num('contracts'),
+    model: txt('model'),
+    session_kz: txt('session_kz'),
+    pd_array: txt('pd_array'),
+    liquidity: txt('liquidity'),
+    bias: txt('bias'),
+    agreed_with_bias: agreed === '' ? null : agreed === 'yes',
+    checklist_done: $('checklist_done').checked,
+    entry: num('entry'),
+    stop: num('stop'),
+    target: num('target'),
+    exit_price: num('exit_price'),
+    points: derived.points,
+    r_multiple: derived.r,
+    outcome: txt('outcome'),
+    management: txt('management'),
+    notes: txt('notes'),
+    shared_with_mentor: $('shared_with_mentor').checked
+  };
+
+  // Only overwrite the stored screenshot when a new one was actually chosen.
+  if (shotPath) row.screenshot_path = shotPath;
+  return row;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('save-btn').disabled = true;
+
+  try {
+    const shotPath = await uploadShot();
+    const row = readForm(derive(), shotPath);
+
+    setStatus('#status', 'Saving...');
+
+    const { error } = editingId
+      ? await supabase.from('trades').update(row).eq('id', editingId)
+      : await supabase.from('trades').insert(row);
+
+    if (error) throw error;
+
+    setStatus('#status', editingId ? 'Trade updated.' : 'Trade saved.', 'ok');
+    resetForm();
+    await load();
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    setStatus('#status',
+      /relation .*trades.* does not exist/i.test(msg)
+        ? 'The trades table is missing. Run supabase/trades.sql in the Supabase SQL editor.'
+        : msg,
+      'error');
+  } finally {
+    $('save-btn').disabled = false;
+  }
+});
+
+function resetForm() {
+  form.reset();
+  editingId = null;
+  $('trade-id').value = '';
+  $('opened_at').value = nowLocal();
+  $('symbol').value = 'NQ';
+  $('contracts').value = '1';
+  $('save-btn').textContent = 'Save trade';
+  $('cancel-btn').hidden = true;
+  $('form-heading').textContent = 'Log a trade';
+  $('shot-note').textContent = '';
+  derive();
+}
+
+$('cancel-btn').addEventListener('click', () => {
+  resetForm();
+  setStatus('#status', '');
+});
+
+// --- list ------------------------------------------------------------------
+
+let rows = [];
+
+async function load() {
+  const { data, error } = await supabase
+    .from('trades')
+    .select('*')
+    .order('opened_at', { ascending: false })
+    .limit(500);
+
+  const mount = $('list');
+
+  if (error) {
+    mount.innerHTML =
+      '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
+      escapeHtml(error.message) +
+      '</p><p>If this mentions <code>trades</code>, run <code>supabase/trades.sql</code> in the ' +
+      'Supabase SQL editor.</p></div>';
+    return;
+  }
+
+  rows = data || [];
+  $('count-note').textContent = rows.length
+    ? rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
+      (rows.length < 50
+        ? 'Fifty is roughly where the statistics start meaning something.'
+        : 'Enough for the statistics to be worth reading.')
+    : '';
+
+  if (!rows.length) {
+    mount.innerHTML =
+      '<div class="callout"><span class="callout-label">Empty</span>' +
+      '<p>Nothing logged yet. The tags are the point &mdash; a trade recorded without them ' +
+      'tells you what happened, but not why it happened.</p></div>';
+    return;
+  }
+
+  const shots = await signedUrlMap(rows.map((r) => r.screenshot_path));
+
+  mount.innerHTML =
+    '<div class="table-scroll"><table><thead><tr>' +
+    '<th>When</th><th>Trade</th><th>Model</th><th>Session</th><th>From</th>' +
+    '<th>Result</th><th></th>' +
+    '</tr></thead><tbody>' +
+    rows.map((r) => renderRow(r, shots.get(r.screenshot_path))).join('') +
+    '</tbody></table></div>';
+}
+
+function tone(r) {
+  if (r.r_multiple === null || r.r_multiple === undefined) return '';
+  return r.r_multiple > 0 ? ' bull' : r.r_multiple < 0 ? ' bear' : '';
+}
+
+function renderRow(r, shotUrl) {
+  const when = new Date(r.opened_at);
+  const result = (r.r_multiple === null || r.r_multiple === undefined)
+    ? '<span class="tag">open</span>'
+    : '<span class="tag' + tone(r) + '">' +
+      (r.r_multiple > 0 ? '+' : '') + Number(r.r_multiple).toFixed(2) + 'R</span>';
+
+  return '<tr>' +
+    '<td>' + escapeHtml(when.toLocaleDateString()) + '<br>' +
+      '<span class="acct-muted">' +
+      escapeHtml(when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) +
+      '</span></td>' +
+    '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
+      escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
+      (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') +
+      (r.shared_with_mentor ? ' <span class="tag time">shared</span>' : '') +
+      '</td>' +
+    '<td>' + escapeHtml(r.model || '—') +
+      (r.checklist_done ? '' : '<br><span class="field-note-bad">no checklist</span>') + '</td>' +
+    '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
+    '<td>' + escapeHtml(r.pd_array || '—') +
+      (r.liquidity ? '<br><span class="acct-muted">after ' + escapeHtml(r.liquidity) + '</span>' : '') +
+      '</td>' +
+    '<td>' + result +
+      (r.points !== null && r.points !== undefined
+        ? '<br><span class="acct-muted">' + Number(r.points).toFixed(2) + ' pts</span>' : '') +
+      (shotUrl ? '<br><a href="' + escapeHtml(shotUrl) + '" target="_blank" rel="noopener">shot</a>' : '') +
+      '</td>' +
+    '<td class="row-actions">' +
+      '<button class="link-button" data-edit="' + r.id + '">edit</button>' +
+      '<button class="btn-danger" data-del="' + r.id + '">delete</button>' +
+      '</td>' +
+  '</tr>';
+}
+
+$('list').addEventListener('click', async (e) => {
+  const editId = e.target.getAttribute && e.target.getAttribute('data-edit');
+  const delId = e.target.getAttribute && e.target.getAttribute('data-del');
+
+  if (editId) {
+    const r = rows.find((x) => String(x.id) === editId);
+    if (r) fillForm(r);
+    return;
+  }
+
+  if (delId) {
+    if (!confirm('Delete this trade? It cannot be recovered.')) return;
+    const { error } = await supabase.from('trades').delete().eq('id', delId);
+    if (error) { setStatus('#status', error.message, 'error'); return; }
+    setStatus('#status', 'Trade deleted.', 'ok');
+    await load();
+  }
+});
+
+function fillForm(r) {
+  editingId = r.id;
+  $('trade-id').value = r.id;
+
+  const d = new Date(r.opened_at);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $('opened_at').value = d.toISOString().slice(0, 16);
+
+  $('symbol').value = r.symbol || '';
+  $('direction').value = r.direction || 'long';
+  $('contracts').value = r.contracts ?? '';
+  $('model').value = r.model || '';
+  $('session_kz').value = r.session_kz || '';
+  $('pd_array').value = r.pd_array || '';
+  $('liquidity').value = r.liquidity || '';
+  $('bias').value = r.bias || '';
+  $('agreed').value = r.agreed_with_bias === null || r.agreed_with_bias === undefined
+    ? '' : (r.agreed_with_bias ? 'yes' : 'no');
+  $('checklist_done').checked = !!r.checklist_done;
+  $('entry').value = r.entry ?? '';
+  $('stop').value = r.stop ?? '';
+  $('target').value = r.target ?? '';
+  $('exit_price').value = r.exit_price ?? '';
+  $('outcome').value = r.outcome || '';
+  $('management').value = r.management || '';
+  $('notes').value = r.notes || '';
+  $('shared_with_mentor').checked = !!r.shared_with_mentor;
+
+  $('save-btn').textContent = 'Update trade';
+  $('cancel-btn').hidden = false;
+  $('form-heading').textContent = 'Editing a trade';
+  $('shot-note').textContent = r.screenshot_path
+    ? 'A screenshot is already attached. Choosing a new one replaces it.'
+    : '';
+
+  derive();
+  document.getElementById('form-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+await load();
+</script>
+
+</body>
+</html>

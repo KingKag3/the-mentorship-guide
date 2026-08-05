@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Position sizer — Smart Money, Plain English</title>
+<meta name="description" content="Work out how many contracts a trade is worth on ES, NQ and the micros.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Position sizer</h1>
+
+<p class="lede">How many contracts a trade is worth, given what you are willing to lose and where
+the stop actually sits. It will also tell you when the answer is none.</p>
+
+<div class="tool-grid">
+
+  <form class="auth-form auth-form-wide" id="sizer" autocomplete="off">
+
+    <label for="instrument">Instrument</label>
+    <select id="instrument" class="role-select">
+      <option value="ES">ES — E-mini S&amp;P 500</option>
+      <option value="MES">MES — Micro E-mini S&amp;P 500</option>
+      <option value="NQ" selected>NQ — E-mini Nasdaq 100</option>
+      <option value="MNQ">MNQ — Micro E-mini Nasdaq 100</option>
+    </select>
+    <p class="field-note" id="spec-note"></p>
+
+    <label for="account">Account size ($)</label>
+    <input id="account" type="number" inputmode="decimal" step="100" min="0" value="25000">
+
+    <label for="riskpc">Risk per trade (%)</label>
+    <input id="riskpc" type="number" inputmode="decimal" step="0.05" min="0" max="100" value="0.5">
+    <p class="field-note" id="risk-note"></p>
+
+    <label for="mode">Stop given as</label>
+    <select id="mode" class="role-select">
+      <option value="prices" selected>Entry and stop prices</option>
+      <option value="points">A distance in points</option>
+    </select>
+
+    <div id="price-fields">
+      <label for="entry">Entry</label>
+      <input id="entry" type="number" inputmode="decimal" step="0.25" placeholder="29886.75">
+
+      <label for="stop">Stop</label>
+      <input id="stop" type="number" inputmode="decimal" step="0.25" placeholder="29840.00">
+    </div>
+
+    <div id="points-fields" hidden>
+      <label for="distance">Stop distance (points)</label>
+      <input id="distance" type="number" inputmode="decimal" step="0.25" min="0" placeholder="46.75">
+    </div>
+
+    <label for="rr">Target, in R <span class="opt">— for the target price</span></label>
+    <input id="rr" type="number" inputmode="decimal" step="0.25" min="0" value="2">
+
+  </form>
+
+  <div id="readout" class="readout"></div>
+
+</div>
+
+<h2>What it is actually telling you</h2>
+
+<p>The number most people want is the contract count. The number that matters is the one underneath
+it: whether a single contract already risks more than you said you were willing to lose.</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Contract</th><th>Per point</th><th>Tick</th><th>Per tick</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>ES</td><td>$50.00</td><td>0.25</td><td>$12.50</td></tr>
+    <tr><td>MES</td><td>$5.00</td><td>0.25</td><td>$1.25</td></tr>
+    <tr><td>NQ</td><td>$20.00</td><td>0.25</td><td>$5.00</td></tr>
+    <tr><td>MNQ</td><td>$2.00</td><td>0.25</td><td>$0.50</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>A twenty-point stop is $400 on one NQ and $40 on one MNQ. That single ratio is why most accounts
+that blow up were trading the mini when the arithmetic said micro. Check these against the CME
+contract specifications before you rely on them — they are correct as written, but a tool that asks
+you to trust it is worse than one that asks you to verify it.</p>
+
+<div class="callout risk">
+  <span class="callout-label">Scope</span>
+  <p>This is arithmetic, not advice. It sizes a trade you have already decided to take, and it knows
+  nothing about your account, your broker's margin requirements, or whether the trade is any good.</p>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// No imports, no state, no storage. Every keystroke recomputes from scratch.
+//
+// Verify these against the CME contract specifications rather than trusting
+// the table: they are the one thing here that can go silently out of date.
+// ---------------------------------------------------------------------------
+const SPECS = {
+  ES:  { name: 'ES',  perPoint: 50, tick: 0.25, micro: 'MES' },
+  MES: { name: 'MES', perPoint: 5,  tick: 0.25, micro: null  },
+  NQ:  { name: 'NQ',  perPoint: 20, tick: 0.25, micro: 'MNQ' },
+  MNQ: { name: 'MNQ', perPoint: 2,  tick: 0.25, micro: null  }
+};
+
+const $ = (id) => document.getElementById(id);
+const money = (n) =>
+  '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pts = (n) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+function readInputs() {
+  const spec = SPECS[$('instrument').value];
+  const account = parseFloat($('account').value);
+  const riskPc = parseFloat($('riskpc').value);
+  const rr = parseFloat($('rr').value);
+  const mode = $('mode').value;
+
+  let distance = NaN;
+  let entry = NaN;
+  let dir = 0;
+
+  if (mode === 'points') {
+    distance = Math.abs(parseFloat($('distance').value));
+  } else {
+    entry = parseFloat($('entry').value);
+    const stop = parseFloat($('stop').value);
+    if (Number.isFinite(entry) && Number.isFinite(stop)) {
+      distance = Math.abs(entry - stop);
+      dir = entry > stop ? 1 : -1;
+    }
+  }
+
+  return { spec, account, riskPc, rr, distance, entry, dir };
+}
+
+function row(label, value, tone) {
+  return '<div class="readout-row' + (tone ? ' is-' + tone : '') + '">' +
+    '<span>' + label + '</span><b>' + value + '</b></div>';
+}
+
+function render() {
+  const { spec, account, riskPc, rr, distance, entry, dir } = readInputs();
+  const mount = $('readout');
+
+  $('spec-note').textContent =
+    money(spec.perPoint) + ' per point, ' + money(spec.perPoint * spec.tick) +
+    ' per ' + spec.tick + ' tick.';
+
+  const budget = (Number.isFinite(account) && Number.isFinite(riskPc))
+    ? account * riskPc / 100
+    : NaN;
+
+  $('risk-note').textContent = Number.isFinite(budget)
+    ? 'That is ' + money(budget) + ' at risk on this trade.'
+    : '';
+
+  if (!Number.isFinite(budget) || budget <= 0 || !Number.isFinite(distance) || distance <= 0) {
+    mount.innerHTML =
+      '<div class="readout-empty">Fill in an account size, a risk percentage and a stop ' +
+      'distance. The rest follows from those three.</div>';
+    return;
+  }
+
+  const ticks = distance / spec.tick;
+  const perContract = distance * spec.perPoint;
+  const count = Math.floor(budget / perContract);
+  const actual = count * perContract;
+
+  const parts = [];
+
+  parts.push('<div class="readout-big' + (count >= 1 ? '' : ' is-bad') + '">' +
+    (count >= 1 ? count + ' &times; ' + spec.name : 'No ' + spec.name) +
+    '</div>');
+
+  parts.push('<div class="readout-rows">');
+  parts.push(row('Budget', money(budget)));
+  parts.push(row('Stop distance', pts(distance) + ' pts / ' + pts(ticks) + ' ticks'));
+  parts.push(row('Risk per contract', money(perContract)));
+  if (count >= 1) {
+    parts.push(row('Actual risk', money(actual), 'ok'));
+    parts.push(row('Unused budget', money(budget - actual)));
+  }
+
+  // The target price only exists if we know which way the trade faces.
+  if (Number.isFinite(entry) && Number.isFinite(rr) && rr > 0 && dir !== 0) {
+    parts.push(row('Target at ' + pts(rr) + 'R', pts(entry + dir * distance * rr) + ''));
+  }
+  parts.push('</div>');
+
+  // The part worth reading. A contract count of zero is not a rounding
+  // problem, it is the tool telling you the trade does not fit.
+  if (count >= 1) {
+    const shortfall = budget - actual;
+    if (spec.micro && shortfall >= distance * SPECS[spec.micro].perPoint) {
+      const extra = Math.floor(shortfall / (distance * SPECS[spec.micro].perPoint));
+      parts.push('<div class="callout"><span class="callout-label">Also possible</span>' +
+        '<p>' + count + ' ' + spec.name + ' leaves ' + money(shortfall) + ' unused, which is ' +
+        extra + ' ' + spec.micro + ' on the same stop. Mixing the two gets you closer to the ' +
+        'budget than the mini alone.</p></div>');
+    }
+  } else if (spec.micro) {
+    const microRisk = distance * SPECS[spec.micro].perPoint;
+    const microCount = Math.floor(budget / microRisk);
+    if (microCount >= 1) {
+      parts.push('<div class="callout"><span class="callout-label">Trade the micro</span>' +
+        '<p>One ' + spec.name + ' risks ' + money(perContract) + ' on this stop and your budget is ' +
+        money(budget) + '. The same trade in ' + spec.micro + ' is ' + money(microRisk) +
+        ' per contract, so ' + microCount + ' of them fits.</p></div>');
+    } else {
+      parts.push('<div class="callout risk"><span class="callout-label">Too large for this account</span>' +
+        '<p>One ' + spec.micro + ' risks ' + money(microRisk) + ' on a ' + pts(distance) +
+        ' point stop, and you have ' + money(budget) + ' to lose. There is no size that works. ' +
+        'Either the stop is too wide for the account, or the account is too small for the trade ' +
+        '&mdash; and neither is fixed by taking it anyway.</p></div>');
+    }
+  } else {
+    parts.push('<div class="callout risk"><span class="callout-label">Too large for this account</span>' +
+      '<p>One ' + spec.name + ' risks ' + money(perContract) + ' on a ' + pts(distance) +
+      ' point stop, and your budget is ' + money(budget) + '. ' + spec.name +
+      ' is already the micro; there is nothing smaller to step down to.</p></div>');
+  }
+
+  mount.innerHTML = parts.join('');
+}
+
+$('mode').addEventListener('change', () => {
+  const points = $('mode').value === 'points';
+  $('price-fields').hidden = points;
+  $('points-fields').hidden = !points;
+  render();
+});
+
+document.getElementById('sizer').addEventListener('input', render);
+document.getElementById('sizer').addEventListener('change', render);
+document.getElementById('sizer').addEventListener('submit', (e) => e.preventDefault());
+
+render();
+</script>
+
+</body>
+</html>

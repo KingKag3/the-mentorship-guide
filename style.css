@@ -1373,6 +1373,62 @@ tbody tr { transition: background-color var(--fast); }
 
 .check-line input { width: auto !important; margin: 0; }
 
+/* ---------- tool rail and badges ---------- */
+
+.tool-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 var(--s-5);
+}
+
+.tool-chip {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--muted);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  white-space: nowrap;
+}
+
+a.tool-chip:hover {
+  color: var(--fg-strong);
+  border-color: var(--accent-dk);
+  background: var(--surface-3);
+}
+
+.tool-chip.is-current {
+  color: var(--accent);
+  border-color: var(--accent-dk);
+  background: var(--surface-2);
+  cursor: default;
+}
+
+/* Deliberately loud. A badge nobody notices is a badge that does nothing. */
+.tool-badge {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #08130c;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-left: var(--s-2);
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+
+.card h3 .tool-badge { vertical-align: 1px; }
+
 /* ---------- pine scripts ---------- */
 
 .script {

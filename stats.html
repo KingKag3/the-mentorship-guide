@@ -44,11 +44,7 @@
   <p class="lede">Your journal, sliced by the things you were taught. The useful discovery here is
   usually not that you are up or down &mdash; it is that one model carries the account and another
   quietly drains it.</p>
-
-  <div class="link-row">
-    <a class="link-button" href="journal.html">Journal</a>
-    <a class="link-button" href="sizer.html">Position sizer</a>
-  </div>
+  <div id="tool-rail"></div>
 
   <div id="summary"></div>
   <div id="slices"></div>
@@ -64,9 +60,10 @@
 </div>
 
 <script type="module">
-import { supabase, requireRole, renderAccountStrip, escapeHtml } from './app.js';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail } from './app.js';
 
 renderAccountStrip();
+renderToolRail('#tool-rail', 'stats.html');
 
 const profile = await requireRole(['member', 'admin']);
 if (!profile) { throw new Error('not signed in'); }

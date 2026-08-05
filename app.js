@@ -290,6 +290,107 @@ export function safeUrl(url) {
   }
 }
 
+/* --------------------------------- tools --------------------------------- */
+
+/**
+ * The one list of tools. Every page that shows them renders from here, because
+ * three pages had already drifted into three different hand-written link rows
+ * and a fourth was about to.
+ */
+export const TOOLS = [
+  { href: 'journal.html', name: 'Journal',
+    blurb: 'Log a trade against the vocabulary you are being taught. Private to you.' },
+  { href: 'stats.html', name: 'Statistics',
+    blurb: 'Which models, sessions and arrays actually pay, sliced out of your own journal.' },
+  { href: 'sizer.html', name: 'Position sizer',
+    blurb: 'Contracts from a stop and a risk budget, and when the answer is none.' },
+  { href: 'clock.html', name: 'Killzone clock',
+    blurb: 'Which window is running, in New York time, all year.' },
+  { href: 'smt.html', name: 'SMT checker',
+    blurb: 'ES against NQ at a swing, and which one refused to confirm.' },
+  { href: 'scripts.html', name: 'Indicators',
+    blurb: 'TradingView scripts for the concepts here, with how to install them.' }
+];
+
+const SEEN_KEY = 'tk_scripts_seen_at';
+
+/** When this browser last opened the indicators page. */
+function scriptsSeenAt() {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    return raw ? Number(raw) : 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
+/** Called by scripts.html on load, which is what clears the badge. */
+export function markScriptsSeen() {
+  try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch (err) { /* private mode */ }
+}
+
+/**
+ * How many published indicators have changed since this browser last looked.
+ *
+ * Kept in localStorage rather than a column on profiles: it is a per-device
+ * convenience, not a fact about the member, and it needs no migration. The cost
+ * is that a second device shows the badge again, which is the right way round -
+ * better to be told twice than never.
+ */
+export async function newScriptCount() {
+  if (!supabase) return 0;
+
+  const { data, error } = await supabase
+    .from('scripts')
+    .select('updated_at')
+    .eq('published', true);
+
+  if (error || !data) return 0;
+
+  const seen = scriptsSeenAt();
+  return data.filter((row) => new Date(row.updated_at).getTime() > seen).length;
+}
+
+/**
+ * Full cards, for the members index.
+ * `badges` maps an href to a short string rendered as a flag on that card.
+ */
+export function renderToolCards(selector, badges = {}) {
+  const mount = document.querySelector(selector);
+  if (!mount) return;
+
+  mount.innerHTML = TOOLS.map((tool) => {
+    const badge = badges[tool.href]
+      ? '<span class="tool-badge">' + escapeHtml(badges[tool.href]) + '</span>'
+      : '';
+    return '<a class="card" href="' + tool.href + '">' +
+      '<h3>' + escapeHtml(tool.name) + badge + '</h3>' +
+      '<p>' + escapeHtml(tool.blurb) + '</p>' +
+    '</a>';
+  }).join('');
+}
+
+/**
+ * Compact rail for the tool pages themselves, so moving between them does not
+ * mean going back to the index first. The current page is shown but not linked.
+ */
+export function renderToolRail(selector, currentHref, badges = {}) {
+  const mount = document.querySelector(selector);
+  if (!mount) return;
+
+  mount.className = 'tool-rail';
+  mount.innerHTML = TOOLS.map((tool) => {
+    const badge = badges[tool.href]
+      ? '<span class="tool-badge">' + escapeHtml(badges[tool.href]) + '</span>'
+      : '';
+    return tool.href === currentHref
+      ? '<span class="tool-chip is-current" aria-current="page">' +
+          escapeHtml(tool.name) + badge + '</span>'
+      : '<a class="tool-chip" href="' + tool.href + '">' +
+          escapeHtml(tool.name) + badge + '</a>';
+  }).join('');
+}
+
 /* ---------------------------- Discord markup ----------------------------- */
 
 /**

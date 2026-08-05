@@ -45,11 +45,7 @@
   into the Pine editor, add it to a chart. No account linking, no invite lists, nothing to
   install.</p>
 
-  <div class="link-row">
-    <a class="link-button" href="members.html">Curriculum</a>
-    <a class="link-button" href="journal.html">Journal</a>
-    <a class="link-button" href="clock.html">Killzone clock</a>
-  </div>
+  <div id="tool-rail"></div>
 
   <h2>Installing one</h2>
 
@@ -108,9 +104,13 @@
 
 <script type="module">
 import DOMPurify from 'https://esm.sh/dompurify@3';
-import { supabase, requireRole, renderAccountStrip, escapeHtml } from './app.js';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail, markScriptsSeen } from './app.js';
 
 renderAccountStrip();
+renderToolRail('#tool-rail', 'scripts.html');
+
+// Opening this page is what clears the 'new' badge on the members index.
+markScriptsSeen();
 
 const profile = await requireRole(['member', 'admin']);
 

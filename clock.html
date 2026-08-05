@@ -36,6 +36,8 @@
 
 <h1>Killzone clock</h1>
 
+<div id="tool-rail"></div>
+
 <p class="lede">Everything in the model is New York local, and the whole thing shifts twice a year.
 This reads the clock in <code>America/New_York</code> rather than assuming an offset, so it is right
 in March and November too.</p>
@@ -68,8 +70,9 @@ does not silently drift.</p>
 </div>
 
 <script type="module">
-import { renderAccountStrip } from './app.js';
+import { renderAccountStrip, renderToolRail } from './app.js';
 renderAccountStrip();
+renderToolRail('#tool-rail', 'clock.html');
 </script>
 
 <script>

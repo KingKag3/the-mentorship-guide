@@ -36,6 +36,8 @@
 
 <h1>SMT checker</h1>
 
+<div id="tool-rail"></div>
+
 <p class="lede">Two indices that normally move together, and a moment where one of them refuses.
 Read the four numbers off your charts and this says which one failed to confirm, and therefore which
 way the disagreement points.</p>
@@ -174,8 +176,9 @@ a raid on stops rather than a genuine expansion.</p>
 </div>
 
 <script type="module">
-import { renderAccountStrip } from './app.js';
+import { renderAccountStrip, renderToolRail } from './app.js';
 renderAccountStrip();
+renderToolRail('#tool-rail', 'smt.html');
 </script>
 
 <script>

@@ -84,6 +84,9 @@ work. It also records what is deliberately not being built, and why.
 ## Conventions
 
 - Plain static HTML. No build step, no bundler, no JS framework.
+- The tool list lives once, in `TOOLS` in `app.js`. Every page that shows tools renders from it —
+  the members index as cards, each tool page as a compact rail. Three pages had already drifted
+  into three different hand-written link rows before this existed.
 - One shared `style.css` rather than duplicating styles across seven files.
 - The concept pages carry almost no JavaScript: the glossary filter, and a one-line call to render
   the account strip in the header. Auth code is confined to `app.js`, `login.html`, `members.html`

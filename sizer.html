@@ -36,6 +36,8 @@
 
 <h1>Position sizer</h1>
 
+<div id="tool-rail"></div>
+
 <p class="lede">How many contracts a trade is worth, given what you are willing to lose and where
 the stop actually sits. It will also tell you when the answer is none.</p>
 
@@ -126,8 +128,9 @@ you to trust it is worse than one that asks you to verify it.</p>
 </div>
 
 <script type="module">
-import { renderAccountStrip } from './app.js';
+import { renderAccountStrip, renderToolRail } from './app.js';
 renderAccountStrip();
+renderToolRail('#tool-rail', 'sizer.html');
 </script>
 
 <script>

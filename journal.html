@@ -44,12 +44,7 @@
   <p class="lede">Every trade tagged against the vocabulary you are being taught, so that
   <a href="stats.html">the statistics</a> can tell you which parts of it actually work for you.
   Nobody else can read these rows unless you flag one for the mentor.</p>
-
-  <div class="link-row">
-    <a class="link-button" href="stats.html">Statistics</a>
-    <a class="link-button" href="sizer.html">Position sizer</a>
-    <a class="link-button" href="clock.html">Killzone clock</a>
-  </div>
+  <div id="tool-rail"></div>
 
   <h2 id="form-heading">Log a trade</h2>
 
@@ -247,10 +242,10 @@
 <script type="module">
 import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
-  compressImage, signedUrlMap, MEDIA_BUCKET
-} from './app.js';
+  compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail } from './app.js';
 
 renderAccountStrip();
+renderToolRail('#tool-rail', 'journal.html');
 
 const profile = await requireRole(['member', 'admin']);
 if (!profile) { throw new Error('not signed in'); }

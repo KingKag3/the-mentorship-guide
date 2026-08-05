@@ -299,6 +299,94 @@ the wide layout is a container class rather than a global change.</p>
   </ol>
 </div>
 
+<h2>Tool components</h2>
+
+<p>Used by the sizer, clock, SMT checker, journal and statistics pages. These arrived after the
+first version of this page and were missing from it for a while, which is exactly how a design
+system stops being a regression check.</p>
+
+<h3>Tool layout</h3>
+
+<p><code>.tool-grid</code> puts a form on the left and a live readout on the right, collapsing to
+one column under 760px. <code>.field-pair</code> splits two related inputs across a row.</p>
+
+<div class="tool-grid">
+  <form class="auth-form auth-form-wide" onsubmit="return false">
+    <div class="field-pair">
+      <div>
+        <label for="d-entry">Entry</label>
+        <input id="d-entry" type="number" value="21500.00">
+      </div>
+      <div>
+        <label for="d-stop">Stop</label>
+        <input id="d-stop" type="number" value="21480.00">
+      </div>
+    </div>
+    <p class="field-note field-note-ok">20.00 points of risk</p>
+    <label class="check-line" for="d-check">
+      <input id="d-check" type="checkbox" checked>
+      <span>A checkbox that reads as a sentence, not a form label</span>
+    </label>
+    <button type="submit" class="btn-primary">Calculate</button>
+  </form>
+
+  <div class="readout">
+    <div class="readout-rows">
+      <div class="readout-row"><span>Contracts</span><span class="readout-big">3</span></div>
+      <div class="readout-row"><span>Risk per contract</span><span>$400.00</span></div>
+      <div class="readout-row"><span>Total risk</span><span>$1,200.00</span></div>
+    </div>
+    <p class="stat-note">The readout is the answer, not a restatement of the inputs.</p>
+  </div>
+</div>
+
+<h3>Empty readout</h3>
+
+<p>Every tool starts empty rather than showing zeros. A zero is a claim; an empty state is honest
+about having nothing to say yet.</p>
+
+<div class="readout">
+  <p class="readout-empty">Fill in an entry and a stop and this fills in. Until then there is
+  nothing here that would not be invented.</p>
+</div>
+
+<h3>Statistic bars</h3>
+
+<p>Used throughout <code>stats.html</code>. Green is a positive expectancy, red negative — the same
+colour code the diagrams use. Slices under ten trades carry an <code>n=</code> tag and stay visible
+rather than being hidden, so a thin sample teaches instead of disappearing.</p>
+
+<div class="demo">
+  <div class="bar-row">
+    <span>Silver Bullet</span>
+    <span class="bar-track"><span class="bar-fill" style="width:72%"></span></span>
+    <span>+0.84R</span>
+  </div>
+  <div class="bar-row">
+    <span>Turtle soup</span>
+    <span class="bar-track"><span class="bar-fill" style="width:38%"></span></span>
+    <span>+0.21R</span>
+  </div>
+  <div class="bar-row">
+    <span>2022 model <span class="tag">n=4</span></span>
+    <span class="bar-track"><span class="bar-fill is-bad" style="width:24%"></span></span>
+    <span>−0.35R</span>
+  </div>
+  <p class="stat-note">Anything under ten trades is marked, not suppressed.</p>
+</div>
+
+<h3>Field notes</h3>
+
+<p>Inline validation under an input. Three states, all in mono at the small step.</p>
+
+<div class="demo">
+  <p class="field-note">Neutral — what the field expects.</p>
+  <p class="field-note field-note-ok">Accepted — what was understood.</p>
+  <p class="field-note field-note-bad">Rejected — what is wrong with it.</p>
+  <p><span class="kbd-time">10:00–11:00</span> — <code>.kbd-time</code>, for any New York clock
+  time in running text.</p>
+</div>
+
 <h2>Diagram palette</h2>
 
 <p>Diagrams are hand-written inline SVG so they inherit the palette and need no assets. The helper

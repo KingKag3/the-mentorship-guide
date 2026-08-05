@@ -405,6 +405,37 @@ export async function newScriptCount() {
 }
 
 /**
+ * One value from the settings table, or null.
+ *
+ * Returns null rather than throwing on any failure — a missing table, a
+ * missing key, no permission. Every caller is decorating a page that has to
+ * render without it, so a settings lookup must never be able to take the page
+ * down with it.
+ */
+export async function getSetting(key) {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+    if (error) return null;
+    return data && data.value ? data.value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/** Write one setting. Admin only, enforced by row-level security. */
+export async function setSetting(key, value) {
+  if (!supabase) return { error: new Error('not configured') };
+  return await supabase
+    .from('settings')
+    .upsert({ key, value: value || null }, { onConflict: 'key' });
+}
+
+/**
  * Full cards, for the members index.
  * `badges` maps an href to a short string rendered as a flag on that card.
  */

@@ -52,6 +52,11 @@
   <p>The same five steps for every script here. It takes about a minute, and nothing you do can
   break your account — a Pine script only draws on a chart.</p>
 
+  <!-- Filled from the install_video_url setting, or left empty. The written
+       steps below are the real instructions; the video is a convenience, so
+       the page has to read correctly without it. -->
+  <div id="install-video"></div>
+
   <ol class="steps">
     <li><strong>Copy the source.</strong> Use the copy button on the script below. It puts the whole
     file on your clipboard.</li>
@@ -104,7 +109,8 @@
 
 <script type="module">
 import DOMPurify from 'https://esm.sh/dompurify@3';
-import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail, markScriptsSeen } from './app.js';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail, markScriptsSeen,
+         youtubeEmbed, getSetting } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'scripts.html');
@@ -116,6 +122,18 @@ const profile = await requireRole(['member', 'admin']);
 
 if (profile) {
   document.getElementById('body').hidden = false;
+
+  // Not awaited with the script list: a missing or unset video must not delay
+  // the thing members actually came for.
+  getSetting('install_video_url').then((url) => {
+    const embed = url ? youtubeEmbed(url) : '';
+    if (embed) {
+      document.getElementById('install-video').innerHTML =
+        embed + '<p class="field-note">Watch the whole thing once. The written steps below are ' +
+        'the reference afterwards.</p>';
+    }
+  });
+
   const mount = document.getElementById('scripts');
 
   try {

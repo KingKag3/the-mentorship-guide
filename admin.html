@@ -130,6 +130,23 @@
     </table>
   </div>
 
+  <h3>Install walkthrough video</h3>
+
+  <p>Shown at the top of the indicators page, above the written steps. A YouTube link — the
+  <code>watch?v=</code>, <code>youtu.be</code> and <code>embed</code> forms all work, and a
+  <code>?t=</code> start time is honoured. Leave it empty to show no video.</p>
+
+  <form id="form-video" class="auth-form auth-form-wide">
+    <label for="v-url">Video URL</label>
+    <input id="v-url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+    <p class="field-note" id="v-preview"></p>
+    <div class="row-actions">
+      <button class="btn-primary" type="submit">Save video</button>
+      <button class="link-button" type="button" id="v-clear">Remove video</button>
+    </div>
+    <p class="form-status" id="status-video"></p>
+  </form>
+
   <h3 id="script-form-heading">Add an indicator</h3>
 
   <form id="form-script" class="auth-form auth-form-wide">
@@ -298,7 +315,7 @@ import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
          hydrateStorageImages, humanSize, discordToHtml,
-         looksLikeDiscordMarkup } from './app.js';
+         looksLikeDiscordMarkup, getSetting, setSetting } from './app.js';
 
 renderAccountStrip();
 
@@ -348,6 +365,7 @@ if (me) {
   try {
     await loadUsers();
     await loadInvites();
+    await loadVideo();
     await loadScripts();
     await loadPhases();
     await loadLessons();
@@ -605,6 +623,62 @@ async function copyText(text) {
     window.prompt('Copy this:', text);
   }
 }
+
+/* -------------------------- install video ----------------------------- */
+
+async function loadVideo() {
+  const url = await getSetting('install_video_url');
+  document.getElementById('v-url').value = url || '';
+  previewVideo();
+}
+
+// youtubeId() is the same parser the members page embeds with, so this says
+// whether the link will actually render rather than whether it looks like a URL.
+function previewVideo() {
+  const raw = document.getElementById('v-url').value.trim();
+  const note = document.getElementById('v-preview');
+  if (!raw) {
+    note.className = 'field-note';
+    note.textContent = 'No video. The indicators page shows the written steps only.';
+    return;
+  }
+  const id = youtubeId(raw);
+  note.className = id ? 'field-note field-note-ok' : 'field-note field-note-bad';
+  note.textContent = id
+    ? 'Recognised — video ' + id + ' will embed.'
+    : 'Not a YouTube link this can embed. Nothing will show on the indicators page.';
+}
+
+document.getElementById('v-url').addEventListener('input', previewVideo);
+
+document.getElementById('form-video').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const raw = document.getElementById('v-url').value.trim();
+
+  if (raw && !youtubeId(raw)) {
+    setStatus('#status-video',
+      'That link cannot be embedded, so saving it would put an empty gap on the page. ' +
+      'Use a youtube.com/watch, youtu.be or embed link.', 'error');
+    return;
+  }
+
+  const { error } = await setSetting('install_video_url', raw);
+  if (error) {
+    setStatus('#status-video',
+      /relation .*settings.* does not exist/i.test(error.message)
+        ? 'The settings table is missing. Run supabase/settings.sql in the Supabase SQL editor.'
+        : error.message, 'error');
+    return;
+  }
+  setStatus('#status-video', raw ? 'Video saved.' : 'Video removed.', 'ok');
+});
+
+document.getElementById('v-clear').addEventListener('click', async () => {
+  document.getElementById('v-url').value = '';
+  previewVideo();
+  const { error } = await setSetting('install_video_url', '');
+  setStatus('#status-video', error ? error.message : 'Video removed.', error ? 'error' : 'ok');
+});
 
 /* ------------------------------ scripts ------------------------------- */
 

@@ -48,6 +48,18 @@ repo and readable by anyone with the address regardless of what the UI shows, so
 be decorative. Anything genuinely private belongs in the members area, where content lives in the
 database.
 
+## Charts
+
+The TradingView indicators live in a separate **private** repository, `the-mentorship-pine`. They
+carry entry, stop and target logic, which is exactly the kind of thing that should not sit in a
+repo that publishes itself to the web. Members receive the script; the source stays private.
+
+## Where this is going
+
+[ROADMAP.md](ROADMAP.md) lays out the members-area tools worth building and the order to build them
+in — position sizer, tagged trade journal, statistics over that journal, then the ES/NQ-specific
+work. It also records what is deliberately not being built, and why.
+
 ## Conventions
 
 - Plain static HTML. No build step, no bundler, no JS framework.

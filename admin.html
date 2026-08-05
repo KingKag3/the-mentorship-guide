@@ -45,6 +45,17 @@
   here is checked again by the database — if your own role were revoked, this page would stop
   working immediately regardless of what the browser thinks.</p>
 
+  <!-- One page, five jobs. Everything still loads in one pass behind one auth
+       check; the tabs only decide what is on screen. -->
+  <nav class="admin-tabs" id="admin-tabs">
+    <button type="button" class="admin-tab" data-panel="users">Accounts</button>
+    <button type="button" class="admin-tab" data-panel="invites">Invites</button>
+    <button type="button" class="admin-tab" data-panel="scripts">Indicators</button>
+    <button type="button" class="admin-tab" data-panel="phases">Phases</button>
+    <button type="button" class="admin-tab" data-panel="lessons">Entries</button>
+  </nav>
+
+  <section class="admin-panel" data-panel="users" hidden>
   <!-- =================== users =================== -->
   <h2>Accounts</h2>
 
@@ -72,6 +83,9 @@
     <code>pending</code>.</p>
   </div>
 
+  </section>
+
+  <section class="admin-panel" data-panel="invites" hidden>
   <!-- =================== invites =================== -->
   <h2>Invite codes</h2>
 
@@ -113,6 +127,9 @@
     their role in the accounts table above for that.</p>
   </div>
 
+  </section>
+
+  <section class="admin-panel" data-panel="scripts" hidden>
   <!-- =================== scripts =================== -->
   <h2>Indicators</h2>
 
@@ -193,6 +210,9 @@
     version is one members should actually be pasting into a chart.</p>
   </div>
 
+  </section>
+
+  <section class="admin-panel" data-panel="phases" hidden>
   <!-- =================== phases =================== -->
   <h2>Phases</h2>
 
@@ -228,6 +248,9 @@
     <p class="form-status" id="status-phase"></p>
   </form>
 
+  </section>
+
+  <section class="admin-panel" data-panel="lessons" hidden>
   <!-- =================== lessons =================== -->
   <h2>Members-only entries</h2>
 
@@ -299,6 +322,8 @@
     <p>Attachment links are the same. Whatever sits at the far end is governed by that service, not
     by member roles here. A publicly shared Drive file stays public.</p>
   </div>
+
+  </section>
 
 </div>
 
@@ -623,6 +648,55 @@ async function copyText(text) {
     window.prompt('Copy this:', text);
   }
 }
+
+/* -------------------------------- tabs -------------------------------- */
+//
+// The panels are all in the DOM and all populated on load. Switching only
+// changes what is visible, so nothing refetches and no in-progress edit is
+// lost by moving away and back.
+
+const PANELS = ['users', 'invites', 'scripts', 'phases', 'lessons'];
+const TAB_KEY = 'tk.admin.tab';
+
+function showPanel(name, remember = true) {
+  const panel = PANELS.includes(name) ? name : 'users';
+
+  for (const el of document.querySelectorAll('.admin-panel')) {
+    el.hidden = el.dataset.panel !== panel;
+  }
+  for (const el of document.querySelectorAll('.admin-tab')) {
+    const on = el.dataset.panel === panel;
+    el.classList.toggle('is-on', on);
+    el.setAttribute('aria-current', on ? 'page' : 'false');
+  }
+
+  if (remember) {
+    try { localStorage.setItem(TAB_KEY, panel); } catch (err) { /* private mode */ }
+    // Written without a jump, so deep links work and reloads stay put.
+    history.replaceState(null, '', '#' + panel);
+  }
+}
+
+document.getElementById('admin-tabs').addEventListener('click', (e) => {
+  const name = e.target.dataset && e.target.dataset.panel;
+  if (name) showPanel(name);
+});
+
+// A hash wins over the remembered tab: a link someone sent should land where
+// it says, not wherever this browser was last.
+function initialPanel() {
+  const hash = location.hash.replace('#', '');
+  if (PANELS.includes(hash)) return hash;
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    if (PANELS.includes(saved)) return saved;
+  } catch (err) { /* private mode */ }
+  return 'users';
+}
+
+showPanel(initialPanel(), false);
+
+window.addEventListener('hashchange', () => showPanel(initialPanel(), false));
 
 /* -------------------------- install video ----------------------------- */
 

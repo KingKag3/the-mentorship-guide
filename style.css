@@ -1373,6 +1373,52 @@ tbody tr { transition: background-color var(--fast); }
 
 .check-line input { width: auto !important; margin: 0; }
 
+/* ---------- admin tabs ----------
+   Five unrelated jobs on one page. The tab bar sticks so the way out of a long
+   table is always on screen, which is the whole point of splitting it up. */
+
+.admin-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: var(--s-5) 0 var(--s-4);
+  padding: var(--s-2) 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-tab {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.admin-tab:hover { color: var(--fg); background: var(--surface-3); }
+
+.admin-tab.is-on {
+  color: var(--accent);
+  background: var(--bg-alt);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-alt);
+  margin-bottom: -1px;
+}
+
+.admin-panel > h2:first-of-type { margin-top: 0; }
+
+@media (max-width: 620px) {
+  .admin-tab { flex: 1 1 auto; padding: 9px 10px; text-align: center; }
+}
+
 /* ---------- tool rail and badges ---------- */
 
 .tool-rail {

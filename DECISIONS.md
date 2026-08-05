@@ -269,6 +269,44 @@ deployed files were byte-identical to local, and every Supabase endpoint answere
 `supabase.auth.getUser()` simply had not settled, so nothing downstream had written anything, and
 the result was indistinguishable from a broken build.
 
+---
+
+## 2026-08-06 — The install video is a setting, not markup
+
+**Decided:** the indicators page reads its walkthrough video URL from a new `settings` key/value
+table, editable from the admin page.
+
+**Instead of:** hardcoding the URL in `scripts.html`.
+
+**Why:** swapping a tutorial video should not need a commit and a deploy. The table is deliberately
+tiny and is for values that are genuinely just a string — anything structural belongs in a real
+column on a real table.
+
+The admin field validates with `youtubeId()`, the same parser the members page embeds with, so it
+reports whether the link will actually render rather than whether it looks like a URL. Saving an
+unembeddable link is refused, because the failure mode otherwise is a silent gap on a members page
+nobody would notice.
+
+`getSetting()` returns null on every failure — missing table, missing key, no permission. Callers
+are decorating pages that must render without it.
+
+---
+
+## 2026-08-06 — Admin is tabbed, not split into pages
+
+**Decided:** `admin.html` keeps all five sections in one document, shown one at a time by a sticky
+tab bar. A hash deep-links a tab; otherwise the last tab used is remembered.
+
+**Instead of:** splitting into `admin-accounts.html`, `admin-scripts.html` and so on.
+
+**Why:** separate pages would mean five copies of the auth gate, five round trips, and a full reload
+between two jobs that are often done together — approving an account and then publishing the entry
+they asked about. Everything still loads in one pass behind one role check; the tabs only decide
+what is on screen, so moving away and back cannot lose an in-progress edit or refetch anything.
+
+The hash beats the remembered tab deliberately: a link someone sends should land where it says
+rather than wherever that browser was last.
+
 **Generalises past auth.** This is the second time a silent state has cost a session - the
 statistics page showing "nothing to measure" when a trade existed was the same shape. An
 unreachable state and a slow one look identical if neither writes to the page, so both a deadline

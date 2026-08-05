@@ -32,10 +32,31 @@ export function requireConfig(mountSelector = '#auth-root') {
   return false;
 }
 
+/**
+ * Reject rather than hang.
+ *
+ * A page whose auth call never settles renders nothing at all: no account
+ * strip, no content, no error - identical to a broken build. That has already
+ * cost one debugging session. Anything on the critical path to first paint gets
+ * a deadline.
+ */
+const AUTH_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, ms, what) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(what + ' did not answer within ' + Math.round(ms / 1000) + ' seconds')),
+      ms
+    );
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+}
+
 /** The signed-in user, or null. */
 export async function getUser() {
   if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
+  const { data } = await withTimeout(supabase.auth.getUser(), AUTH_TIMEOUT_MS, 'The sign-in check');
   return data?.user ?? null;
 }
 
@@ -64,7 +85,29 @@ export async function getProfile() {
 export async function requireRole(roles, mountSelector = '#auth-root') {
   if (!requireConfig(mountSelector)) return null;
 
-  const profile = await getProfile();
+  const mountEarly = document.querySelector(mountSelector);
+
+  // Something on screen before the first await, so a slow or stuck auth call
+  // reads as "working on it" rather than as an empty page.
+  if (mountEarly) {
+    mountEarly.innerHTML = '<p class="form-status form-status-info">Checking your session...</p>';
+  }
+
+  let profile = null;
+  try {
+    profile = await getProfile();
+  } catch (err) {
+    if (mountEarly) {
+      mountEarly.innerHTML =
+        '<div class="callout risk"><span class="callout-label">Could not check your session</span>' +
+        '<p>' + escapeHtml(err && err.message ? err.message : String(err)) + '</p>' +
+        '<p>This usually means a stored session that can no longer be refreshed. ' +
+        '<a href="login.html">Sign in again</a> to clear it.</p></div>';
+    }
+    return null;
+  }
+
+  if (mountEarly) mountEarly.innerHTML = '';
 
   if (!profile) {
     const back = encodeURIComponent(location.pathname.split('/').pop() || 'index.html');
@@ -207,7 +250,17 @@ export async function renderAccountStrip(selector = '#account-strip') {
     return;
   }
 
-  const profile = await getProfile();
+  // Never leave the strip blank while the call is out. An empty masthead is the
+  // first thing that made a hung page look like a broken one.
+  el.innerHTML = '<span class="acct-muted">checking...</span>';
+
+  let profile = null;
+  try {
+    profile = await getProfile();
+  } catch (err) {
+    el.innerHTML = '<a class="acct-link" href="login.html">session expired - sign in</a>';
+    return;
+  }
 
   if (!profile) {
     el.innerHTML = '<a class="acct-link" href="login.html">sign in</a>';

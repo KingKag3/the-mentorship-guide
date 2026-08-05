@@ -101,11 +101,28 @@ const closed = (data || []).filter(
 );
 
 if (!closed.length) {
-  document.getElementById('summary').innerHTML =
-    '<div class="callout"><span class="callout-label">Nothing to measure yet</span>' +
-    '<p>Log some trades with an entry, a stop and an exit and this page fills in. Until then ' +
-    'there is nothing here that would not be invented.</p>' +
-    '<p><a href="journal.html">Go to the journal</a></p></div>';
+  // Two very different situations used to render the same message, which made a
+  // working journal look like a broken one: "nothing to measure" reads as "your
+  // trade did not save". Say which it is.
+  const total = (data || []).length;
+  const open = total - closed.length;
+
+  document.getElementById('summary').innerHTML = total === 0
+    ? '<div class="callout"><span class="callout-label">No trades yet</span>' +
+      '<p>Nothing has been logged. Record a trade with an entry, a stop and an exit and this ' +
+      'page fills in.</p>' +
+      '<p><a href="journal.html">Go to the journal</a></p></div>'
+
+    : '<div class="callout warn"><span class="callout-label">' +
+      'Nothing closed yet</span>' +
+      '<p>' + open + (open === 1 ? ' trade is' : ' trades are') + ' logged, but ' +
+      (open === 1 ? 'it has no' : 'none have an') + ' exit price recorded — so ' +
+      (open === 1 ? 'it has' : 'they have') + ' no result to measure yet. ' +
+      'Points and R are worked out from entry, stop and exit; without an exit there is no R, ' +
+      'and a trade with no R is deliberately left out of these numbers rather than counted as ' +
+      'a zero.</p>' +
+      '<p><a href="journal.html">Add the exit ' +
+      (open === 1 ? 'price' : 'prices') + ' in the journal</a></p></div>';
 } else {
   renderSummary(closed);
   renderSlices(closed);

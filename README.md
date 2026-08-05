@@ -16,6 +16,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `models.html` | 2022 entry model, ATM method, market maker buy/sell curves, silver bullet, turtle soup, daily templates, risk rules, journaling |
 | `glossary.html` | Searchable jargon decoder — ~95 acronyms, one plain sentence each |
 | `style.css` | Shared stylesheet (dark terminal palette, JetBrains Mono headers, Source Serif body) |
+| `design.html` | Live design system — tokens, type scale, spacing, every component rendered |
 
 ## Accounts (optional)
 
@@ -61,7 +62,17 @@ database.
 ## Editing
 
 Open any `.html` file and edit it. To preview, open the file directly in a browser — there is
-nothing to compile or serve. Colours live in the `:root` block at the top of `style.css`.
+nothing to compile or serve.
+
+Design tokens — colours, type scale, spacing, widths, radii — live in the `:root` block at the top
+of `style.css`. Change one there and it propagates everywhere. `design.html` renders all of them
+live alongside every component, so it doubles as the reference and as a visual regression check:
+if a change breaks something, it usually shows up there first.
+
+Two layout widths exist. Reading pages use `.wrap` (1040px, prose capped at 78 characters). The
+members index, single lessons and the admin console use `.wrap--wide` plus `.masthead--wide`
+(1240px), which keeps prose at the same measure but lets images, video and tables use the full
+column.
 
 To add a glossary term, copy an existing `<li>` in `glossary.html` and fill in the three spans
 (`term`, `expand`, `def`). The search index is built from the list at page load, so nothing else

@@ -20,12 +20,51 @@
   --blue:      #60a5fa;  /* neutral tag     */
   --violet:    #c4b5fd;
 
+  /* Surfaces, in rising order of prominence. Use these rather than picking a
+     hex - it keeps depth consistent across cards, tables and inputs. */
+  --surface-0: #0b0e11;   /* page            */
+  --surface-1: #12171d;   /* raised card     */
+  --surface-2: #0f141a;   /* inset / input   */
+  --surface-3: #171e26;   /* hover           */
+
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Cascadia Mono",
           Menlo, Consolas, monospace;
   --serif: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
 
-  --measure: 74ch;
+  /* Type scale. Fluid between phone and desktop so nothing needs a breakpoint
+     to stay readable. */
+  --step--1: clamp(0.78rem, 0.76rem + 0.10vw, 0.84rem);
+  --step-0:  clamp(1.00rem, 0.97rem + 0.15vw, 1.10rem);
+  --step-1:  clamp(1.10rem, 1.05rem + 0.25vw, 1.24rem);
+  --step-2:  clamp(1.24rem, 1.14rem + 0.45vw, 1.50rem);
+  --step-3:  clamp(1.55rem, 1.35rem + 0.95vw, 2.20rem);
+
+  /* Spacing rhythm. Everything vertical should land on one of these. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 14px;
+  --s-4: 22px;
+  --s-5: 34px;
+  --s-6: 52px;
+  --s-7: 76px;
+
+  /* Line length. Prose stays narrow because reading wants it; pages built
+     around images and tables opt into --measure-wide instead. */
+  --measure: 78ch;
+  --measure-wide: 100%;
+
+  --wrap: 1040px;
+  --wrap-wide: 1240px;
+
   --radius: 4px;
+  --radius-lg: 8px;
+
+  --ring: 0 0 0 2px rgba(74, 222, 128, 0.28);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.45);
+
+  --ease: cubic-bezier(0.2, 0.6, 0.25, 1);
+  --fast: 120ms var(--ease);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -40,18 +79,24 @@ body {
   background-repeat: no-repeat;
   color: var(--fg);
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: var(--step-0);
   line-height: 1.68;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* ---------- layout ---------- */
 
 .wrap {
-  max-width: 940px;
+  max-width: var(--wrap);
   margin: 0 auto;
-  padding: 0 22px 96px;
+  padding: 0 var(--s-4) var(--s-7);
 }
+
+/* Members area, single entries and the admin console: image- and table-heavy,
+   so they get the full column instead of a prose measure. */
+.wrap--wide { max-width: var(--wrap-wide); }
+.wrap--wide main { max-width: var(--measure-wide); }
 
 main { max-width: var(--measure); }
 
@@ -67,10 +112,12 @@ main { max-width: var(--measure); }
 }
 
 .masthead-inner {
-  max-width: 940px;
+  max-width: var(--wrap);
   margin: 0 auto;
-  padding: 14px 22px 0;
+  padding: 14px var(--s-4) 0;
 }
+
+.masthead--wide .masthead-inner { max-width: var(--wrap-wide); }
 
 .brand {
   font-family: var(--mono);
@@ -123,17 +170,19 @@ h1, h2, h3, h4 {
 }
 
 h1 {
-  font-size: 1.9rem;
-  letter-spacing: -0.02em;
-  margin: 46px 0 10px;
+  font-size: var(--step-3);
+  letter-spacing: -0.025em;
+  margin: var(--s-6) 0 var(--s-2);
+  text-wrap: balance;
 }
 
 h2 {
-  font-size: 1.18rem;
-  margin: 56px 0 14px;
-  padding-bottom: 8px;
+  font-size: var(--step-2);
+  margin: var(--s-6) 0 var(--s-3);
+  padding-bottom: var(--s-2);
   border-bottom: 1px solid var(--border);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
 h2::before {
@@ -158,10 +207,12 @@ h4 {
 }
 
 .lede {
-  font-size: 1.12rem;
+  font-size: var(--step-1);
+  line-height: 1.55;
   color: var(--muted);
-  margin: 0 0 8px;
-  max-width: 64ch;
+  margin: 0 0 var(--s-2);
+  max-width: 62ch;
+  text-wrap: pretty;
 }
 
 /* ---------- text ---------- */
@@ -1033,10 +1084,196 @@ select.select-wide { width: 100%; margin-bottom: 18px; padding: 10px 12px; font-
 }
 
 @media (max-width: 620px) {
-  body { font-size: 17px; }
-  h1 { font-size: 1.5rem; }
   .wrap { padding: 0 16px 72px; }
   .masthead-inner { padding: 12px 16px 0; }
   .auth-card { max-width: none; }
   .account-strip { font-size: 0.68rem; gap: 8px; }
+  .link-row { flex-wrap: wrap; }
+  .link-row .link-label,
+  .link-row .link-url { flex: 1 1 100%; }
+}
+
+/* ===========================================================================
+   Design pass
+   ---------------------------------------------------------------------------
+   Everything below refines the components defined above rather than
+   introducing new ones. Tokens live in :root; see design.html for the rendered
+   reference.
+   =========================================================================== */
+
+/* ---------- interaction: focus, motion, selection ---------- */
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Focus rings only on keyboard navigation - a mouse click should not light
+   everything up. */
+:where(a, button):focus:not(:focus-visible) { outline: none; }
+
+::selection { background: rgba(74, 222, 128, 0.24); color: var(--fg-strong); }
+
+a, button, .card, .auth-tab, input, select, textarea {
+  transition: color var(--fast), background-color var(--fast),
+              border-color var(--fast), box-shadow var(--fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html { scroll-behavior: smooth; }
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+}
+
+.brand b { transition: color var(--fast); }
+.brand:hover b { color: var(--fg-strong); }
+
+nav.site a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--bg-alt);
+}
+
+/* ---------- surfaces ---------- */
+
+.card,
+.auth-card,
+.phase,
+.lesson,
+.auth-form-wide {
+  box-shadow: var(--shadow-1);
+}
+
+a.card {
+  position: relative;
+  transition: border-color var(--fast), background-color var(--fast),
+              transform var(--fast), box-shadow var(--fast);
+}
+
+a.card:hover {
+  background: var(--surface-3);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+
+a.card h3 { transition: color var(--fast); }
+a.card:hover h3 { color: var(--fg-strong); }
+
+.callout { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+
+.figure {
+  border-radius: var(--radius-lg);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+}
+
+/* ---------- tables ---------- */
+
+table { font-variant-numeric: tabular-nums; }
+
+th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-0);
+  z-index: 1;
+}
+
+tbody tr { transition: background-color var(--fast); }
+
+/* ---------- buttons ---------- */
+
+.btn-primary,
+.btn-danger,
+.acct-link,
+.link-button { cursor: pointer; }
+
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-primary:disabled,
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- wide layouts: let media use the room ---------- */
+
+.wrap--wide .lesson-body,
+.wrap--wide .lesson-summary,
+.wrap--wide .crumb,
+.wrap--wide .lede,
+.wrap--wide .lesson-files,
+.wrap--wide article > p,
+.wrap--wide article > ul,
+.wrap--wide article > ol {
+  max-width: var(--measure);
+}
+
+/* Slides and covers are the content on a lesson page, so they get the full
+   column even though the prose beside them does not. */
+.wrap--wide .lesson-cover,
+.wrap--wide .video-frame,
+.wrap--wide .lesson-body img {
+  max-width: min(100%, 1100px);
+}
+
+.wrap--wide .lesson-body img {
+  margin: var(--s-4) 0;
+  box-shadow: var(--shadow-2);
+}
+
+/* ---------- curriculum index ---------- */
+
+.phase { border-radius: var(--radius-lg); }
+.phase-cover { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+.chapter-list > li { transition: background-color var(--fast); }
+
+.chapter-list > li:hover {
+  background: var(--surface-2);
+  box-shadow: -14px 0 0 var(--surface-2), 14px 0 0 var(--surface-2);
+}
+
+.chapter-list > li:hover::before { color: var(--accent); }
+
+/* ---------- editor ---------- */
+
+#l-editor { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.ql-toolbar.ql-snow { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+/* ---------- scrollbars ---------- */
+
+* { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: #33404d; }
+
+/* ---------- print ---------- */
+
+@media print {
+  .masthead, .pager, footer.site, .account-strip, .editor-tools { display: none; }
+  body { background: #fff; color: #000; }
+  .wrap { max-width: none; padding: 0; }
+  a { color: #000; }
+  .lesson, .phase, .callout { border-color: #ccc; box-shadow: none; }
 }

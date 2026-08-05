@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design system — Smart Money, Plain English</title>
+<meta name="description" content="Tokens, type scale, spacing and components used across the site.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* Page-local: only the swatch grid and spec rows, which exist nowhere else. */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-3);
+  margin: var(--s-4) 0;
+}
+.swatch {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.swatch .chip { height: 62px; display: block; }
+.swatch .meta {
+  padding: 9px 11px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+.swatch .meta b { display: block; color: var(--fg-strong); font-weight: 500; }
+.swatch .meta span { color: var(--muted); }
+
+.spec {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--s-3);
+  align-items: baseline;
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--border-lo);
+}
+.spec code { white-space: nowrap; }
+
+.ruler { background: rgba(74, 222, 128, 0.2); display: inline-block; height: 14px; }
+
+.demo {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--s-4);
+  margin: var(--s-4) 0;
+  background: var(--surface-2);
+}
+.demo > :first-child { margin-top: 0; }
+.demo > :last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">smart money <b>/</b> plain english</a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Design system</h1>
+
+<p class="lede">Every token and component the site uses, rendered live. This page pulls from
+<code>style.css</code> rather than describing it, so if something looks wrong here it is wrong
+everywhere.</p>
+
+<div class="callout">
+  <span class="callout-label">How to use this</span>
+  <p>Change a value in the <code>:root</code> block of <code>style.css</code> and it propagates
+  through every page. Reach for an existing token before inventing a hex code — that is the whole
+  point of them, and it is what keeps seven content pages and three application pages looking like
+  one site.</p>
+</div>
+
+<h2>Colour</h2>
+
+<h3>Surfaces</h3>
+<p>Depth is expressed by surface, not by shadow. Each step up is a lighter plane.</p>
+
+<div class="swatches">
+  <div class="swatch"><span class="chip" style="background:var(--surface-0)"></span>
+    <span class="meta"><b>--surface-0</b><span>#0b0e11 · page</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--surface-1)"></span>
+    <span class="meta"><b>--surface-1</b><span>#12171d · raised card</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--surface-2)"></span>
+    <span class="meta"><b>--surface-2</b><span>#0f141a · inset, inputs</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--surface-3)"></span>
+    <span class="meta"><b>--surface-3</b><span>#171e26 · hover</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--border)"></span>
+    <span class="meta"><b>--border</b><span>#232b33</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--border-lo)"></span>
+    <span class="meta"><b>--border-lo</b><span>#1a2027 · row rules</span></span></div>
+</div>
+
+<h3>Text</h3>
+
+<div class="swatches">
+  <div class="swatch"><span class="chip" style="background:var(--fg-strong)"></span>
+    <span class="meta"><b>--fg-strong</b><span>headings, emphasis</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--fg)"></span>
+    <span class="meta"><b>--fg</b><span>body copy</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--muted)"></span>
+    <span class="meta"><b>--muted</b><span>secondary, labels</span></span></div>
+</div>
+
+<h3>Accents</h3>
+<p>Each accent carries a fixed meaning. Using them decoratively breaks the code the reader has
+already learned from the diagrams.</p>
+
+<div class="swatches">
+  <div class="swatch"><span class="chip" style="background:var(--accent)"></span>
+    <span class="meta"><b>--accent</b><span>bullish, primary, links</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--accent-dk)"></span>
+    <span class="meta"><b>--accent-dk</b><span>quiet accent, rules</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--red)"></span>
+    <span class="meta"><b>--red</b><span>bearish, danger</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--amber)"></span>
+    <span class="meta"><b>--amber</b><span>time, caution</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--blue)"></span>
+    <span class="meta"><b>--blue</b><span>neutral marker</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--violet)"></span>
+    <span class="meta"><b>--violet</b><span>midpoints, code</span></span></div>
+</div>
+
+<div class="callout warn">
+  <span class="callout-label">Meaning before decoration</span>
+  <p>Green is bullish and red is bearish everywhere on this site — in prose, in tags, in every SVG.
+  Amber means time or caution. Violet marks midpoints such as consequent encroachment and mean
+  threshold. A reader learns these in the first diagram; breaking them later costs comprehension
+  for the sake of variety.</p>
+</div>
+
+<h2>Type</h2>
+
+<p>Two families, each with a job. <strong>JetBrains Mono</strong> carries structure: headings,
+labels, data, anything the eye scans. <strong>Source Serif</strong> carries prose, because
+extended reading is what this site is for.</p>
+
+<p>The scale is fluid — sizes interpolate between phone and desktop with <code>clamp()</code>, so
+no breakpoint is needed to keep text readable.</p>
+
+<div class="demo">
+  <h1 style="margin-top:0">Heading one · --step-3</h1>
+  <h2>Heading two · --step-2</h2>
+  <h3>Heading three · --step-1</h3>
+  <h4>Heading four · uppercase label</h4>
+  <p class="lede">Lede paragraph · --step-1, muted, capped at 62 characters so the opening
+  statement stays scannable.</p>
+  <p>Body copy · --step-0, Source Serif, 1.68 line height, capped at 78 characters. Long enough to
+  carry an argument, short enough that the eye finds the next line without effort. This paragraph
+  exists to show what a real block of running text looks like at the measure the site actually
+  uses.</p>
+  <p><code>inline code · mono, violet</code> and <a href="#">an inline link</a> and
+  <strong>strong emphasis</strong> and <em>italic emphasis</em>.</p>
+</div>
+
+<div class="spec"><code>--step-3</code><span>1.55 → 2.20rem · h1</span></div>
+<div class="spec"><code>--step-2</code><span>1.24 → 1.50rem · h2</span></div>
+<div class="spec"><code>--step-1</code><span>1.10 → 1.24rem · h3, lede</span></div>
+<div class="spec"><code>--step-0</code><span>1.00 → 1.10rem · body</span></div>
+<div class="spec"><code>--step--1</code><span>0.78 → 0.84rem · captions, meta</span></div>
+
+<h2>Spacing</h2>
+
+<p>Vertical rhythm comes from a fixed set. Anything that does not land on one of these is a
+one-off, and one-offs are what make a layout feel unresolved.</p>
+
+<div class="spec"><code>--s-1</code><span><i class="ruler" style="width:4px"></i> 4px · hairline gaps</span></div>
+<div class="spec"><code>--s-2</code><span><i class="ruler" style="width:8px"></i> 8px · inside a component</span></div>
+<div class="spec"><code>--s-3</code><span><i class="ruler" style="width:14px"></i> 14px · between related items</span></div>
+<div class="spec"><code>--s-4</code><span><i class="ruler" style="width:22px"></i> 22px · component padding</span></div>
+<div class="spec"><code>--s-5</code><span><i class="ruler" style="width:34px"></i> 34px · between components</span></div>
+<div class="spec"><code>--s-6</code><span><i class="ruler" style="width:52px"></i> 52px · between sections</span></div>
+<div class="spec"><code>--s-7</code><span><i class="ruler" style="width:76px"></i> 76px · page bottom</span></div>
+
+<h2>Layout</h2>
+
+<div class="spec"><code>--wrap</code><span>1040px · reading pages</span></div>
+<div class="spec"><code>--wrap-wide</code><span>1240px · members, lesson, admin, this page</span></div>
+<div class="spec"><code>--measure</code><span>78ch · prose column, everywhere</span></div>
+
+<p>The wide pages keep prose at 78 characters but let images, tables and video use the full
+column. A slide is content; a paragraph is reading. They do not want the same width, which is why
+the wide layout is a container class rather than a global change.</p>
+
+<h2>Components</h2>
+
+<h3>Buttons and links</h3>
+
+<div class="demo">
+  <p>
+    <button class="btn-primary">Primary action</button>
+    <button class="btn-danger">Destructive</button>
+    <button class="acct-link">quiet action</button>
+    <button class="link-button">inline link button</button>
+  </p>
+  <p><span class="tag">neutral</span> <span class="tag bull">bullish</span>
+  <span class="tag bear">bearish</span> <span class="tag time">time</span></p>
+  <p><span class="role-badge role-admin">admin</span>
+  <span class="role-badge role-member">member</span>
+  <span class="role-badge role-pending">pending</span></p>
+</div>
+
+<h3>Callouts</h3>
+
+<div class="callout">
+  <span class="callout-label">Neutral</span>
+  <p>Default. Explanation, mechanism, a definition worth pulling out of the flow.</p>
+</div>
+
+<div class="callout warn">
+  <span class="callout-label">Caution</span>
+  <p>Amber. A limitation, a caveat, something that will bite later if ignored.</p>
+</div>
+
+<div class="callout risk">
+  <span class="callout-label">Risk</span>
+  <p>Red. Money, security, or an irreversible action. Used sparingly so it keeps its force.</p>
+</div>
+
+<h3>Cards</h3>
+
+<div class="card-grid">
+  <a class="card" href="#"><h3>Linked card</h3><p>Lifts on hover. Used for navigation on the
+  start page.</p></a>
+  <div class="card"><h3>Static card</h3><p>No hover state, because nothing happens when you
+  click it.</p></div>
+</div>
+
+<h3>Numbered steps</h3>
+
+<ol class="steps">
+  <li><strong>First.</strong> Zero-padded counter in mono, accent coloured.</li>
+  <li><strong>Second.</strong> Used for procedures, not for lists of facts.</li>
+</ol>
+
+<h3>Tables</h3>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Token</th><th>Meaning</th><th>Used by</th></tr></thead>
+  <tbody>
+    <tr><td><code>--accent</code></td><td>Bullish, primary</td><td>Links, buttons, up moves</td></tr>
+    <tr><td><code>--red</code></td><td>Bearish, danger</td><td>Down moves, destructive buttons</td></tr>
+    <tr><td><code>--amber</code></td><td>Time, caution</td><td>Killzones, warnings</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Forms</h3>
+
+<div class="demo">
+  <form class="auth-form" style="padding:0" onsubmit="return false">
+    <label for="d-text">Text field <span class="opt">(with an optional note)</span></label>
+    <input id="d-text" type="text" placeholder="placeholder text">
+    <label for="d-select">Select</label>
+    <select id="d-select" class="role-select select-wide">
+      <option>An option</option>
+    </select>
+    <p class="form-status form-status-ok">Success message</p>
+    <p class="form-status form-status-error">Error message</p>
+    <p class="form-status form-status-info">Neutral message</p>
+  </form>
+</div>
+
+<h3>Chapter list</h3>
+
+<div class="phase" style="margin-top:var(--s-4)">
+  <h2>Phase 1</h2>
+  <p class="phase-subtitle">Core curriculum</p>
+  <ol class="chapter-list">
+    <li><a href="#">Market Structure</a><span class="chapter-flag">video</span>
+      <span class="chapter-summary">Summary line, muted, optional.</span></li>
+    <li><a href="#">Liquidity</a></li>
+    <li><a href="#">Standard Deviation</a><span class="chapter-flag">video</span></li>
+  </ol>
+</div>
+
+<h2>Diagram palette</h2>
+
+<p>Diagrams are hand-written inline SVG so they inherit the palette and need no assets. The helper
+classes below keep labels consistent across every figure on the site.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 720 190" role="img" aria-label="Reference showing the diagram palette and label styles">
+  <line x1="40" y1="46" x2="680" y2="46" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="40" y="38" class="svg-label-em" fill="#f87171">bearish level · --red · svg-label-em</text>
+
+  <rect x="40" y="78" width="640" height="26" fill="#60a5fa" opacity="0.13"/>
+  <text x="46" y="96" class="svg-label" fill="#60a5fa">neutral zone · --blue at 13% · svg-label</text>
+
+  <line x1="40" y1="140" x2="680" y2="140" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="40" y="160" class="svg-label-em" fill="#4ade80">bullish level · --accent</text>
+
+  <line x1="40" y1="120" x2="680" y2="120" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="470" y="116" class="svg-label" fill="#c4b5fd">midpoint · --violet</text>
+
+  <path d="M 60 130 L 140 90 L 220 110 L 300 60 L 380 88 L 460 44 L 540 82 L 620 132"
+        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+</svg>
+<figcaption>Conventions: solid dashed lines for levels, translucent rectangles for zones, a light
+grey path for price, and labels in mono at 11px. Captions sit under a dashed rule in muted mono.</figcaption>
+</figure>
+
+<div class="spec"><code>.svg-label</code><span>11px mono, muted — annotation</span></div>
+<div class="spec"><code>.svg-label-em</code><span>11px mono, foreground — the point of the figure</span></div>
+<div class="spec"><code>.svg-axis</code><span>1px stroke, border colour — grids and ticks</span></div>
+
+<h2>Accessibility and motion</h2>
+
+<ul>
+  <li><strong>Focus rings</strong> appear on keyboard navigation only — <code>:focus-visible</code>,
+  a two-pixel accent outline with offset. Tab through this page to see them.</li>
+  <li><strong>Reduced motion</strong> is respected: with the OS setting on, transitions and smooth
+  scrolling collapse to instant.</li>
+  <li><strong>Tap targets</strong> in the account strip and toolbars stay above 32px.</li>
+  <li><strong>Contrast</strong>: body text on page background is comfortably past WCAG AA. The
+  muted grey is used for secondary text only, never for anything load-bearing.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="callout-label">Known compromise</span>
+  <p>The site commits to a dark palette rather than supporting both schemes. That is a deliberate
+  choice for a chart-adjacent subject, but it does mean anyone who prefers a light interface has no
+  option here. Print styles invert to black on white so a lesson can be read on paper.</p>
+</div>
+
+<h2>Adding something new</h2>
+
+<ol class="steps">
+  <li><strong>Look for an existing component first.</strong> Most new needs are a card, a callout
+  or a table wearing a different hat.</li>
+  <li><strong>Use tokens, never raw values.</strong> A hex code in a component is a future
+  inconsistency.</li>
+  <li><strong>Land on the spacing scale.</strong> If a gap needs to be 18px, use 14 or 22 and see
+  whether it actually mattered.</li>
+  <li><strong>Add it here.</strong> A component that is not on this page will drift, because
+  nothing is checking it.</li>
+</ol>
+
+<div class="pager">
+  <a href="index.html">← start</a>
+  <a href="members.html">members →</a>
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Smart Money, Plain English — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { renderAccountStrip } from './app.js';
+renderAccountStrip();
+</script>
+
+</body>
+</html>

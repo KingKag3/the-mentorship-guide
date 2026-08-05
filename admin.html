@@ -124,7 +124,7 @@
   <div class="table-scroll">
     <table id="scripts-table">
       <thead>
-        <tr><th>Title</th><th>Slug</th><th>Version</th><th>Order</th><th>Published</th><th></th></tr>
+        <tr><th>Title</th><th>Slug</th><th>Version</th><th>Added</th><th>Order</th><th>Published</th><th></th></tr>
       </thead>
       <tbody id="scripts-body"></tbody>
     </table>
@@ -611,13 +611,13 @@ async function copyText(text) {
 async function loadScripts() {
   const { data, error } = await supabase
     .from('scripts')
-    .select('id, slug, title, summary, version, pine_version, source, notes_html, published, sort_order')
+    .select('id, slug, title, summary, version, pine_version, source, notes_html, published, sort_order, created_at, updated_at')
     .order('sort_order', { ascending: true });
 
   const body = document.getElementById('scripts-body');
 
   if (error) {
-    body.innerHTML = '<tr><td colspan="6">' + escapeHtml(error.message) +
+    body.innerHTML = '<tr><td colspan="7">' + escapeHtml(error.message) +
       ' — if this mentions <code>scripts</code>, run <code>supabase/scripts.sql</code>.</td></tr>';
     return;
   }
@@ -630,6 +630,7 @@ async function loadScripts() {
           '<td>' + escapeHtml(s.title) + '</td>' +
           '<td><code>' + escapeHtml(s.slug) + '</code></td>' +
           '<td>' + escapeHtml(s.version || '—') + '</td>' +
+          '<td>' + stampCell(s.created_at, s.updated_at) + '</td>' +
           '<td>' + s.sort_order + '</td>' +
           '<td><input type="checkbox" class="script-pub"' + (s.published ? ' checked' : '') + '></td>' +
           '<td class="row-actions">' +
@@ -638,7 +639,31 @@ async function loadScripts() {
           '</td>' +
         '</tr>'
       ).join('')
-    : '<tr><td colspan="6">No indicators yet.</td></tr>';
+    : '<tr><td colspan="7">No indicators yet.</td></tr>';
+}
+
+/**
+ * When it was added, and when it last changed if that is a different day.
+ *
+ * `updated_at` is the one that matters operationally: the members' "new" badge
+ * compares it against when that browser last opened the indicators page, so a
+ * re-paste of the source re-flags the script as new to everybody.
+ */
+function stampCell(created, updated) {
+  if (!created) return '—';
+  const c = new Date(created);
+  const u = updated ? new Date(updated) : null;
+  const day = (d) => d.toISOString().slice(0, 10);
+  const time = (d) => d.toTimeString().slice(0, 5);
+
+  let out = '<span title="' + escapeHtml(c.toString()) + '">' + day(c) + '</span>' +
+            '<br><span class="acct-muted">' + time(c) + '</span>';
+
+  if (u && day(u) !== day(c)) {
+    out += '<br><span class="acct-muted" title="' + escapeHtml(u.toString()) +
+           '">upd ' + day(u) + '</span>';
+  }
+  return out;
 }
 
 document.getElementById('scripts-body').addEventListener('change', async (e) => {
@@ -742,9 +767,17 @@ document.getElementById('form-script').addEventListener('submit', async (e) => {
 
   const id = document.getElementById('s-id').value;
 
+  // Slugs are normalised rather than trusted. A slug typed as "TK - HTF
+  // Candles" is a different row from "TK-HTF" as far as the unique constraint
+  // is concerned, which is how the same script gets added twice — and spaces
+  // in a slug break any URL that carries it.
+  const slugify = (s) => s.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
   const payload = {
     title:        document.getElementById('s-title').value.trim(),
-    slug:         document.getElementById('s-slug').value.trim(),
+    slug:         slugify(document.getElementById('s-slug').value),
     summary:      document.getElementById('s-summary').value.trim() || null,
     version:      document.getElementById('s-version').value.trim() || null,
     pine_version: document.getElementById('s-pine').value.trim() || 'v6',

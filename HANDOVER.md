@@ -87,6 +87,35 @@ gh repo clone KingKag3/the-mentorship-pine
 `CLAUDE.md` in each repo loads automatically at the start of a session, so a fresh session already
 knows the conventions and the traps. Read `DECISIONS.md` for why things are as they are.
 
+### The prompt to open a session with
+
+Paste this on a machine that has not worked on the project before, or after a long gap. It is
+written to make the session prove it has read the context rather than assume it.
+
+> I'm continuing the mentorship project from a different machine. Before doing any work:
+>
+> **1. Get both repos current.** `KingKag3/the-mentorship-guide` (public — the static site and
+> members area) and `KingKag3/the-mentorship-pine` (private, needs `gh auth login` — the TradingView
+> indicators and the `knowledge/` rule base). Clone whichever is missing, pull whichever exists, and
+> tell me the current HEAD of each.
+>
+> **2. Read these, in this order, properly.** `CLAUDE.md` in both repos. Then `HANDOVER.md` — the
+> current state, what was assumed, and what has never been run. Then `DECISIONS.md` in both, which
+> records what was decided *and what it was decided instead of*. Then `ROADMAP.md`. Then
+> `knowledge/implementation.md` and `knowledge/conflicts.md` in the pine repo.
+>
+> **3. Report back before touching anything**, in your own words: what is built and verified, what is
+> built and unverified, and what the next task is and why. If anything you find in the code
+> contradicts what those documents claim, say so plainly rather than papering over it.
+>
+> Don't start building until I confirm. Once I do: commit and push after each piece, never describe
+> untested code as working, and append to `DECISIONS.md` before the session ends.
+
+For a short session on a machine already set up, this is enough:
+
+> Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
+> off before doing anything.
+
 **First thing to do, before any new feature:** paste `supabase/trades.sql` into the Supabase SQL
 editor and log one trade through `journal.html`. Nothing in the journal or statistics has ever run
 against a live project, so the whole of Phase 1 is unverified until that happens. Everything on the

@@ -1,4 +1,4 @@
-# Smart Money, Plain English
+# Trade Karma
 
 A small static site that explains Smart Money trading vocabulary in ordinary language.
 

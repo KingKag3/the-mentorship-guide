@@ -1,5 +1,5 @@
 -- ===========================================================================
--- Smart Money, Plain English — Supabase schema
+-- Trade Karma — Supabase schema
 --
 -- Paste this whole file into the Supabase SQL editor and run it once.
 -- It is safe to re-run: every object is created with "if not exists" or

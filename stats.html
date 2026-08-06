@@ -60,7 +60,8 @@
 </div>
 
 <script type="module">
-import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail } from './app.js';
+import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
+         dbError } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'stats.html');
@@ -83,11 +84,7 @@ const { data, error } = await supabase
   .limit(2000);
 
 if (error) {
-  document.getElementById('summary').innerHTML =
-    '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
-    escapeHtml(error.message) +
-    '</p><p>If this mentions <code>trades</code>, run <code>supabase/trades.sql</code> in the ' +
-    'Supabase SQL editor.</p></div>';
+  document.getElementById('summary').innerHTML = dbError(error);
   throw error;
 }
 

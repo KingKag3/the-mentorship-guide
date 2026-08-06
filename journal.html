@@ -271,7 +271,7 @@
 import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
-  tradeValue, money, CONTRACTS, weightedExit } from './app.js';
+  tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'journal.html');
@@ -583,9 +583,10 @@ form.addEventListener('submit', async (e) => {
     await load();
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
+    const file = migrationHint(err);
     setStatus('#status',
-      /relation .*trades.* does not exist/i.test(msg)
-        ? 'The trades table is missing. Run supabase/trades.sql in the Supabase SQL editor.'
+      file
+        ? msg + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
         : msg,
       'error');
   } finally {
@@ -630,11 +631,7 @@ async function load() {
   const mount = $('list');
 
   if (error) {
-    mount.innerHTML =
-      '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
-      escapeHtml(error.message) +
-      '</p><p>If this mentions <code>trades</code>, run <code>supabase/trades.sql</code> in the ' +
-      'Supabase SQL editor.</p></div>';
+    mount.innerHTML = dbError(error);
     return;
   }
 

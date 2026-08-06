@@ -83,7 +83,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         tradeValue, money, localDay, hasResult, toNumber } from './app.js';
+         tradeValue, money, localDay, hasResult, toNumber, dbError } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -109,9 +109,7 @@ const { data, error } = await supabase
   .limit(5000);
 
 if (error) {
-  $('summary').innerHTML =
-    '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
-    escapeHtml(error.message) + '</p></div>';
+  $('summary').innerHTML = dbError(error);
   throw error;
 }
 

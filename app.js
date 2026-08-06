@@ -417,6 +417,53 @@ export function toNumber(value) {
   return Number(value);
 }
 
+/**
+ * Turn a missing-migration error into the file that fixes it.
+ *
+ * Postgres says "column trades.account does not exist" and PostgREST says
+ * "Could not find the 'account' column of 'trades' in the schema cache". Both
+ * are correct and neither tells you which of eight SQL files to run, which is
+ * the only thing the reader needs.
+ */
+const MIGRATIONS = [
+  [/trade_exits/i,                       'supabase/trade-exits.sql'],
+  [/(account|net_pnl)/i,                 'supabase/trade-accounts.sql'],
+  [/fees/i,                              'supabase/trade-exits.sql'],
+  [/settings/i,                          'supabase/settings.sql'],
+  [/scripts/i,                           'supabase/scripts.sql'],
+  [/lesson_links|video_url/i,        'supabase/lesson-media.sql'],
+  [/phase_id|phases/i,              'supabase/phases.sql'],
+  [/trades/i,                            'supabase/trades.sql']
+];
+
+export function migrationHint(error) {
+  const raw = error && error.message ? error.message : String(error ?? '');
+  const missing = /does not exist|schema cache|Could not find/i.test(raw);
+  if (!missing) return null;
+
+  for (const [pattern, file] of MIGRATIONS) {
+    if (pattern.test(raw)) return file;
+  }
+  return null;
+}
+
+/**
+ * A database error as something a person can act on. Falls back to the raw
+ * message, which is better than nothing when the cause is not a migration.
+ */
+export function dbError(error, heading = 'Could not load') {
+  const raw = error && error.message ? error.message : String(error ?? '');
+  const file = migrationHint(error);
+
+  return '<div class="callout risk"><span class="callout-label">' + escapeHtml(heading) +
+    '</span><p>' + escapeHtml(raw) + '</p>' +
+    (file
+      ? '<p>This part of the schema has not been created yet. Run <code>' + file +
+        '</code> in the Supabase SQL editor, then reload.</p>'
+      : '') +
+    '</div>';
+}
+
 /** True when a trade has a result at all: an R multiple, or a reported figure. */
 export function hasResult(row) {
   return Number.isFinite(toNumber(row.r_multiple)) || Number.isFinite(toNumber(row.net_pnl));

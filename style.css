@@ -1415,6 +1415,22 @@ tbody tr { transition: background-color var(--fast); }
 
 .admin-panel > h2:first-of-type { margin-top: 0; }
 
+/* A single-column edit inside a table row. Narrow on purpose: it holds a sort
+   order, and a full-width input would suggest it takes more. */
+.order-input {
+  width: 4.5em;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+}
+
+.order-input:focus { outline: 1px solid var(--accent-dk); border-color: var(--accent-dk); }
+.order-input:disabled { opacity: 0.5; }
+
 @media (max-width: 620px) {
   .admin-tab { flex: 1 1 auto; padding: 9px 10px; text-align: center; }
 }

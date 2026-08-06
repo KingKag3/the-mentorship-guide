@@ -1104,7 +1104,8 @@ async function loadLessons() {
           '<td><code>' + escapeHtml(l.slug) + '</code></td>' +
           '<td>' + escapeHtml(phaseTitle(l.phase_id)) + '</td>' +
           '<td>' + (youtubeId(l.video_url) ? '<span class="tag bull">yes</span>' : '—') + '</td>' +
-          '<td>' + l.sort_order + '</td>' +
+          '<td><input type="number" class="order-input" value="' + l.sort_order +
+            '" step="1" aria-label="Sort order"></td>' +
           '<td><input type="checkbox" class="pub-toggle"' + (l.published ? ' checked' : '') + '></td>' +
           '<td class="row-actions">' +
             '<button type="button" class="acct-link" data-act="edit">edit</button> ' +
@@ -1116,14 +1117,34 @@ async function loadLessons() {
     : '<tr><td colspan="7">No entries yet.</td></tr>';
 }
 
+// Both of these write ONE column. Reordering an entry through the full form
+// rewrites body_html as well, which is a large statement holding a row lock for
+// a change of one integer — and the reason a reorder could time out at all.
 document.getElementById('lessons-body').addEventListener('change', async (e) => {
-  if (!e.target.classList.contains('pub-toggle')) return;
-  const id = e.target.closest('tr').dataset.id;
-  const { error } = await supabase
-    .from('lessons')
-    .update({ published: e.target.checked, updated_at: new Date().toISOString() })
-    .eq('id', id);
-  if (error) { alert(error.message); await loadLessons(); }
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  const id = tr.dataset.id;
+
+  if (e.target.classList.contains('pub-toggle')) {
+    const { error } = await supabase
+      .from('lessons')
+      .update({ published: e.target.checked, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { alert(dbMessage(error)); await loadLessons(); }
+    return;
+  }
+
+  if (e.target.classList.contains('order-input')) {
+    const value = Number(e.target.value) || 0;
+    e.target.disabled = true;
+    const { error } = await supabase
+      .from('lessons')
+      .update({ sort_order: value, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    e.target.disabled = false;
+    if (error) { alert(dbMessage(error)); }
+    await loadLessons();
+  }
 });
 
 document.getElementById('lessons-body').addEventListener('click', async (e) => {
@@ -1422,6 +1443,12 @@ async function startEdit(id) {
   // editing.
   await hydrateStorageImages(quill.root);
 
+  // Remember what was loaded so the save can tell whether the body actually
+  // changed. Taken after hydration, and through bodyForStorage(), so it is
+  // compared against exactly what a save would produce rather than against the
+  // raw column — otherwise every edit looks like a body change.
+  loadedBody = bodyForStorage();
+
   document.getElementById('l-links').innerHTML = '';
   const { data: links } = await supabase
     .from('lesson_links')
@@ -1451,6 +1478,8 @@ function resetLessonForm() {
   document.getElementById('cover-preview').innerHTML = '';
   coverPath = null;
   if (quill) quill.setText('');
+  // No baseline for a new entry, so its body is always written.
+  loadedBody = null;
   document.getElementById('lesson-form-heading').textContent = 'Add an entry';
   document.getElementById('cancel-edit').hidden = true;
 }
@@ -1470,6 +1499,29 @@ document.getElementById('cancel-edit').addEventListener('click', () => {
  * Any image without a path is left alone - that would be a pasted external
  * URL, which is the author's business.
  */
+// What startEdit() loaded, so a save can skip resending an unchanged body.
+// Null means "new entry", where the body always has to be written.
+let loadedBody = null;
+
+/**
+ * Postgres messages, translated where the raw text sends people the wrong way.
+ *
+ * A statement timeout reads like data loss and is not: the transaction rolled
+ * back, so the row is exactly as it was. What it usually means here is that a
+ * large write held a lock too long, or the free-tier database was cold.
+ */
+function dbMessage(error) {
+  const raw = error && error.message ? error.message : String(error);
+  if (/statement timeout/i.test(raw)) {
+    return 'The database gave up on that statement before it finished.\n\n' +
+           'Nothing was saved and nothing was corrupted — the change rolled back, ' +
+           'so the entry is exactly as it was. Try again; if it keeps happening on ' +
+           'the same entry, the body is probably large enough that it should be ' +
+           'split into two entries.';
+  }
+  return raw;
+}
+
 function bodyForStorage() {
   const clone = quill.root.cloneNode(true);
 
@@ -1502,21 +1554,30 @@ document.getElementById('form-lesson').addEventListener('submit', async (e) => {
     phase_id:   document.getElementById('l-phase-id').value || null,
     cover_path: coverPath,
     video_url:  document.getElementById('l-video').value.trim() || null,
-    body_html:  bodyHtml,
     sort_order: Number(document.getElementById('l-order').value) || 0,
     updated_at: new Date().toISOString()
   };
+
+  // The body is the expensive column, and most saves do not touch it. Sending
+  // it only when it changed turns "fix a typo in the title" from a rewrite of
+  // the whole entry into an update of one short field.
+  const bodyChanged = id === '' || bodyHtml !== loadedBody;
+  if (bodyChanged) payload.body_html = bodyHtml;
 
   let lessonId = id;
 
   if (id) {
     const { error } = await supabase.from('lessons').update(payload).eq('id', id);
-    if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+    if (error) { setStatus('#status-lesson', dbMessage(error), 'error'); return; }
   } else {
     const { data, error } = await supabase.from('lessons').insert(payload).select('id').single();
-    if (error) { setStatus('#status-lesson', error.message, 'error'); return; }
+    if (error) { setStatus('#status-lesson', dbMessage(error), 'error'); return; }
     lessonId = data.id;
   }
+
+  // A successful save is the new baseline; without this a second save of the
+  // same edit would resend the body again.
+  loadedBody = bodyHtml;
 
   // Links are replaced wholesale rather than diffed - simpler, and the list is
   // always short.

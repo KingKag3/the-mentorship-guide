@@ -311,3 +311,24 @@ rather than wherever that browser was last.
 statistics page showing "nothing to measure" when a trade existed was the same shape. An
 unreachable state and a slow one look identical if neither writes to the page, so both a deadline
 and a placeholder are required, not optional.
+---
+
+## 2026-08-06 — Change one column, write one column
+
+**Decided:** the lessons table edits `sort_order` and `published` in place, each writing a single
+column. The full form omits `body_html` unless the body actually changed.
+
+**Instead of:** routing every edit through the form, which rewrote the entire row including the
+body.
+
+**Why:** reordering an entry produced `canceling statement due to statement timeout`. Changing one
+integer was rewriting the largest column in the table and holding a row lock for the duration. The
+schema was not at fault — the index and policies are fine — the write was simply far larger than
+the change.
+
+The baseline for "did the body change" is captured through `bodyForStorage()` after image
+hydration, not from the raw column. Comparing against the raw value would report a change on every
+edit, because hydration adds signed `src` attributes that the stored form does not have.
+
+A statement timeout is also now translated on the way out. The raw message reads like data loss and
+is the opposite: the transaction rolled back, so the row is exactly as it was.

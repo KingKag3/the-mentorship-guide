@@ -3,7 +3,41 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 6 August 2026, fourth session.
+Last updated: 6 August 2026, fifth session.
+
+## Since the last update — fifth session
+
+> **Two migrations are outstanding. Run these before anything else, in this order:**
+>
+> ```
+> supabase/trade-exits.sql
+> supabase/trade-accounts.sql
+> ```
+>
+> Until they are run, the journal cannot save and the calendar cannot load — both fail with
+> "column trades.account does not exist". That is the migration, not the code.
+
+- **`trade-karma-htf.pine` compiles clean.** Confirmed in the editor, no errors. The largest
+  concentration of unverified code in the project is down to `trade-karma-pd-arrays.pine`, which has
+  not been through the editor since the 2022-model block, session shading and label rework landed.
+- **`tools/lint-pine.py`** in the pine repo checks the traps that have actually bitten. All four
+  scripts pass, which is not the same as compiling.
+- **The journal records how a trade came off.** Fills are rows — quantity, price, a note — and their
+  weighted average is written back to `exit_price`, so points, R, the statistics and the calendar
+  keep reading the columns they already read.
+- **Trades carry an account, and an optional reported dollar result.** `net_pnl` wins over the
+  derived figure when present, and a trade logged as a dollar figure alone now counts with no prices
+  at all. Both are kept and the journal says when they disagree.
+- **`calendar.html`** is a month grid of green and red days, in dollars or R, filterable by account
+  with a per-account breakdown.
+- **Ticks and dollars** are derived and shown in the form as you type and in the trades list.
+  `CONTRACTS` moved from `sizer.html` into `app.js` so no two pages can disagree about what a point
+  is worth.
+- **The pre-trade checklist moved to the top of the form**, and the date field has a visible picker
+  — `color-scheme: dark` was never declared, so the native calendar icon was drawn dark-on-dark.
+- **A missing migration now names its own SQL file** rather than showing a raw Postgres error.
+- **[IMPORTS.md](IMPORTS.md)** is research on how each platform exports trades. Nothing in it is
+  verified against a real file yet.
 
 ## Since the last update — fourth session
 
@@ -200,9 +234,12 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
-**First thing to do:** compile `trade-karma-htf.pine` and the current
-`trade-karma-pd-arrays.pine`. Both carry unverified subsystems, and the pine work is where this
-session left off. Paste over the whole editor buffer — pasting *into* it leaves the old
+**First thing to do:** run the two SQL files listed at the top of this document. Nothing in the
+journal or the calendar works until they exist, and both failures look like bugs rather than a
+missing migration.
+
+**Then:** compile the current `trade-karma-pd-arrays.pine`. `trade-karma-htf.pine` is now confirmed
+clean, so this is the last unverified script. Paste over the whole editor buffer — pasting *into* it leaves the old
 declaration and produces "your script has 2".
 
 Three things to expect on `trade-karma-htf.pine` specifically, none of them errors:

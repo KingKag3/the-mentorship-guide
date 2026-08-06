@@ -7,15 +7,23 @@ Last updated: 6 August 2026, fifth session.
 
 ## Since the last update — fifth session
 
-> **Two migrations are outstanding. Run these before anything else, in this order:**
+> **All migrations are run.** Verified from outside the application with the anon key: every column
+> the journal, calendar and importer write resolves, and `trade_exits` exists with the expected
+> shape.
 >
-> ```
-> supabase/trade-exits.sql
-> supabase/trade-accounts.sql
-> ```
+> | File | State |
+> | --- | --- |
+> | `supabase/trades.sql` | run |
+> | `supabase/trade-exits.sql` | run — `fees`, `trade_exits` |
+> | `supabase/trade-accounts.sql` | run — `account`, `net_pnl` |
+> | `supabase/trade-import.sql` | run — `external_id`, `imported_at` |
+> | `supabase/settings.sql` | run |
+> | `supabase/scripts.sql` | run |
 >
-> Until they are run, the journal cannot save and the calendar cannot load — both fail with
-> "column trades.account does not exist". That is the migration, not the code.
+> What that check *cannot* see: whether the partial unique index on `(user_id, external_id)` was
+> created, because indexes are not visible to the anon key. The importer's de-duplication depends on
+> it. Importing the same file twice is the test — the second run should leave the trade count
+> unchanged.
 
 - **`trade-karma-htf.pine` compiles clean.** Confirmed in the editor, no errors. The largest
   concentration of unverified code in the project is down to `trade-karma-pd-arrays.pine`, which has
@@ -234,9 +242,13 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
-**First thing to do:** run the two SQL files listed at the top of this document. Nothing in the
-journal or the calendar works until they exist, and both failures look like bugs rather than a
-missing migration.
+**First thing to do:** import the same Tradovate file twice. The first run proves the mapping; the
+second proves the de-duplication, which is the only part of the importer that cannot be checked
+without a live database. If the count doubles, the unique index in `trade-import.sql` did not get
+created.
+
+**Then:** log one closed trade by hand and confirm it reaches the calendar and the statistics. That
+round trip is still unproven.
 
 **Then:** compile the current `trade-karma-pd-arrays.pine`. `trade-karma-htf.pine` is now confirmed
 clean, so this is the last unverified script. Paste over the whole editor buffer — pasting *into* it leaves the old

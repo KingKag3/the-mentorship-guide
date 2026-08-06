@@ -100,6 +100,22 @@ down, and having that said by a tool rather than by willpower is the point.
 The indicator in the private `the-mentorship-pine` repo already draws this on a chart. The page
 exists for planning away from the chart and for logging the numbers into the journal.
 
+### 2.5 Broker CSV import
+
+**The one that unblocks everything else at scale.** A member running seventeen copied prop accounts
+cannot hand-log the same trade seventeen times, and that is the case actually in front of us.
+
+[IMPORTS.md](IMPORTS.md) is the research: what each platform exports, where the button hides, and
+what it silently leaves out. Build against the **Tradovate Orders CSV** first — one file, whole date
+range, per account, and the most likely source.
+
+The schema is already shaped for it. `account`, `fees`, `net_pnl` and `trade_exits` map onto what a
+broker export carries, and `net_pnl` means an import needs no entry or stop prices to produce a
+usable calendar.
+
+Import every account rather than deduplicating the copies. They are near-identical by design, so
+collapsing them hides the only thing worth knowing — the one account that diverged.
+
 ### 2.4 Rollover and event calendar
 
 Quarterly roll — March, June, September, December, with volume rolling around the second Thursday,

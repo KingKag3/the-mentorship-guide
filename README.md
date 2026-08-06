@@ -42,6 +42,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `supabase/trade-exits.sql` | Scale-outs, and the fees column |
 | `supabase/trade-accounts.sql` | Per-account tagging and a reported dollar result |
 | `supabase/trade-import.sql` | De-duplication key for CSV import |
+| `supabase/trade-import-fix.sql` | Makes that key addressable by an upsert — required, not optional |
 | `supabase/scripts.sql` | Pine source for members - stored in the database, never as a file here |
 
 ## Tools

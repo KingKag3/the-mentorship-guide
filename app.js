@@ -440,6 +440,12 @@ const MIGRATIONS = [
 
 export function migrationHint(error) {
   const raw = error && error.message ? error.message : String(error ?? '');
+
+  // Not a missing object at all: the index exists but was created partial, so
+  // an upsert cannot address it. Named separately because the message says
+  // nothing about which table it happened on.
+  if (/ON CONFLICT specification/i.test(raw)) return 'supabase/trade-import-fix.sql';
+
   const missing = /does not exist|schema cache|Could not find/i.test(raw);
   if (!missing) return null;
 

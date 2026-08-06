@@ -273,6 +273,71 @@ were converted mechanically.
 
 ---
 
+## 2026-08-06 — The brand is crimson, not navy. Supersedes the entry above
+
+**Decided:** the interface accent is the crimson from the Trade Karma mark. The navy/blue scale
+decided yesterday is withdrawn.
+
+**Instead of:** the blue, which lasted one day.
+
+**Why:** it was chosen to be *not green* rather than to be *this brand*, and the result read as
+generic — Kag3's word for it was that it looked like it came out of an AI, which is exactly right.
+Default-blue-on-white is the house style of every framework starter page in existence. The actual
+mark is a crimson badge on near-black with white lettering, and the site should look like it
+belongs to the mark rather than to a component library.
+
+**What survives from yesterday's entry:** the reasoning about colour volume, which was correct and
+is the reason this works at all. Red is confined to the badge, the active nav item, the primary
+action, links, and bearish data. Everything else is ink on white. The failure being avoided is
+still the original one — an accent used for everything stops meaning anything.
+
+**The one collision, accepted deliberately:** bearish red and the brand crimson are now the same
+colour. That is not the mistake green made. Green was the brand *and* bullish *and* every button;
+red here is the brand and bearish, which on a trading site are close to the same idea. Inventing a
+second, slightly different red so that "danger" and "down" could be distinguished would make two
+things that mean the same thing look different, which is worse.
+
+**Two red tokens exist for contrast, not for meaning.** `--brand-solid` (`#c4262e`) is used for
+anything filled and is identical in both themes, because white on it clears AA at 5.97:1 either
+way. `--brand-500` is the link colour and lightens in the dark theme so it stays legible on a dark
+page — white text on *that* red would fail. One token could not do both jobs.
+
+---
+
+## 2026-08-06 — Hairlines instead of shadows, Franklin instead of Inter
+
+**Decided:** `--shadow-1` is `none`. Panels, cards and tables are separated by a 1px rule and
+whitespace. The interface face is Libre Franklin.
+
+**Instead of:** the layered soft shadows and Inter shipped yesterday.
+
+**Why:** the reference points asked for were Fidelity and Merrill. What those actually have in
+common is not a colour — it is restraint. Near-white pages, hairline rules, dense small print, and
+a grotesque with newspaper heritage. Soft shadow under every card is the visual signature of a SaaS
+dashboard, and Inter is the default UI face of the last five years of startups; both were quietly
+undoing the work the palette was doing. Libre Franklin descends from Franklin Gothic, which is the
+newspaper and banking grotesque, and it costs nothing to swap.
+
+**Also added: a real disclosures block.** Every firm that handles money carries one, and its
+absence is part of what makes an education site look like it is pretending. The content was already
+true and already scattered across the site; it is now set as fine print at the foot of every page,
+where a reader expects to find it.
+
+---
+
+## 2026-08-06 — Interface text is sentence case
+
+**Decided:** "Sign in", "Sign out", "Admin", "Next: Liquidity". Not lowercase.
+
+**Instead of:** the all-lowercase chrome, which was part of the terminal styling.
+
+**Why:** lowercase interface labels read as a style choice on a personal site and as an unfinished
+one on a site asking to be trusted with a trading education. The strings lived in
+`renderAccountStrip` in `app.js` and in every pager link, so they were invisible to anyone grepping
+the HTML for them.
+
+---
+
 ## 2026-08-05 — Headings stop pretending to be markdown
 
 **Decided:** removed `h2::before { content: "## " }`.

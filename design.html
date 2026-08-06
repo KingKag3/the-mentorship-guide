@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
 <style>
@@ -20,39 +20,39 @@
   margin: var(--s-4) 0;
 }
 .swatch {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--surface-1);
+  background: var(--paper);
 }
-.swatch .chip { height: 62px; display: block; }
+.swatch .chip { height: 58px; display: block; border-bottom: 1px solid var(--line); }
 .swatch .meta {
   padding: 9px 11px;
   font-family: var(--mono);
   font-size: 0.68rem;
   line-height: 1.6;
 }
-.swatch .meta b { display: block; color: var(--fg-strong); font-weight: 500; }
-.swatch .meta span { color: var(--muted); }
+.swatch .meta b { display: block; color: var(--ink-900); font-weight: 500; }
+.swatch .meta span { color: var(--ink-500); }
 
 .spec {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 150px 1fr;
   gap: var(--s-3);
   align-items: baseline;
   padding: var(--s-3) 0;
-  border-bottom: 1px solid var(--border-lo);
+  border-bottom: 1px solid var(--line-lo);
 }
 .spec code { white-space: nowrap; }
 
-.ruler { background: rgba(74, 222, 128, 0.2); display: inline-block; height: 14px; }
+.ruler { background: var(--brand-100); display: inline-block; height: 14px; }
 
 .demo {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   padding: var(--s-4);
   margin: var(--s-4) 0;
-  background: var(--surface-2);
+  background: var(--inset);
 }
 .demo > :first-child { margin-top: 0; }
 .demo > :last-child { margin-bottom: 0; }
@@ -67,7 +67,7 @@
       <nav class="site">
         <a href="index.html">Start</a>
         <a href="liquidity.html">Liquidity</a>
-        <a href="pd-arrays.html">PD Arrays</a>
+        <a href="pd-arrays.html">PD arrays</a>
         <a href="structure.html">Structure</a>
         <a href="time.html">Time</a>
         <a href="models.html">Models</a>
@@ -112,8 +112,9 @@ everywhere.</p>
 <h2>Colour</h2>
 
 <h3>Surfaces</h3>
-<p>Depth is expressed by surface and a soft shadow rather than by heavy borders. Each step is a
-distinct plane, not a shade of the last one.</p>
+<p>Depth is expressed by a hairline rule and whitespace, not by shadow. <code>--shadow-1</code> is
+deliberately <code>none</code>: cards that float on soft shadow are the signature of a product
+dashboard, and this is meant to read as a research page.</p>
 
 <div class="swatches">
   <div class="swatch"><span class="chip" style="background:var(--page)"></span>
@@ -148,20 +149,33 @@ will not pass a contrast check.</p>
 </div>
 
 <h3>Brand</h3>
-<p>Navy for authority, blue for anything the reader can act on: links, focus rings, primary
-buttons, the current nav item.</p>
+<p>Crimson, from the mark. Used sparingly and on purpose: the badge, the current nav item, the
+primary action, links, and bearish data. Everything else on the page is ink on white — a page that
+is almost entirely black-on-white with a little red is what reads as a research house, and the
+moment red becomes the furniture it reads as a landing page instead.</p>
 
 <div class="swatches">
-  <div class="swatch"><span class="chip" style="background:var(--brand-800)"></span>
-    <span class="meta"><b>--brand-800</b><span>deep navy</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--brand-600)"></span>
-    <span class="meta"><b>--brand-600</b><span>hover</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-solid)"></span>
+    <span class="meta"><b>--brand-solid</b><span>buttons, badge · same in both themes</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-solid-hover)"></span>
+    <span class="meta"><b>--brand-solid-hover</b><span>solid fill hover</span></span></div>
   <div class="swatch"><span class="chip" style="background:var(--brand-500)"></span>
-    <span class="meta"><b>--brand-500</b><span>links, primary action</span></span></div>
+    <span class="meta"><b>--brand-500</b><span>links, active nav</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-800)"></span>
+    <span class="meta"><b>--brand-800</b><span>deep crimson</span></span></div>
   <div class="swatch"><span class="chip" style="background:var(--brand-100)"></span>
     <span class="meta"><b>--brand-100</b><span>tint border</span></span></div>
   <div class="swatch"><span class="chip" style="background:var(--brand-050)"></span>
     <span class="meta"><b>--brand-050</b><span>tint fill</span></span></div>
+</div>
+
+<div class="callout">
+  <span class="callout-label">Why two red tokens</span>
+  <p><code>--brand-solid</code> is one crimson used in <em>both</em> themes for anything filled —
+  buttons, the badge, tool flags — because white on it clears AA at 5.97:1 either way. Links need
+  the opposite treatment: <code>--brand-500</code> lightens in the dark theme so it stays legible
+  on a dark page, and white text on <em>that</em> red would fail. One token could not do both jobs,
+  so there are two.</p>
 </div>
 
 <h3>Market semantics</h3>
@@ -185,19 +199,23 @@ else.</p>
   Amber means time or caution. Violet marks midpoints such as consequent encroachment and mean
   threshold. A reader learns these in the first diagram; breaking them later costs comprehension
   for the sake of variety.</p>
-  <p><strong>This is why the interface is blue.</strong> The previous palette used the bullish
-  green for links, buttons, the brand, the active nav item and the focus ring as well as for
-  direction — which meant green appeared several hundred times per page and signalled nothing.
-  Reserving green and red for direction is what makes them readable when they do appear.</p>
+  <p><strong>Red is the exception that proves it.</strong> Bearish red and the brand crimson are
+  deliberately the same colour: on a trading site red already means down, and inventing a second
+  red would make two things that mean the same thing look different. What keeps it readable is
+  volume — red covers a few percent of any page here. The original palette used bullish green for
+  links, buttons, the brand, the active nav item and the focus ring <em>as well as</em> for
+  direction, so green appeared several hundred times per page and signalled nothing.</p>
 </div>
 
 <h2>Type</h2>
 
 <p>Three families, each with one job. <strong>Source Serif&nbsp;4</strong> carries content —
 headlines and running prose, because extended reading is what this site is for.
-<strong>Inter</strong> carries the interface: navigation, labels, buttons, table headers, anything
-that is a control rather than a sentence. <strong>JetBrains Mono</strong> is reserved for data —
-prices, R multiples, codes, source — where a tabular figure actually matters.</p>
+<strong>Libre Franklin</strong> carries the interface: navigation, labels, buttons, table headers,
+anything that is a control rather than a sentence. It is a Franklin Gothic descendant — the
+newspaper and banking grotesque — which is why the chrome reads institutional rather than like a
+product launch. <strong>JetBrains Mono</strong> is reserved for data — prices, R multiples, codes,
+source — where a tabular figure actually matters.</p>
 
 <p>The scale is fluid: sizes interpolate between phone and desktop with <code>clamp()</code>, so
 no breakpoint is needed to keep text readable.</p>
@@ -544,7 +562,7 @@ grey path for price, and labels in mono at 11px. Captions sit under a dashed rul
 
 <div class="pager">
   <a href="index.html">← start</a>
-  <a href="members.html">members →</a>
+  <a href="members.html">Members area →</a>
 </div>
 
 </main>
@@ -586,13 +604,24 @@ grey path for price, and labels in mono at 11px. Captions sit under a dashed rul
       </ul>
     </div>
   </div>
+
   <div class="footer-legal">
-    <p><strong>Educational content only. Not financial advice.</strong> Trading
-    involves substantial risk of loss, and most people who day-trade lose money.
-    Nothing here is a recommendation to trade anything.</p>
-    <p>The concepts described originate with Michael J. Huddleston and are usually
-    labelled Smart Money Concepts. All wording, diagrams and examples on this site
-    were written from scratch.</p>
+    <h6>Important disclosures</h6>
+    <p><strong>This site is educational material, not investment advice.</strong> Nothing on it is
+    a recommendation, solicitation or offer to buy or sell any security, future, or other financial
+    instrument, and nothing on it is tailored to the circumstances of any individual reader. No
+    content here should be relied upon as the basis for a trading decision.</p>
+    <p><strong>Trading futures involves substantial risk of loss and is not suitable for every
+    investor.</strong> Leverage works against you as readily as it works for you. You can lose more
+    than your initial deposit. The majority of retail traders who trade actively lose money. Past
+    performance, whether hypothetical or actual, is not indicative of future results, and no
+    performance record on this site has been audited or independently verified.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually labelled Smart
+    Money Concepts. Trade Karma is not affiliated with, endorsed by, or sponsored by him or any
+    related entity. All wording, diagrams and examples on this site were written from scratch; no
+    text from any book or course is reproduced.</p>
+    <p class="footer-copy">&copy; 2026 Trade Karma &middot; Educational content only &middot;
+    <a href="design.html">Design system</a></p>
   </div>
 </footer>
 </div>

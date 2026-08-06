@@ -21,51 +21,68 @@
 :root {
   color-scheme: light;
 
-  /* ---- ink ---------------------------------------------------- */
-  --ink-900: #0a1626;   /* headings                     */
-  --ink-700: #1e2c3d;   /* body copy                    */
-  --ink-600: #33455c;   /* secondary copy               */
-  --ink-500: #5d7189;   /* muted, captions              */
-  --ink-400: #8496ac;   /* placeholder, disabled        */
+  /* ---- ink ----------------------------------------------------
+     Near-black with a faint cool cast, taken from the mark's own
+     background rather than from pure #000, which prints harsh. */
+  --ink-900: #14181f;   /* headings                     */
+  --ink-700: #272d37;   /* body copy                    */
+  --ink-600: #454d59;   /* secondary copy               */
+  --ink-500: #6b7280;   /* muted, captions              */
+  --ink-400: #949aa4;   /* placeholder, disabled        */
 
   /* ---- surfaces, in rising order of prominence ---------------- */
-  --page:    #f4f6f9;   /* the page itself              */
+  --page:    #fcfcfb;   /* the page itself              */
   --paper:   #ffffff;   /* raised card, table, panel    */
-  --inset:   #f8fafc;   /* recessed input, code block   */
-  --hover:   #eef2f7;   /* row and card hover           */
+  --inset:   #f7f7f6;   /* recessed input, code block   */
+  --hover:   #f2f2f1;   /* row and card hover           */
 
-  --line:    #dfe5ed;   /* standard border              */
-  --line-lo: #ebeff5;   /* internal rules, table rows   */
+  --line:    #e2e2df;   /* standard border, hairline    */
+  --line-lo: #eeeeec;   /* internal rules, table rows   */
 
-  /* ---- brand: navy for authority, blue for interaction -------- */
-  --brand-900: #071c33;
-  --brand-800: #0d2b4d;
-  --brand-700: #123a67;
-  --brand-600: #1a5296;
-  --brand-500: #1f66bd;  /* links, focus, primary action */
-  --brand-400: #4a8ad8;
-  --brand-100: #dce9f9;
-  --brand-050: #eef4fc;
+  /* ---- brand ---------------------------------------------------
+     Crimson and near-black, from the mark. Red is used sparingly and
+     deliberately: the mark, the active nav item, the primary action,
+     links, and bearish data. Everything else is ink on white. A page
+     that is 95% black-on-white with a little red is what reads as a
+     research house; the moment red becomes the furniture it reads as
+     a landing page instead. */
+  --brand-900: #6d1419;
+  --brand-800: #8c1a20;
+  --brand-700: #a71f26;
+  --brand-600: #b8232b;
+  --brand-500: #c4262e;  /* links, focus, primary action */
+  --brand-400: #d8555c;
+  --brand-100: #f3d3d5;
+  --brand-050: #fbf0f1;
 
-  /* Text and icons sitting on top of a brand-coloured fill. Flips with the
-     theme because the fill does: navy in light, pale blue in dark. */
+  /* One solid fill for buttons, the mark and badges, identical in both
+     themes. White on this red clears AA at 5.97:1; the lighter --brand-500
+     used for links would not, which is why they are separate tokens. */
+  --brand-solid: #c4262e;
+  --brand-solid-hover: #a71f26;
   --on-brand: #ffffff;
 
-  /* ---- market semantics. Direction only, never decoration ----- */
-  --bull:     #0b7a48;
-  --bull-dim: #4aa87c;
-  --bull-bg:  #e7f4ed;
-  --bear:     #b02a20;
-  --bear-dim: #cf6f68;
-  --bear-bg:  #fbeceb;
-  --warn:     #94600a;   /* time, caution                */
-  --warn-bg:  #fcf3e2;
-  --info:     #1a5296;
-  --info-bg:  #eaf1fb;
+  /* ---- market semantics. Direction only, never decoration -----
+     Bearish red is the brand crimson on purpose: on a trading site
+     red already means down, and inventing a second red would make
+     two things that mean the same thing look different. */
+  --bull:     #0a6e3d;
+  --bull-dim: #47956f;
+  --bull-bg:  #eaf3ee;
+  --bear:     #c4262e;
+  --bear-dim: #d8555c;
+  --bear-bg:  #fbf0f1;
+  --warn:     #8a5a04;   /* time, caution                */
+  --warn-bg:  #fbf4e6;
+  --info:     #1f4f7a;
+  --info-bg:  #eef3f8;
 
-  /* ---- type --------------------------------------------------- */
-  --sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-           Helvetica, Arial, sans-serif;
+  /* ---- type ----------------------------------------------------
+     Libre Franklin is a Franklin Gothic descendant — the newspaper
+     and banking grotesque — which is why the interface reads
+     institutional rather than like a product launch. */
+  --sans:  "Libre Franklin", -apple-system, BlinkMacSystemFont, "Segoe UI",
+           Roboto, Helvetica, Arial, sans-serif;
   --serif: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
   --mono:  "JetBrains Mono", ui-monospace, "SFMono-Regular", "Cascadia Mono",
            Menlo, Consolas, monospace;
@@ -96,19 +113,20 @@
   --wrap: 1120px;
   --wrap-wide: 1320px;
 
-  /* ---- shape -------------------------------------------------- */
-  --radius-sm: 5px;
-  --radius: 9px;
-  --radius-lg: 14px;
+  /* ---- shape ---------------------------------------------------
+     Small radii and hairlines. Institutional finance sites separate
+     things with a 1px rule and whitespace, not with rounded floating
+     cards — soft shadow everywhere is the visual signature of a SaaS
+     dashboard, which is the look this is moving away from. */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 6px;
 
-  /* Layered rather than single: a real object casts a tight contact
-     shadow and a wide ambient one. */
-  --shadow-1: 0 1px 2px rgba(10, 22, 38, 0.05),
-              0 1px 3px rgba(10, 22, 38, 0.04);
-  --shadow-2: 0 2px 4px rgba(10, 22, 38, 0.05),
-              0 8px 20px rgba(10, 22, 38, 0.07);
-  --shadow-3: 0 4px 8px rgba(10, 22, 38, 0.06),
-              0 18px 44px rgba(10, 22, 38, 0.10);
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgba(20, 24, 31, 0.06),
+              0 4px 12px rgba(20, 24, 31, 0.05);
+  --shadow-3: 0 2px 4px rgba(20, 24, 31, 0.07),
+              0 12px 32px rgba(20, 24, 31, 0.09);
 
   --ring: 0 0 0 3px var(--brand-100);
 
@@ -158,100 +176,98 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ink-900: #f3f7fc;
-    --ink-700: #ccd8e6;
-    --ink-600: #a9b9cc;
-    --ink-500: #8195ad;
-    --ink-400: #647a94;
+    --ink-900: #f6f6f5;
+    --ink-700: #d6d8db;
+    --ink-600: #b2b6bc;
+    --ink-500: #8d9298;
+    --ink-400: #6c7178;
 
-    --page:    #0b1420;
-    --paper:   #121e2e;
-    --inset:   #0e1826;
-    --hover:   #18263a;
+    --page:    #0d1117;
+    --paper:   #151a21;
+    --inset:   #11161d;
+    --hover:   #1c222a;
 
-    --line:    #24344b;
-    --line-lo: #1a2839;
+    --line:    #2b313a;
+    --line-lo: #1f242c;
 
-    --brand-900: #cfe0f5;
-    --brand-800: #b6d0ee;
-    --brand-700: #8fb6e4;
-    --brand-600: #6ea3de;
-    --brand-500: #6ba5e8;
-    --brand-400: #8dbcf0;
-    --brand-100: #1c3552;
-    --brand-050: #16273c;
-    --on-brand:  #07121f;
+    --brand-900: #f7dcde;
+    --brand-800: #f0bcbf;
+    --brand-700: #e79398;
+    --brand-600: #e2666e;
+    --brand-500: #e2515a;
+    --brand-400: #ea828a;
+    --brand-100: #4a1a1f;
+    --brand-050: #2c1215;
+    --brand-solid-hover: #d63b44;
 
-    --bull:     #3fc98a;
-    --bull-dim: #2d8f63;
-    --bull-bg:  #10281f;
-    --bear:     #f2726a;
-    --bear-dim: #b8524c;
-    --bear-bg:  #2a1517;
-    --warn:     #e0a94a;
-    --warn-bg:  #2a2113;
-    --info:     #6ba5e8;
-    --info-bg:  #14263c;
+    --bull:     #35a86e;
+    --bull-dim: #277d52;
+    --bull-bg:  #0e2318;
+    --bear:     #e2515a;
+    --bear-dim: #b5414a;
+    --bear-bg:  #2c1215;
+    --warn:     #d5a03e;
+    --warn-bg:  #29200f;
+    --info:     #6ea4d4;
+    --info-bg:  #12212e;
 
-    --violet:   #b79bdd;
+    --violet:   #c1a6e6;
 
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.34),
-                0 1px 3px rgba(0, 0, 0, 0.26);
-    --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.34),
-                0 8px 20px rgba(0, 0, 0, 0.38);
-    --shadow-3: 0 4px 8px rgba(0, 0, 0, 0.36),
-                0 18px 44px rgba(0, 0, 0, 0.46);
+    --shadow-1: none;
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.40),
+                0 4px 12px rgba(0, 0, 0, 0.36);
+    --shadow-3: 0 2px 4px rgba(0, 0, 0, 0.46),
+                0 12px 32px rgba(0, 0, 0, 0.46);
 
-    --ring: 0 0 0 3px rgba(107, 165, 232, 0.28);
+    --ring: 0 0 0 3px rgba(226, 81, 90, 0.30);
   }
 }
 
 :root[data-theme="dark"] {
-  --ink-900: #f3f7fc;
-  --ink-700: #ccd8e6;
-  --ink-600: #a9b9cc;
-  --ink-500: #8195ad;
-  --ink-400: #647a94;
+  --ink-900: #f6f6f5;
+  --ink-700: #d6d8db;
+  --ink-600: #b2b6bc;
+  --ink-500: #8d9298;
+  --ink-400: #6c7178;
 
-  --page:    #0b1420;
-  --paper:   #121e2e;
-  --inset:   #0e1826;
-  --hover:   #18263a;
+  --page:    #0d1117;
+  --paper:   #151a21;
+  --inset:   #11161d;
+  --hover:   #1c222a;
 
-  --line:    #24344b;
-  --line-lo: #1a2839;
+  --line:    #2b313a;
+  --line-lo: #1f242c;
 
-  --brand-900: #cfe0f5;
-  --brand-800: #b6d0ee;
-  --brand-700: #8fb6e4;
-  --brand-600: #6ea3de;
-  --brand-500: #6ba5e8;
-  --brand-400: #8dbcf0;
-  --brand-100: #1c3552;
-  --brand-050: #16273c;
-  --on-brand:  #07121f;
+  --brand-900: #f7dcde;
+  --brand-800: #f0bcbf;
+  --brand-700: #e79398;
+  --brand-600: #e2666e;
+  --brand-500: #e2515a;
+  --brand-400: #ea828a;
+  --brand-100: #4a1a1f;
+  --brand-050: #2c1215;
+  --brand-solid-hover: #d63b44;
 
-  --bull:     #3fc98a;
-  --bull-dim: #2d8f63;
-  --bull-bg:  #10281f;
-  --bear:     #f2726a;
-  --bear-dim: #b8524c;
-  --bear-bg:  #2a1517;
-  --warn:     #e0a94a;
-  --warn-bg:  #2a2113;
-  --info:     #6ba5e8;
-  --info-bg:  #14263c;
+  --bull:     #35a86e;
+  --bull-dim: #277d52;
+  --bull-bg:  #0e2318;
+  --bear:     #e2515a;
+  --bear-dim: #b5414a;
+  --bear-bg:  #2c1215;
+  --warn:     #d5a03e;
+  --warn-bg:  #29200f;
+  --info:     #6ea4d4;
+  --info-bg:  #12212e;
 
-  --violet:   #b79bdd;
+  --violet:   #c1a6e6;
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.34),
-              0 1px 3px rgba(0, 0, 0, 0.26);
-  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.34),
-              0 8px 20px rgba(0, 0, 0, 0.38);
-  --shadow-3: 0 4px 8px rgba(0, 0, 0, 0.36),
-              0 18px 44px rgba(0, 0, 0, 0.46);
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.40),
+              0 4px 12px rgba(0, 0, 0, 0.36);
+  --shadow-3: 0 2px 4px rgba(0, 0, 0, 0.46),
+              0 12px 32px rgba(0, 0, 0, 0.46);
 
-  --ring: 0 0 0 3px rgba(107, 165, 232, 0.28);
+  --ring: 0 0 0 3px rgba(226, 81, 90, 0.30);
 }
 
 /* ---------------------------------------------------------------
@@ -361,24 +377,39 @@ main { max-width: var(--measure); }
   white-space: nowrap;
 }
 
+/* A circular badge, echoing the mark: crimson ring, dark centre, set
+   solid so it holds at 28px where the real logo's detail would mush. */
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: linear-gradient(150deg, var(--brand-600), var(--brand-800));
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--brand-solid);
   color: var(--on-brand);
   font-family: var(--sans);
-  font-size: 0.82rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  box-shadow: var(--shadow-1);
+  letter-spacing: 0.02em;
   flex: none;
 }
 
-.brand b { font-weight: 600; color: var(--brand-500); }
-.brand:hover b { color: var(--brand-600); }
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-solid);
+  opacity: 0.32;
+  transform: scale(1.28);
+}
+
+.brand { position: relative; }
+.brand-mark { position: relative; }
+
+.brand b { font-weight: 600; color: var(--ink-900); }
+.brand:hover b { color: var(--brand-500); }
 
 /* ---- primary nav ---- */
 
@@ -600,38 +631,32 @@ blockquote {
    Hero â€” the index page opener
    --------------------------------------------------------------- */
 
+/* No gradient wash, no glow. The opener is set with a rule, a label and
+   whitespace — the way a research note opens — because a coloured
+   gradient behind a headline is the house style of a product launch,
+   not of anyone who manages money. */
 .hero {
-  padding: var(--s-7) 0 var(--s-6);
-  position: relative;
-  overflow: hidden;
+  padding: var(--s-6) 0 var(--s-6);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s-6);
 }
 
-/* A restrained wash rather than a gradient banner. Enough to lift the
-   opener off the page without turning it into a landing page. */
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: -40% 30% auto -10%;
-  height: 520px;
-  background: radial-gradient(
-    50% 50% at 50% 50%,
-    color-mix(in srgb, var(--brand-500) 12%, transparent) 0%,
-    transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+.hero .eyebrow {
+  padding-bottom: var(--s-3);
+  border-bottom: 2px solid var(--brand-solid);
+  display: inline-block;
+  margin-bottom: var(--s-4);
 }
-
-.hero > * { position: relative; z-index: 1; }
 
 .hero h1 {
   font-size: var(--step-4);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  margin: var(--s-3) 0 var(--s-4);
-  max-width: 18ch;
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  margin: 0 0 var(--s-4);
+  max-width: 17ch;
 }
 
-.hero .lede { font-size: var(--step-1); max-width: 58ch; }
+.hero .lede { font-size: var(--step-1); max-width: 56ch; }
 
 .hero-actions {
   display: flex;
@@ -643,32 +668,48 @@ blockquote {
 /* A row of framing numbers under the hero. Facts about the material,
    not performance claims â€” this site does not have a track record and
    must not imply one. */
+/* Ruled columns, like a fact table at the head of a research note. */
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--s-4);
-  margin-top: var(--s-7);
-  padding-top: var(--s-5);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  margin-top: var(--s-6);
   border-top: 1px solid var(--line);
 }
+
+.hero-stats > div {
+  padding: var(--s-4) var(--s-4) var(--s-3) 0;
+  border-right: 1px solid var(--line);
+}
+
+.hero-stats > div:last-child { border-right: none; }
+.hero-stats > div + div { padding-left: var(--s-4); }
 
 .stat-value {
   display: block;
   font-family: var(--sans);
   font-size: var(--step-2);
   font-weight: 600;
-  letter-spacing: -0.028em;
+  letter-spacing: -0.025em;
   color: var(--ink-900);
-  line-height: 1.1;
+  line-height: 1.05;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .stat-label {
   display: block;
   font-family: var(--sans);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 500;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
   color: var(--ink-500);
-  margin-top: 5px;
+  margin-top: 7px;
+}
+
+@media (max-width: 620px) {
+  .hero-stats > div { border-right: none; border-bottom: 1px solid var(--line); }
+  .hero-stats > div + div { padding-left: 0; }
 }
 
 /* ---------------------------------------------------------------
@@ -697,16 +738,14 @@ blockquote {
 
 .btn-primary {
   color: var(--on-brand);
-  background: var(--brand-500);
-  border: 1px solid var(--brand-500);
-  box-shadow: var(--shadow-1);
+  background: var(--brand-solid);
+  border: 1px solid var(--brand-solid);
 }
 
 .btn-primary:hover {
-  background: var(--brand-600);
-  border-color: var(--brand-600);
+  background: var(--brand-solid-hover);
+  border-color: var(--brand-solid-hover);
   color: var(--on-brand);
-  box-shadow: var(--shadow-2);
 }
 
 .btn-secondary {
@@ -821,20 +860,30 @@ blockquote {
   box-shadow: var(--shadow-1);
 }
 
+/* A rule that thickens on hover rather than a card that lifts. Nothing
+   on a research page floats. */
 a.card {
-  transition: border-color var(--fast), box-shadow var(--fast),
-              transform var(--fast);
+  transition: border-color var(--fast), background-color var(--fast);
 }
 
-a.card:hover {
-  border-color: var(--brand-400);
-  box-shadow: var(--shadow-2);
-  transform: translateY(-2px);
+a.card::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: var(--brand-solid);
+  opacity: 0;
+  transition: opacity var(--fast);
 }
+
+a.card:hover { border-color: var(--ink-400); background: var(--inset); }
+a.card:hover::after { opacity: 1; }
 
 .card h3 {
   margin: 0 0 var(--s-2);
-  font-size: 0.98rem;
+  font-size: 1rem;
   color: var(--ink-900);
   transition: color var(--fast);
 }
@@ -852,12 +901,14 @@ a.card:hover h3 { color: var(--brand-500); }
    mono and given room rather than jammed into the title. */
 .card-num {
   display: block;
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
   color: var(--brand-500);
-  margin-bottom: var(--s-2);
+  margin-bottom: var(--s-3);
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* ---------------------------------------------------------------
@@ -1011,16 +1062,17 @@ td.num, th.num { text-align: right; font-family: var(--mono); }
 .tag {
   display: inline-block;
   font-family: var(--sans);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px 10px;
+  border-radius: 2px;
+  padding: 2px 8px;
   color: var(--ink-600);
   background: var(--inset);
   white-space: nowrap;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .tag.bull { color: var(--bull); background: var(--bull-bg); border-color: color-mix(in srgb, var(--bull) 28%, transparent); }
@@ -1183,15 +1235,36 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 .footer-col ul { list-style: none; padding: 0; margin: 0; }
 .footer-col li { margin: 0 0 6px; }
 
+/* Disclosure block. Dense, small, and unglamorous on purpose — every firm
+   that actually handles money carries one, and its absence is one of the
+   things that makes an education site look like it is pretending. */
 .footer-legal {
-  border-top: 1px solid var(--line-lo);
+  border-top: 1px solid var(--line);
   padding: var(--s-4) 0 0;
-  font-size: 0.78rem;
-  color: var(--ink-400);
-  max-width: 90ch;
+  font-size: 0.76rem;
+  line-height: 1.62;
+  color: var(--ink-500);
+  max-width: 92ch;
 }
 
-.footer-legal p { margin: 0 0 var(--s-2); }
+.footer-legal h6 {
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+  margin: 0 0 var(--s-3);
+}
+
+.footer-legal p { margin: 0 0 var(--s-3); }
+.footer-legal strong { color: var(--ink-600); font-weight: 600; }
+
+.footer-copy {
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-lo);
+  color: var(--ink-500);
+}
 
 /* ---------------------------------------------------------------
    Pager
@@ -1250,12 +1323,12 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 
 .role-badge {
   font-family: var(--sans);
-  font-size: 0.66rem;
+  font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 2px 8px;
   color: var(--ink-500);
   background: var(--inset);
@@ -1588,7 +1661,7 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   color: var(--brand-500);
   background: var(--brand-050);
   border: 1px solid var(--brand-100);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 3px 11px;
   margin-top: var(--s-4);
 }
@@ -1780,7 +1853,7 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   color: var(--warn);
   background: var(--warn-bg);
   border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 1px 8px;
   margin-left: var(--s-2);
   vertical-align: 1px;
@@ -1914,13 +1987,13 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 
 .tool-chip {
   font-family: var(--sans);
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 500;
   text-decoration: none;
   color: var(--ink-600);
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 3px;
   padding: 7px 15px;
   display: inline-flex;
   align-items: center;
@@ -1948,9 +2021,9 @@ a.tool-chip:hover { color: var(--ink-900); border-color: var(--brand-400); backg
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--on-brand);
-  background: var(--brand-500);
-  border-radius: 999px;
-  padding: 2px 8px;
+  background: var(--brand-solid);
+  border-radius: 2px;
+  padding: 2px 7px;
   margin-left: var(--s-2);
   vertical-align: 1px;
   white-space: nowrap;

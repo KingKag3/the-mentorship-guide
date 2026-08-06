@@ -34,9 +34,13 @@ A visual redesign lives on `ui-overhaul`, unmerged. **Not one word of content ch
 pages, same copy, same arguments, same diagram geometry. What changed is the presentation:
 
 - Editorial light theme by default, with a full dark theme and a masthead toggle.
-- Green and red now mean market direction only; the interface moved to a navy/blue scale.
-- Serif for content, Inter for interface, JetBrains Mono for data. Previously every heading was
-  monospace, which is most of what made the site read as a terminal.
+- The accent is the crimson from the Trade Karma mark. Red is confined to the badge, the active nav
+  item, the primary action, links and bearish data; everything else is ink on white.
+- Hairline rules and whitespace instead of shadows — `--shadow-1` is `none`.
+- Source Serif for content, Libre Franklin for interface, JetBrains Mono for data. Previously every
+  heading was monospace, which is most of what made the site read as a terminal.
+- Interface text is sentence case: "Sign in", not "sign in".
+- A real disclosures block at the foot of every page.
 - `h2::before { content: "## " }` removed — it printed a literal `## ` before every heading.
 - 161 hardcoded hex values in the SVG diagrams converted to themed classes.
 - `index.html` opens with a hero and now links the tools; every page has a real footer.

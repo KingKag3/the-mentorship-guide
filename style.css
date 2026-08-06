@@ -5,6 +5,12 @@
    --------------------------------------------------------------- */
 
 :root {
+  /* Tells the browser its native widgets are on a dark surface. Without it the
+     date picker's calendar icon renders dark-on-dark and is invisible, and the
+     picker popup opens in light mode against the rest of the site. Also fixes
+     select menus, checkboxes and the default scrollbars. */
+  color-scheme: dark;
+
   --bg:        #0b0e11;
   --bg-alt:    #12171d;
   --bg-inset:  #0f141a;
@@ -1430,6 +1436,58 @@ tbody tr { transition: background-color var(--fast); }
 
 .order-input:focus { outline: 1px solid var(--accent-dk); border-color: var(--accent-dk); }
 .order-input:disabled { opacity: 0.5; }
+
+/* ---------- date and time fields ----------
+   The whole field opens the picker, so the target is the input rather than a
+   16px icon at its right edge. */
+
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 2px;
+  border-radius: var(--radius);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: var(--surface-3);
+}
+
+/* A field and the shortcut that fills it, on one line. */
+.field-inline {
+  display: flex;
+  gap: var(--s-2);
+  align-items: stretch;
+}
+
+.field-inline input { margin-bottom: 18px; }
+
+.field-inline .btn-now {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 12px;
+  margin-bottom: 18px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.field-inline .btn-now:hover { color: var(--accent); border-color: var(--accent-dk); }
 
 /* ---------- calendar ----------
    A month of trading days. Colour carries the sign and nothing else: the

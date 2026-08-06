@@ -87,7 +87,10 @@
     <div class="field-pair">
       <div>
         <label for="opened_at">When</label>
-        <input id="opened_at" type="datetime-local" required>
+        <div class="field-inline">
+          <input id="opened_at" type="datetime-local" step="60" required>
+          <button type="button" class="btn-now" id="btn-now" title="Set to the current date and time">now</button>
+        </div>
       </div>
       <div>
         <label for="symbol">Symbol</label>
@@ -266,6 +269,20 @@ function nowLocal() {
   return d.toISOString().slice(0, 16);
 }
 $('opened_at').value = nowLocal();
+
+// Clicking anywhere in the field opens the picker, not just the small icon at
+// its right edge. showPicker() is recent and throws unless called inside a real
+// user gesture, so the failure is swallowed — typing into the field still works
+// everywhere, and this is only ever a shortcut on top of that.
+$('opened_at').addEventListener('click', (e) => {
+  if (typeof e.currentTarget.showPicker !== 'function') return;
+  try { e.currentTarget.showPicker(); } catch (err) { /* unsupported here */ }
+});
+
+$('btn-now').addEventListener('click', () => {
+  $('opened_at').value = nowLocal();
+  setStatus('#status', 'Set to now.', 'ok');
+});
 
 // --- derived numbers -------------------------------------------------------
 // Points and R are never typed. A journal where the member can enter an R that

@@ -1,0 +1,46 @@
+# Publish the site to GitHub Pages.
+#
+# The default "deploy from a branch" pipeline wedged on 6 August 2026: build and
+# upload succeeded every time, then the deploy step polled its own deployment
+# for ten minutes and aborted. Eight consecutive failures, no incident open, no
+# protection rule to explain it. This takes the other deployment path.
+#
+# Nothing is built. The repository is already the site — the upload step just
+# takes the checkout as-is, which is also why no dependency is installed.
+
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read the repo, mint the OIDC token deploy-pages needs, write the deployment.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a run in flight finish rather than cancelling it. A half-applied deploy
+# is worse than a slightly stale site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

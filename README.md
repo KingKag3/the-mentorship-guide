@@ -100,6 +100,44 @@ work. It also records what is deliberately not being built, and why.
 - Diagrams are hand-written inline SVG so they inherit the palette and need no assets.
 - Fonts load from Google Fonts with system fallbacks; the site is fully readable without them.
 
+## Deployment
+
+GitHub Pages serves `main` directly. `.nojekyll` is present because the site is plain static HTML
+and needs nothing Jekyll provides — it skips that stage and shortens the build. **It was added while
+chasing a deployment failure and did not fix it**, so do not treat it as the cure for a broken
+deploy.
+
+### When the live site is stale
+
+A file can be committed, pushed and still 404 on the site. Check the build before the code:
+
+```
+gh api repos/KingKag3/the-mentorship-guide/pages/builds/latest --jq '[.status, .commit[0:7]] | @tsv'
+```
+
+That endpoint reports `errored` for runs that were merely **cancelled by the next push**, so rapid
+successive commits look like failures. The Actions log is the honest source:
+
+```
+gh run list --limit 5
+gh run view <id> --log-failed
+```
+
+On 6 August 2026 every deployment for six hours ended:
+
+```
+Current status: deployment_queued
+##[error]Timeout reached, aborting!
+```
+
+The build and upload succeeded every time; the deploy step never left the queue. Ruled out in
+order: Liquid syntax, YAML front matter, symlinks, submodules, file size (42 files, 2.8 MB), an
+open GitHub incident, and the environment's deployment branch policy — `main` and `gh-pages` are
+both allowed. Nothing in this repository can hold a deployment in `deployment_queued`.
+
+If it recurs: re-run the workflow, and if that still queues, switch **Settings → Pages → Source**
+from *Deploy from a branch* to *GitHub Actions*, which uses a different deployment path.
+
 ## Editing
 
 Open any `.html` file and edit it. To preview, open the file directly in a browser — there is

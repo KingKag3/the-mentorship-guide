@@ -387,6 +387,29 @@ rather than being hidden, so a thin sample teaches instead of disappearing.</p>
   time in running text.</p>
 </div>
 
+<h3>Day group</h3>
+
+<p>One block per day the month traded, listed under the calendar grid in <code>calendar.html</code>.
+The left edge carries the day's colour so the list scans the way the grid does without repeating
+its weight. Clicking a square in the grid scrolls to the matching group and flashes
+<code>.is-target</code>, which fades — it answers which one was clicked and nothing after that.
+Reduced motion gets the ring without the animation.</p>
+
+<div class="demo">
+  <section class="day-group is-up">
+    <h3><span>Thursday, 6 August</span>
+      <span class="day-group-sum">$610.00</span>
+      <span class="day-group-n">4 trades</span></h3>
+    <p class="acct-muted">The table of trades sits here.</p>
+  </section>
+  <section class="day-group is-down">
+    <h3><span>Friday, 7 August</span>
+      <span class="day-group-sum">−$250.00</span>
+      <span class="day-group-n">1 trade</span></h3>
+    <p class="acct-muted">A red day, one trade.</p>
+  </section>
+</div>
+
 <h3>Column mapping</h3>
 
 <p>One row per field the journal stores, against a select of the columns a file actually has.

@@ -69,7 +69,7 @@
 
   <div id="summary"></div>
   <div id="grid"></div>
-  <div id="day-detail"></div>
+  <div id="month-trades"></div>
 
 </div>
 
@@ -239,7 +239,7 @@ function render() {
     '</div>';
 
   renderSummary(monthRows);
-  $('day-detail').innerHTML = '';
+  renderMonthTrades(monthRows);
 }
 
 function renderSummary(rows) {
@@ -317,49 +317,99 @@ function card(label, value, note) {
     '<p>' + escapeHtml(note) + '</p></div>';
 }
 
-// --- a single day ----------------------------------------------------------
+// --- the month's trades, in full -------------------------------------------
 
+// Below the grid rather than behind a click. A square coloured red tells you a
+// day went badly; it cannot tell you it was one bad trade or six, which is the
+// thing worth knowing. Clicking a day still works — it scrolls here.
+
+const MAX_ROWS = 400;
+
+function tradeRow(r) {
+  const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts,
+                         fees: r.fees, netPnl: r.net_pnl });
+  const rm = toNumber(r.r_multiple);
+
+  return '<tr>' +
+    '<td>' + escapeHtml(new Date(r.opened_at)
+      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
+    '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
+      escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
+      (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
+    '<td>' + escapeHtml(r.model || '—') +
+      (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
+      '</td>' +
+    '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
+    '<td>' + (Number.isFinite(rm)
+        ? '<span class="tag' + (rm > 0 ? ' bull' : rm < 0 ? ' bear' : '') + '">' +
+          (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R</span>'
+        : '<span class="tag">reported</span>') +
+      (v.dollars !== null ? '<br><span class="acct-muted">' + money(v.dollars) + '</span>' : '') +
+    '</td>' +
+  '</tr>';
+}
+
+function dayGroup(key, rows) {
+  const t = dayTotals(rows);
+  const value = dayValue(t);
+  const cls = value === null ? '' : value > 0 ? ' is-up' : value < 0 ? ' is-down' : '';
+
+  return '<section class="day-group' + cls + '" id="day-' + key + '">' +
+    '<h3>' +
+      '<span>' + escapeHtml(new Date(key + 'T12:00:00').toLocaleDateString(undefined,
+        { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
+      '<span class="day-group-sum">' + fmt(value) + '</span>' +
+      '<span class="day-group-n">' + t.n + (t.n === 1 ? ' trade' : ' trades') + '</span>' +
+    '</h3>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +
+    '</tr></thead><tbody>' + rows.map(tradeRow).join('') + '</tbody></table></div>' +
+  '</section>';
+}
+
+function renderMonthTrades(monthRows) {
+  if (!monthRows.length) { $('month-trades').innerHTML = ''; return; }
+
+  // Ascending, so the list reads in the same direction as the grid above it.
+  const keys = [...new Set(monthRows.map((r) => localDay(r.opened_at)))].filter(Boolean).sort();
+
+  let shown = 0;
+  const groups = [];
+  let truncated = 0;
+
+  for (const key of keys) {
+    const rows = byDay.get(key) || [];
+    if (shown >= MAX_ROWS) { truncated += rows.length; continue; }
+    groups.push(dayGroup(key, rows));
+    shown += rows.length;
+  }
+
+  $('month-trades').innerHTML =
+    '<h2>Every trade this month</h2>' +
+    '<p class="stat-note">' + monthRows.length +
+      (monthRows.length === 1 ? ' trade across ' : ' trades across ') +
+      keys.length + (keys.length === 1 ? ' day' : ' days') +
+      '. Click a day above to jump to it.</p>' +
+    groups.join('') +
+    (truncated ? '<p class="stat-note">' + truncated + ' further trade' +
+      (truncated === 1 ? '' : 's') + ' not listed — this month is past the ' + MAX_ROWS +
+      ' the page will draw at once. Narrow it with the account filter.</p>' : '');
+}
+
+// A day square scrolls to its group rather than opening a panel, so the list
+// stays where the reader left it.
 $('grid').addEventListener('click', (e) => {
   const cell = e.target.closest('[data-day]');
   if (!cell) return;
 
-  const key = cell.dataset.day;
-  const rows = byDay.get(key) || [];
-  const t = dayTotals(rows);
+  const group = document.getElementById('day-' + cell.dataset.day);
+  if (!group) return;
 
-  $('day-detail').innerHTML =
-    '<h2>' + escapeHtml(new Date(key + 'T12:00:00').toLocaleDateString(undefined,
-      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</h2>' +
-    '<p class="stat-note">' + t.n + (t.n === 1 ? ' trade' : ' trades') + ', ' +
-      fmt(dayValue(t)) + ' on the day.</p>' +
-    '<div class="table-scroll"><table><thead><tr>' +
-      '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +
-    '</tr></thead><tbody>' +
-    rows.map((r) => {
-      const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts,
-                             fees: r.fees, netPnl: r.net_pnl });
-      const rm = toNumber(r.r_multiple);
-      return '<tr>' +
-        '<td>' + escapeHtml(new Date(r.opened_at)
-          .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
-        '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
-          escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
-          (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
-        '<td>' + escapeHtml(r.model || '—') +
-          (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
-          '</td>' +
-        '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
-        '<td>' + (Number.isFinite(rm)
-            ? '<span class="tag' + (rm > 0 ? ' bull' : rm < 0 ? ' bear' : '') + '">' +
-              (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R</span>'
-            : '<span class="tag">reported</span>') +
-          (v.dollars !== null ? '<br><span class="acct-muted">' + money(v.dollars) + '</span>' : '') +
-        '</td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table></div>';
-
-  $('day-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  for (const other of document.querySelectorAll('.day-group.is-target')) {
+    other.classList.remove('is-target');
+  }
+  group.classList.add('is-target');
+  group.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // --- controls --------------------------------------------------------------

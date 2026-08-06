@@ -151,6 +151,19 @@ function safeNext(value) {
   return /^[A-Za-z0-9._-]+\.html$/.test(clean) ? clean : 'members.html';
 }
 
+/**
+ * Where an emailed link should land: this page, on this deployment.
+ *
+ * Built from the current location so it is right on the live site, on a local
+ * file, and on any future host, without a setting to keep in step. login.html
+ * rather than the site root because this page already forwards an
+ * authenticated visitor, so someone arriving with a fresh token lands
+ * somewhere that acts on it.
+ */
+function confirmUrl() {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'login.html';
+}
+
 function showTab(which) {
   const signin = which === 'signin';
   formSignin.hidden = !signin;
@@ -196,7 +209,14 @@ formSignup.addEventListener('submit', async (e) => {
     email: document.getElementById('up-email').value.trim(),
     password: document.getElementById('up-password').value,
     options: {
-      data: { full_name: document.getElementById('up-name').value.trim() }
+      data: { full_name: document.getElementById('up-name').value.trim() },
+      // Derived from the page the signup actually happened on, rather than
+      // left to the dashboard Site URL. Without this the confirmation link is
+      // whatever that setting says, and a Site URL missing the repository path
+      // sends people to the root of github.io — which belongs to a user-site
+      // repo that does not exist, so GitHub serves its own 404 and nothing
+      // here can intercept it. That has blocked a real signup twice.
+      emailRedirectTo: confirmUrl()
     }
   });
 
@@ -241,7 +261,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: location.origin + location.pathname.replace(/login\.html$/, '') + 'login.html'
+    redirectTo: confirmUrl()
   });
 
   setStatus(

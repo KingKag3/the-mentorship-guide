@@ -332,3 +332,29 @@ edit, because hydration adds signed `src` attributes that the stored form does n
 
 A statement timeout is also now translated on the way out. The raw message reads like data loss and
 is the opposite: the transaction rolled back, so the row is exactly as it was.
+
+---
+
+## 2026-08-06 — The confirmation link is derived, not configured
+
+**Decided:** `signUp()` passes `emailRedirectTo`, built from the page the signup happened on.
+Password reset uses the same helper.
+
+**Instead of:** letting both fall back to the Supabase dashboard **Site URL**.
+
+**Why:** Site URL is a single setting, in a different system, that has to stay in step with where
+the site is deployed — and it has broken signup twice. When it lacks the repository path the
+confirmation link points at the root of `github.io`, which belongs to a user-site repo that does not
+exist. GitHub serves its own 404 there and nothing in this repository can intercept it. The email
+looks correct and is dead on arrival.
+
+Deriving it from `location` removes the setting from the path entirely: right on the live site,
+right on a local file, right on any future host, with nothing to keep in step.
+
+`confirmUrl()` strips the last path segment rather than matching `login.html` specifically. The
+previous reset-only version matched the filename, so from any other page it produced
+`index.htmllogin.html`. Latent, because reset only ran from login.html — and it would have become
+real the moment that changed.
+
+**Site URL still matters** as the fallback for anything that does not pass a redirect, so it should
+stay correct. It is no longer the only thing standing between a new member and a 404.

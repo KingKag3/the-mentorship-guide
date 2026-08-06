@@ -81,6 +81,11 @@ Last updated: 6 August 2026, fifth session.
 - **`scripts.html` ships indicators to members**, source held in the `scripts` table rather than as
   a file. `supabase/scripts.sql` has been run.
 - **Tools appear on every tool page** as a rail, and the members index flags new indicators.
+- **There is a second live branch, `ui-overhaul`.** Will Jedrzejczak is rebuilding the visual system
+  on it — `style.css`, `design.html`, page markup, plus `theme.js` and `contents.js`. It merges when
+  Kag3 decides, on no schedule. **Before touching `style.css` or `design.html` on `main`, read the
+  redesign section of `ROADMAP.md`**: presentation belongs to that branch, behaviour belongs here,
+  and a careless change on either side lands as a conflict in a three-thousand-line stylesheet.
 
 ---
 

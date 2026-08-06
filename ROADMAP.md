@@ -177,6 +177,60 @@ Without it, every member retypes the same eight numbers every evening, and most 
 
 ---
 
+## The redesign — a long-lived branch, not a phase
+
+`ui-overhaul` is where the visual system is being rebuilt: finance rather than terminal, a crimson
+mark, a theme toggle (`theme.js`) and a table of contents (`contents.js`). Will Jedrzejczak (`wjed`)
+works on it; it merges into `main` when Kag3 decides it is ready, not on any schedule.
+
+It is deliberately **not** numbered alongside the tools above. Those are features that ship once and
+are done. This one is continuous — the look will keep changing after the first merge, and giving it
+a phase number would imply a finish line that does not exist.
+
+### How the two sides stay out of each other's way
+
+**Will owns presentation. Kag3 owns behaviour.** In practice that means `style.css`, `design.html`,
+the markup inside pages, and the two new scripts belong to the branch. Anything under `supabase/`,
+the query and write paths in `app.js`, and new pages belong to `main`.
+
+Neither side is enforced by anything, so it holds only as long as both remember it. The cost of
+forgetting is a merge conflict in a three-thousand-line stylesheet, which is why it is written down.
+
+**Rebase the branch onto `main` regularly — weekly is plenty.** The branch was cut at `5b7076e` on
+5 August and by the next day `main` had gained the calendar, the importer, four migrations and a
+Pages workflow. None of those pages exist on the branch, so their links 404 when it is served, and
+every day the branch sits still is more stylesheet to reconcile later. Rebasing often turns one
+unmanageable merge into a series of small ones.
+
+**A new page on `main` arrives unstyled on the branch.** Whoever adds one should say so, so the
+branch can pick it up rather than discovering it at merge time.
+
+### Running it locally
+
+No build step, so it is a static server and a browser. A worktree keeps `main` checked out at the
+same time:
+
+```
+git worktree add ../the-mentorship-ui ui-overhaul
+cd ../the-mentorship-ui && python -m http.server 8765
+```
+
+Sign-in will not work against `127.0.0.1` — Supabase's redirect URLs point at the GitHub Pages
+address. The public pages, the sizer, the clock and the SMT checker all work; anything behind a
+login needs the deployed site.
+
+### Before merging
+
+- Rebase onto `main` first, so the conflicts are resolved in the branch rather than in a merge
+  commit nobody can read afterwards.
+- Check `design.html` renders every component, including the ones added on `main` since the branch
+  was cut. It is the visual regression check and it is the first place a broken token shows up.
+- Confirm no page lost its `#auth-root` div or its `requireRole` call. A gate that vanishes during a
+  restyle is invisible until somebody who should not be reading a lesson reads one — and the
+  database still refuses them, but the page will have promised otherwise.
+
+---
+
 ## Not doing
 
 - **Live charts.** TradingView is better at this than we will ever be, and the data licensing alone

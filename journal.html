@@ -190,12 +190,23 @@
         <input id="target" type="number" inputmode="decimal" step="0.25" min="0">
       </div>
       <div>
-        <label for="exit_price">Exit</label>
-        <input id="exit_price" type="number" inputmode="decimal" step="0.25" min="0">
+        <label for="fees">Fees <span class="opt">— commission, total</span></label>
+        <input id="fees" type="number" inputmode="decimal" step="0.01" min="0" placeholder="4.50">
       </div>
     </div>
 
-    <p class="field-note" id="derived">Points and R are worked out from entry, stop and exit.</p>
+    <label>How you got out</label>
+    <p class="checklist-intro">One row per fill. Two off at the first target and a runner to the
+    second is a different trade from four at one price, and it is the difference worth reviewing.
+    One row is fine if you exited all at once.</p>
+
+    <div id="exits"></div>
+    <p><button type="button" class="link-button" id="add-exit">+ add a fill</button></p>
+
+    <input id="exit_price" type="hidden">
+
+    <p class="field-note" id="derived">Points, ticks, dollars and R are all worked out from your
+    entry, stop and fills.</p>
 
     <label for="outcome">Outcome</label>
     <select id="outcome" class="role-select">
@@ -248,7 +259,7 @@
 import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
-  tradeValue, money, CONTRACTS } from './app.js';
+  tradeValue, money, CONTRACTS, weightedExit } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'journal.html');
@@ -315,49 +326,111 @@ document.querySelectorAll('.ck').forEach((box) => {
 
 syncChecklist();
 
+/* -------------------------------- fills -------------------------------- */
+
+function exitRow(values = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'exit-row';
+  wrap.innerHTML =
+    '<input class="x-size" type="number" inputmode="decimal" step="1" min="0" ' +
+      'placeholder="qty" value="' + (values.contracts ?? '') + '" aria-label="Contracts">' +
+    '<input class="x-price" type="number" inputmode="decimal" step="0.25" min="0" ' +
+      'placeholder="price" value="' + (values.price ?? '') + '" aria-label="Exit price">' +
+    '<input class="x-note" type="text" placeholder="first target / runner / stopped" ' +
+      'value="' + escapeHtml(values.note || '') + '" aria-label="Note">' +
+    '<button type="button" class="btn-danger x-del" aria-label="Remove this fill">remove</button>';
+  return wrap;
+}
+
+function addExitRow(values) {
+  $('exits').appendChild(exitRow(values));
+}
+
+function collectExits() {
+  return [...document.querySelectorAll('.exit-row')].map((row, i) => ({
+    contracts: parseFloat(row.querySelector('.x-size').value),
+    price: parseFloat(row.querySelector('.x-price').value),
+    note: row.querySelector('.x-note').value.trim() || null,
+    sort_order: i
+  })).filter((e) => Number.isFinite(e.contracts) && Number.isFinite(e.price) && e.contracts > 0);
+}
+
+$('add-exit').addEventListener('click', () => addExitRow());
+
+addExitRow();
+
+$('exits').addEventListener('click', (e) => {
+  if (!e.target.classList.contains('x-del')) return;
+  e.target.closest('.exit-row').remove();
+  derive();
+});
+
 function derive() {
   const dir = $('direction').value === 'short' ? -1 : 1;
   const entry = parseFloat($('entry').value);
   const stop = parseFloat($('stop').value);
-  const exit = parseFloat($('exit_price').value);
+  const typedSize = parseFloat($('contracts').value);
+
+  // Fills are the source of truth for how the position came off. The weighted
+  // average is exact, not a shortcut: summing each fill's own profit gives the
+  // same number as closing the whole position at this one price.
+  const exits = collectExits();
+  const w = weightedExit(exits);
+
+  const exitPrice = w ? w.price : null;
+  const size = w ? w.contracts : (Number.isFinite(typedSize) ? typedSize : null);
+
+  // Written back so the row keeps the shape the statistics page and the
+  // calendar already read.
+  $('exit_price').value = exitPrice === null ? '' : exitPrice;
 
   let points = null;
   let r = null;
 
-  if (Number.isFinite(entry) && Number.isFinite(exit)) {
-    points = (exit - entry) * dir;
+  if (Number.isFinite(entry) && exitPrice !== null) {
+    points = (exitPrice - entry) * dir;
   }
   if (points !== null && Number.isFinite(stop)) {
     const risk = Math.abs(entry - stop);
     if (risk > 0) r = points / risk;
   }
 
-  // Ticks and dollars follow from the contract, so they are shown rather than
-  // asked for. An unknown symbol still gets points and R — those need no spec.
-  const symbol = $('symbol').value;
-  const contracts = parseFloat($('contracts').value);
-  const v = tradeValue({ symbol, points, contracts });
+  const fees = parseFloat($('fees').value);
+  const v = tradeValue({ symbol: $('symbol').value, points, contracts: size, fees });
 
   if (points === null) {
-    $('derived').textContent =
-      'Points, ticks, dollars and R are all worked out from entry, stop and exit.';
-  } else {
-    const parts = [points.toFixed(2) + ' pts'];
-    if (v.ticks !== null) parts.push(Math.round(v.ticks) + ' ticks');
-    if (v.dollars !== null) parts.push(money(v.dollars));
-    if (r !== null) parts.push(r.toFixed(2) + 'R');
-
-    let line = parts.join('  ·  ');
-    if (!v.spec) {
-      line += '  —  ticks and dollars need a known symbol (' +
-        Object.keys(CONTRACTS).join(', ') + ')';
-    } else if (!Number.isFinite(contracts)) {
-      line += '  —  set contracts for the dollar figure';
-    }
-    $('derived').textContent = line;
+    $('derived').textContent = exits.length
+      ? 'Add an entry price and this fills in.'
+      : 'Add your entry, your stop and at least one fill.';
+    return { points, r, exits, size };
   }
 
-  return { points, r };
+  const parts = [points.toFixed(2) + ' pts'];
+  if (v.ticks !== null) parts.push(Math.round(v.ticks) + ' ticks');
+  if (v.dollars !== null) parts.push(money(v.dollars));
+  if (r !== null) parts.push(r.toFixed(2) + 'R');
+
+  let line = parts.join('  ·  ');
+
+  if (exits.length > 1) {
+    line += '  —  ' + exits.length + ' fills, average ' + exitPrice.toFixed(2);
+  }
+  if (v.gross !== null && v.fees) {
+    line += '  —  ' + money(v.gross) + ' gross, ' + money(v.fees) + ' in fees';
+  }
+  if (!v.spec) {
+    line += '  —  ticks and dollars need a known symbol (' +
+      Object.keys(CONTRACTS).join(', ') + ')';
+  }
+  // Said plainly rather than silently resolved: the result covers what came
+  // off, and a position still partly open is a different claim.
+  if (w && Number.isFinite(typedSize) && typedSize !== w.contracts) {
+    line += '  —  ' + typedSize + ' entered, ' + w.contracts +
+      ' closed; this covers the ' + w.contracts;
+  }
+
+  $('derived').textContent = line;
+  return { points, r, exits, size };
 }
 
 form.addEventListener('input', derive);
@@ -397,7 +470,11 @@ function readForm(derived, shotPath) {
     opened_at: new Date($('opened_at').value).toISOString(),
     symbol: $('symbol').value.trim() || 'NQ',
     direction: $('direction').value,
-    contracts: num('contracts'),
+    // The size the result covers. With fills that is what actually came off,
+    // so the dollar figure downstream describes the closed position rather
+    // than the one that was opened.
+    contracts: derived.size ?? num('contracts'),
+    fees: num('fees'),
     model: txt('model'),
     session_kz: txt('session_kz'),
     pd_array: txt('pd_array'),
@@ -446,15 +523,34 @@ form.addEventListener('submit', async (e) => {
     }
 
     const shotPath = await uploadShot();
-    const row = readForm(derive(), shotPath);
+    const derived = derive();
+    const row = readForm(derived, shotPath);
 
     setStatus('#status', 'Saving...');
 
-    const { error } = editingId
-      ? await supabase.from('trades').update(row).eq('id', editingId)
-      : await supabase.from('trades').insert(row);
+    let tradeId = editingId;
 
-    if (error) throw error;
+    if (editingId) {
+      const { error } = await supabase.from('trades').update(row).eq('id', editingId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase.from('trades').insert(row).select('id').single();
+      if (error) throw error;
+      tradeId = data.id;
+    }
+
+    // Replaced wholesale rather than diffed. The list is always short, and a
+    // diff would have to decide what an edited row means when the fill it
+    // described never happened.
+    const { error: delErr } = await supabase
+      .from('trade_exits').delete().eq('trade_id', tradeId);
+    if (delErr) throw delErr;
+
+    if (derived.exits.length) {
+      const { error: exErr } = await supabase.from('trade_exits')
+        .insert(derived.exits.map((x) => ({ ...x, trade_id: tradeId })));
+      if (exErr) throw exErr;
+    }
 
     setStatus('#status', editingId ? 'Trade updated.' : 'Trade saved.', 'ok');
     resetForm();
@@ -478,6 +574,8 @@ function resetForm() {
   $('opened_at').value = nowLocal();
   $('symbol').value = 'NQ';
   $('contracts').value = '1';
+  $('exits').innerHTML = '';
+  addExitRow();
   $('save-btn').textContent = 'Save trade';
   $('cancel-btn').hidden = true;
   $('form-heading').textContent = 'Log a trade';
@@ -614,6 +712,35 @@ $('list').addEventListener('click', async (e) => {
   }
 });
 
+/**
+ * Fill rows for a trade being edited.
+ *
+ * A trade logged before fills existed has none, so its single stored exit
+ * price becomes one row covering the whole position. Nothing is migrated in
+ * the database — the row is reconstructed on the way into the form, and
+ * written back as a real fill only if the member saves.
+ */
+async function loadExits(r) {
+  $('exits').innerHTML = '';
+
+  const { data, error } = await supabase
+    .from('trade_exits')
+    .select('contracts, price, note')
+    .eq('trade_id', r.id)
+    .order('sort_order', { ascending: true });
+
+  if (error || !data || !data.length) {
+    if (r.exit_price !== null && r.exit_price !== undefined) {
+      addExitRow({ contracts: r.contracts ?? 1, price: r.exit_price });
+    } else {
+      addExitRow();
+    }
+    return;
+  }
+
+  for (const x of data) addExitRow(x);
+}
+
 function fillForm(r) {
   editingId = r.id;
   $('trade-id').value = r.id;
@@ -642,6 +769,8 @@ function fillForm(r) {
   $('stop').value = r.stop ?? '';
   $('target').value = r.target ?? '';
   $('exit_price').value = r.exit_price ?? '';
+  $('fees').value = r.fees ?? '';
+  loadExits(r);
   $('outcome').value = r.outcome || '';
   $('management').value = r.management || '';
   $('notes').value = r.notes || '';

@@ -1489,6 +1489,26 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .field-inline .btn-now:hover { color: var(--accent); border-color: var(--accent-dk); }
 
+/* ---------- scale-outs ----------
+   Quantity, price, and what it was. Narrow first two columns because they hold
+   a handful of characters and a wide one invites a paragraph. */
+
+.exit-row {
+  display: grid;
+  grid-template-columns: 5.5em 7.5em 1fr auto;
+  gap: var(--s-2);
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+
+.exit-row input { margin: 0 !important; }
+.exit-row .x-del { padding: 6px 10px; font-size: 0.7rem; }
+
+@media (max-width: 560px) {
+  .exit-row { grid-template-columns: 4.5em 6.5em 1fr; }
+  .exit-row .x-del { grid-column: 3; justify-self: end; }
+}
+
 /* ---------- calendar ----------
    A month of trading days. Colour carries the sign and nothing else: the
    number is always present, because a colour alone is unreadable to anyone

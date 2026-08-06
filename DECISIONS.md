@@ -408,3 +408,39 @@ lost it and the day that gained it. Verified: the same timestamp gives 2026-08-0
 
 Green and red are counted **per day, not per trade**, because that is the question a calendar
 answers. Colour never carries meaning alone; every coloured square also shows its number.
+
+---
+
+## 2026-08-06 — A trade records how it came off, not just where
+
+**Decided:** exits are rows in `trade_exits` — quantity, price and a note per fill. Their weighted
+average is written back to `trades.exit_price`, and `contracts` becomes the size that actually
+closed.
+
+**Instead of:** a single exit price, which is what shipped.
+
+**Why:** two off at the first target and a runner to the second is a different trade from four at
+one price, and it is the difference most worth reviewing. A single price flattens that away and the
+journal can never show it again.
+
+The weighted average is exact, not a convenience:
+
+    sum((price_i - entry) * size_i) === (weightedAvg - entry) * sum(size_i)
+
+so `points`, `r_multiple`, the statistics page and the calendar all keep reading the columns they
+already read, with no aggregate query and no second version of the result. Verified both directions:
+a 2+1 scale-out on NQ gives $4,000 whether computed from the weighted average or by summing each
+fill.
+
+**Fees are typed, and they are the only thing that is.** Commission cannot be derived from the
+prices, which is precisely why it is an input rather than a violation of "derived, never typed".
+Gross and net are both shown when fees are present, so the difference is visible rather than folded
+away.
+
+**Ownership is inherited, not duplicated.** `trade_exits` has no `user_id`; every policy reaches
+through to the parent trade. A second copy of the owner could disagree with the first, and the one
+that mattered would be whichever the policy happened to check.
+
+**Old trades are not migrated.** A trade logged before fills existed has none, so the form
+reconstructs one row from its stored exit price when opened for editing. Nothing is rewritten in the
+database unless the member saves.

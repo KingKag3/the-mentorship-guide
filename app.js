@@ -404,17 +404,53 @@ export function contractFor(symbol) {
  * Returns nulls rather than zeros for anything unknown, so a display can tell
  * "no result" from "broke even".
  */
-export function tradeValue({ symbol, points, contracts }) {
+export function tradeValue({ symbol, points, contracts, fees }) {
   const spec = contractFor(symbol);
   const pts = Number(points);
   const size = Number(contracts);
+  const cost = Number(fees);
 
-  if (!Number.isFinite(pts)) return { points: null, ticks: null, dollars: null, spec };
+  if (!Number.isFinite(pts)) {
+    return { points: null, ticks: null, gross: null, dollars: null, fees: null, spec };
+  }
 
   const ticks = spec ? pts / spec.tick : null;
-  const dollars = spec && Number.isFinite(size) ? pts * spec.perPoint * size : null;
+  const gross = spec && Number.isFinite(size) ? pts * spec.perPoint * size : null;
 
-  return { points: pts, ticks, dollars, spec };
+  // Fees are the only part of the result the prices cannot produce, so they
+  // are the only part that gets typed — and the net is what the account
+  // actually saw.
+  const paid = Number.isFinite(cost) ? cost : 0;
+  const dollars = gross === null ? null : gross - paid;
+
+  return { points: pts, ticks, gross, dollars, fees: Number.isFinite(cost) ? cost : null, spec };
+}
+
+/**
+ * Weighted average exit across partials, and the size that came off.
+ *
+ * The weighted average is exact rather than a convenience: summing each
+ * partial's own profit gives the same figure as treating the whole position as
+ * closing at this one price, because
+ *
+ *     sum((price_i - entry) * size_i) === (weightedAvg - entry) * sum(size_i)
+ *
+ * which is what lets `points`, `r_multiple` and everything downstream stay on
+ * the columns they already read.
+ */
+export function weightedExit(exits) {
+  let size = 0;
+  let notional = 0;
+
+  for (const e of exits || []) {
+    const c = Number(e.contracts);
+    const p = Number(e.price);
+    if (!Number.isFinite(c) || !Number.isFinite(p) || c <= 0) continue;
+    size += c;
+    notional += c * p;
+  }
+
+  return size > 0 ? { price: notional / size, contracts: size } : null;
 }
 
 /** $1,234.50, with the sign kept because a loss reading as a gain is worse than ugly. */

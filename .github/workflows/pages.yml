@@ -21,11 +21,19 @@ permissions:
   pages: write
   id-token: write
 
-# Let a run in flight finish rather than cancelling it. A half-applied deploy
-# is worse than a slightly stale site.
+# Superseded runs are cancelled rather than queued. The first version of this
+# waited for the run in flight, on the reasoning that a half-applied deploy is
+# worse than a stale site. That was wrong in one specific way: a run that never
+# finishes then blocks every later one for good, which is exactly what happened
+# when a history rewrite orphaned the commit a queued run was waiting on. It
+# could not be cancelled — GitHub returned a 502 to both cancel and
+# force-cancel — and three pushes after it produced no run at all.
+#
+# The group is renamed as well as the policy changed, because the old group
+# still holds that unkillable run.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:

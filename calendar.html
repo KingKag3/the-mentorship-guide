@@ -63,6 +63,8 @@
       <input type="radio" name="metric" value="r">
       <span>R multiple</span>
     </label>
+    <select id="account-filter" class="role-select cal-account" hidden
+            aria-label="Filter by account"></select>
   </div>
 
   <div id="summary"></div>
@@ -81,7 +83,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         tradeValue, money, localDay } from './app.js';
+         tradeValue, money, localDay, hasResult, toNumber } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -102,7 +104,7 @@ cursor.setDate(1);
 
 const { data, error } = await supabase
   .from('trades')
-  .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz')
+  .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz, account, fees, net_pnl')
   .order('opened_at', { ascending: true })
   .limit(5000);
 
@@ -113,37 +115,71 @@ if (error) {
   throw error;
 }
 
-// Only closed trades. An open position has no result, and a day whose only
-// trade is still running is not a green day or a red one — it is unfinished.
-const closed = (data || []).filter(
-  (r) => r.r_multiple !== null && r.r_multiple !== undefined && Number.isFinite(Number(r.r_multiple))
-);
+// A trade counts once it has a result: an R multiple, or a dollar figure typed
+// straight from the account. Somebody reconciling a prop account at the end of
+// the day has the second and not the first, and their day is not "unfinished".
+const closed = (data || []).filter(hasResult);
+
+const accounts = [...new Set(closed.map((r) => r.account).filter(Boolean))].sort();
+let account = 'all';
+
+$('account-filter').innerHTML =
+  '<option value="all">All accounts</option>' +
+  accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>').join('');
+$('account-filter').hidden = accounts.length === 0;
+$('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
 
 // Grouped by the LOCAL day. A trade at 20:00 New York belongs to that day, and
 // grouping on the UTC date would file it under tomorrow.
-const byDay = new Map();
-for (const row of closed) {
-  const key = localDay(row.opened_at);
-  if (!key) continue;
-  if (!byDay.has(key)) byDay.set(key, []);
-  byDay.get(key).push(row);
+let byDay = new Map();
+
+function regroup() {
+  byDay = new Map();
+  for (const row of closed) {
+    if (account !== 'all' && (row.account || '') !== account) continue;
+    const key = localDay(row.opened_at);
+    if (!key) continue;
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(row);
+  }
+  render();
 }
 
 function dayTotals(rows) {
   let r = 0;
+  let rKnown = false;
   let dollars = 0;
   let dollarsKnown = false;
 
   for (const row of rows) {
-    r += Number(row.r_multiple);
-    const v = tradeValue({ symbol: row.symbol, points: row.points, contracts: row.contracts });
+    const rm = toNumber(row.r_multiple);
+    if (Number.isFinite(rm)) { r += rm; rKnown = true; }
+
+    const v = tradeValue({
+      symbol: row.symbol, points: row.points, contracts: row.contracts,
+      fees: row.fees, netPnl: row.net_pnl
+    });
     if (v.dollars !== null) { dollars += v.dollars; dollarsKnown = true; }
   }
-  return { n: rows.length, r, dollars, dollarsKnown };
+  return { n: rows.length, r, rKnown, dollars, dollarsKnown };
+}
+
+// Per-account split for the month, so two accounts on the same day stay
+// separable rather than only ever appearing as one number.
+function accountSplit(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = row.account || 'Unassigned';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  }
+  return [...map.entries()]
+    .map(([name, list]) => ({ name, t: dayTotals(list) }))
+    .sort((a, b) => (dayValue(b.t) ?? 0) - (dayValue(a.t) ?? 0));
 }
 
 function dayValue(t) {
-  if (metric === 'r') return t.r;
+  if (metric === 'r') return t.rKnown ? t.r : null;
   return t.dollarsKnown ? t.dollars : null;
 }
 
@@ -242,9 +278,34 @@ function renderSummary(rows) {
       card('Best day', fmt(bestWorst(days, Math.max)), 'largest single day') +
       card('Worst day', fmt(bestWorst(days, Math.min)), 'largest single loss') +
     '</div>' +
+    accountBreakdown(rows) +
     (t.dollarsKnown || metric === 'r' ? '' :
-      '<p class="stat-note">No dollar figures this month — none of these trades used a symbol ' +
-      'with a known contract spec. Switch to R, or use ES, MES, NQ or MNQ.</p>');
+      '<p class="stat-note">No dollar figures this month. Either record the result in dollars on ' +
+      'the trade, or use a symbol with a known contract spec — ES, MES, NQ or MNQ.</p>');
+}
+
+// Only worth drawing when there is more than one account to compare, and only
+// when the whole month is in view — filtered to one account it would restate
+// the total that is already on screen.
+function accountBreakdown(rows) {
+  if (account !== 'all') return '';
+  const split = accountSplit(rows);
+  if (split.length < 2) return '';
+
+  const scale = Math.max(...split.map((s) => Math.abs(dayValue(s.t) ?? 0)), 1);
+
+  return '<h2>By account</h2>' +
+    split.map((s) => {
+      const v = dayValue(s.t);
+      const pct = Math.abs(v ?? 0) / scale * 100;
+      return '<div class="bar-row">' +
+        '<span>' + escapeHtml(s.name) + '</span>' +
+        '<span class="bar-track"><span class="bar-fill' + ((v ?? 0) < 0 ? ' is-bad' : '') +
+          '" style="width:' + pct.toFixed(1) + '%"></span></span>' +
+        '<b>' + fmt(v) + '</b>' +
+      '</div>';
+    }).join('') +
+    '<p class="stat-note">' + split.length + ' accounts traded this month.</p>';
 }
 
 function bestWorst(days, pick) {
@@ -277,18 +338,23 @@ $('grid').addEventListener('click', (e) => {
       '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +
     '</tr></thead><tbody>' +
     rows.map((r) => {
-      const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts });
-      const rm = Number(r.r_multiple);
+      const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts,
+                             fees: r.fees, netPnl: r.net_pnl });
+      const rm = toNumber(r.r_multiple);
       return '<tr>' +
         '<td>' + escapeHtml(new Date(r.opened_at)
           .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
         '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
           escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
           (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
-        '<td>' + escapeHtml(r.model || '—') + '</td>' +
+        '<td>' + escapeHtml(r.model || '—') +
+          (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
+          '</td>' +
         '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
-        '<td><span class="tag' + (rm > 0 ? ' bull' : rm < 0 ? ' bear' : '') + '">' +
-          (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R</span>' +
+        '<td>' + (Number.isFinite(rm)
+            ? '<span class="tag' + (rm > 0 ? ' bull' : rm < 0 ? ' bear' : '') + '">' +
+              (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R</span>'
+            : '<span class="tag">reported</span>') +
           (v.dollars !== null ? '<br><span class="acct-muted">' + money(v.dollars) + '</span>' : '') +
         '</td>' +
       '</tr>';
@@ -323,7 +389,7 @@ for (const radio of document.querySelectorAll('input[name="metric"]')) {
   });
 }
 
-render();
+regroup();
 </script>
 
 </body>

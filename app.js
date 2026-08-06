@@ -404,26 +404,58 @@ export function contractFor(symbol) {
  * Returns nulls rather than zeros for anything unknown, so a display can tell
  * "no result" from "broke even".
  */
-export function tradeValue({ symbol, points, contracts, fees }) {
+/**
+ * Number() with the hole closed: null, undefined and '' all become NaN.
+ *
+ * `Number(null)` is 0, not NaN, which is the wrong answer everywhere a value
+ * is optional. It made a trade with no prices report a derived result of
+ * $0.00 and then flag a false disagreement against the figure its owner had
+ * actually typed, and it made "has a result" true for a row that had neither.
+ */
+export function toNumber(value) {
+  if (value === null || value === undefined || value === '') return NaN;
+  return Number(value);
+}
+
+/** True when a trade has a result at all: an R multiple, or a reported figure. */
+export function hasResult(row) {
+  return Number.isFinite(toNumber(row.r_multiple)) || Number.isFinite(toNumber(row.net_pnl));
+}
+
+export function tradeValue({ symbol, points, contracts, fees, netPnl }) {
   const spec = contractFor(symbol);
-  const pts = Number(points);
-  const size = Number(contracts);
-  const cost = Number(fees);
+  const pts = toNumber(points);
+  const size = toNumber(contracts);
+  const cost = toNumber(fees);
+  const reported = toNumber(netPnl);
+  const hasReported = Number.isFinite(reported);
 
-  if (!Number.isFinite(pts)) {
-    return { points: null, ticks: null, gross: null, dollars: null, fees: null, spec };
-  }
+  const ticks = Number.isFinite(pts) && spec ? pts / spec.tick : null;
+  const gross = Number.isFinite(pts) && spec && Number.isFinite(size)
+    ? pts * spec.perPoint * size
+    : null;
 
-  const ticks = spec ? pts / spec.tick : null;
-  const gross = spec && Number.isFinite(size) ? pts * spec.perPoint * size : null;
-
-  // Fees are the only part of the result the prices cannot produce, so they
-  // are the only part that gets typed — and the net is what the account
-  // actually saw.
+  // Fees are the only part of a derived result the prices cannot produce.
   const paid = Number.isFinite(cost) ? cost : 0;
-  const dollars = gross === null ? null : gross - paid;
+  const derived = gross === null ? null : gross - paid;
 
-  return { points: pts, ticks, gross, dollars, fees: Number.isFinite(cost) ? cost : null, spec };
+  // A reported figure wins, because it is what the account actually paid.
+  // Both are kept: a gap between them is slippage, an unrecorded partial, or a
+  // typo, and each of those is worth seeing rather than smoothing away.
+  const dollars = hasReported ? reported : derived;
+  const disagrees = hasReported && derived !== null && Math.abs(reported - derived) >= 0.01;
+
+  return {
+    points: Number.isFinite(pts) ? pts : null,
+    ticks,
+    gross,
+    derived,
+    dollars,
+    reported: hasReported ? reported : null,
+    disagrees,
+    fees: Number.isFinite(cost) ? cost : null,
+    spec
+  };
 }
 
 /**
@@ -443,8 +475,8 @@ export function weightedExit(exits) {
   let notional = 0;
 
   for (const e of exits || []) {
-    const c = Number(e.contracts);
-    const p = Number(e.price);
+    const c = toNumber(e.contracts);
+    const p = toNumber(e.price);
     if (!Number.isFinite(c) || !Number.isFinite(p) || c <= 0) continue;
     size += c;
     notional += c * p;

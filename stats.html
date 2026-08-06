@@ -202,6 +202,7 @@ function statCard(label, value, note) {
 
 function renderSlices(list) {
   const sections = [
+    ['By account', 'Which account is carrying you, and which is bleeding.', (r) => r.account],
     ['By model', 'Which of the things you were taught actually pays.', (r) => r.model],
     ['By session', 'When you trade well, and when you are just present.', (r) => r.session_kz],
     ['By what you entered from', 'Fair value gap, order block, breaker.', (r) => r.pd_array],

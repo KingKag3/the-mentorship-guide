@@ -101,6 +101,10 @@
       </div>
     </div>
 
+    <label for="account">Account <span class="opt">— which one this was taken in</span></label>
+    <input id="account" type="text" list="dl-account" placeholder="Apex 50k eval">
+    <datalist id="dl-account"></datalist>
+
     <div class="field-pair">
       <div>
         <label for="direction">Direction</label>
@@ -194,6 +198,14 @@
         <input id="fees" type="number" inputmode="decimal" step="0.01" min="0" placeholder="4.50">
       </div>
     </div>
+
+    <label for="net_pnl">Result in dollars
+      <span class="opt">— optional, as your account reports it</span></label>
+    <input id="net_pnl" type="number" inputmode="decimal" step="0.01"
+           placeholder="450.00 or -220.00">
+    <p class="field-note">Leave this empty and it is worked out from your prices. Fill it in and it
+    wins — a negative number is a loss. Type both and the journal will tell you when they disagree,
+    which is usually slippage, a fill you did not record, or a typo.</p>
 
     <label>How you got out</label>
     <p class="checklist-intro">One row per fill. Two off at the first target and a runner to the
@@ -396,18 +408,24 @@ function derive() {
   }
 
   const fees = parseFloat($('fees').value);
-  const v = tradeValue({ symbol: $('symbol').value, points, contracts: size, fees });
+  const netPnl = parseFloat($('net_pnl').value);
+  const v = tradeValue({ symbol: $('symbol').value, points, contracts: size, fees, netPnl });
 
+  // A typed result stands on its own. Somebody reconciling a prop account at
+  // the end of the day has a dollar figure and no interest in re-entering four
+  // fill prices to make the journal accept it.
   if (points === null) {
-    $('derived').textContent = exits.length
-      ? 'Add an entry price and this fills in.'
-      : 'Add your entry, your stop and at least one fill.';
+    $('derived').textContent = v.reported !== null
+      ? money(v.reported) + '  —  taken as reported. Add an entry and stop for R.'
+      : exits.length
+        ? 'Add an entry price and this fills in.'
+        : 'Add your entry and stop and at least one fill, or just type the dollar result.';
     return { points, r, exits, size };
   }
 
   const parts = [points.toFixed(2) + ' pts'];
   if (v.ticks !== null) parts.push(Math.round(v.ticks) + ' ticks');
-  if (v.dollars !== null) parts.push(money(v.dollars));
+  if (v.dollars !== null) parts.push(money(v.dollars) + (v.reported !== null ? ' reported' : ''));
   if (r !== null) parts.push(r.toFixed(2) + 'R');
 
   let line = parts.join('  ·  ');
@@ -417,6 +435,10 @@ function derive() {
   }
   if (v.gross !== null && v.fees) {
     line += '  —  ' + money(v.gross) + ' gross, ' + money(v.fees) + ' in fees';
+  }
+  if (v.disagrees) {
+    line += '  —  prices say ' + money(v.derived) + ', you reported ' + money(v.reported) +
+      '; the reported figure is the one kept';
   }
   if (!v.spec) {
     line += '  —  ticks and dollars need a known symbol (' +
@@ -439,6 +461,7 @@ form.addEventListener('change', derive);
 // --- save ------------------------------------------------------------------
 
 let editingId = null;
+let lastAccount = '';
 
 async function uploadShot() {
   const file = $('shot').files[0];
@@ -475,6 +498,8 @@ function readForm(derived, shotPath) {
     // than the one that was opened.
     contracts: derived.size ?? num('contracts'),
     fees: num('fees'),
+    account: txt('account'),
+    net_pnl: num('net_pnl'),
     model: txt('model'),
     session_kz: txt('session_kz'),
     pd_array: txt('pd_array'),
@@ -552,6 +577,7 @@ form.addEventListener('submit', async (e) => {
       if (exErr) throw exErr;
     }
 
+    lastAccount = row.account || '';
     setStatus('#status', editingId ? 'Trade updated.' : 'Trade saved.', 'ok');
     resetForm();
     await load();
@@ -576,6 +602,8 @@ function resetForm() {
   $('contracts').value = '1';
   $('exits').innerHTML = '';
   addExitRow();
+  // The account persists: the next trade is almost always in the same one.
+  $('account').value = lastAccount;
   $('save-btn').textContent = 'Save trade';
   $('cancel-btn').hidden = true;
   $('form-heading').textContent = 'Log a trade';
@@ -611,6 +639,14 @@ async function load() {
   }
 
   rows = data || [];
+
+  // Offered back as suggestions so the second trade in an account is a pick
+  // rather than a retype. Free text that drifts into "Apex 50k" and "apex 50K"
+  // would split a total in half without ever looking wrong.
+  const names = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
+  $('dl-account').innerHTML = names
+    .map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
+
   $('count-note').textContent = rows.length
     ? rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
       (rows.length < 50
@@ -646,8 +682,17 @@ function tone(r) {
 // for. A row from an unknown instrument still shows its points and R rather
 // than going blank.
 function resultDetail(r) {
-  if (r.points === null || r.points === undefined) return '';
-  const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts });
+  const v = tradeValue({
+    symbol: r.symbol, points: r.points, contracts: r.contracts,
+    fees: r.fees, netPnl: r.net_pnl
+  });
+
+  // A trade logged as a dollar figure alone still has a result worth showing.
+  if (r.points === null || r.points === undefined) {
+    return v.dollars === null ? '' :
+      '<br><span class="' + (v.dollars >= 0 ? 'field-note-ok' : 'field-note-bad') + '">' +
+      money(v.dollars) + '</span>';
+  }
 
   const bits = [Number(r.points).toFixed(2) + ' pts'];
   if (v.ticks !== null) bits.push(Math.round(v.ticks) + ' tk');
@@ -656,6 +701,10 @@ function resultDetail(r) {
   if (v.dollars !== null) {
     out += '<br><span class="' + (v.dollars >= 0 ? 'field-note-ok' : 'field-note-bad') + '">' +
       money(v.dollars) + '</span>';
+    if (v.disagrees) {
+      out += '<br><span class="field-note-bad" title="Prices say ' + money(v.derived) +
+        '">differs from prices</span>';
+    }
   }
   return out;
 }
@@ -676,6 +725,7 @@ function renderRow(r, shotUrl) {
       escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
       (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') +
       (r.shared_with_mentor ? ' <span class="tag time">shared</span>' : '') +
+      (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
       '</td>' +
     '<td>' + escapeHtml(r.model || '—') +
       (r.checklist_done ? '' : '<br><span class="field-note-bad">no checklist</span>') + '</td>' +
@@ -770,6 +820,8 @@ function fillForm(r) {
   $('target').value = r.target ?? '';
   $('exit_price').value = r.exit_price ?? '';
   $('fees').value = r.fees ?? '';
+  $('account').value = r.account || '';
+  $('net_pnl').value = r.net_pnl ?? '';
   loadExits(r);
   $('outcome').value = r.outcome || '';
   $('management').value = r.management || '';

@@ -444,3 +444,50 @@ that mattered would be whichever the policy happened to check.
 **Old trades are not migrated.** A trade logged before fills existed has none, so the form
 reconstructs one row from its stored exit price when opened for editing. Nothing is rewritten in the
 database unless the member saves.
+
+---
+
+## 2026-08-06 — A reported dollar figure beats the derived one
+
+**Decided:** `trades.net_pnl` holds the result as the account reports it. When present it wins;
+both are kept, and the journal says so when they disagree.
+
+**Instead of:** deriving dollars from prices only, or replacing the derived figure entirely.
+
+**Why:** the derived number is a model of the trade; the account statement is what happened. They
+part company over slippage, an unrecorded partial, or a typo — and every one of those is worth
+seeing rather than smoothing away. Someone reconciling a prop account at the end of the day has a
+dollar figure and no interest in re-entering four fill prices to make the journal accept it, so a
+typed result now stands on its own with no prices at all.
+
+This does not reopen "derived, never typed". That rule exists so a stored number cannot contradict
+the prices it came from. Here the two are different claims about different things, and the
+disagreement is the feature.
+
+---
+
+## 2026-08-06 — Trades carry an account
+
+**Decided:** `trades.account`, free text with suggestions built from what has already been used.
+The calendar filters by it and breaks the month down per account; the statistics page slices by it.
+
+**Instead of:** an accounts table with sizes, firms and rules.
+
+**Why:** the question being asked is "how did each account do", which needs a label and nothing
+else. Free text matches how `model` and `session_kz` already work, and the datalist is what keeps
+"Apex 50k" from drifting into "apex 50K" and quietly splitting a total in half. The account also
+persists between saves, because the next trade is almost always in the same one.
+
+---
+
+## 2026-08-06 — Number(null) is 0, and that is a bug factory
+
+**Decided:** `toNumber()` returns NaN for null, undefined and empty string. Everything optional goes
+through it, and `hasResult()` is the single predicate for "this trade has a result".
+
+**Why:** found by testing, not by reading. `Number(null) === 0`, so a trade with no prices reported a
+derived result of **$0.00** and then flagged a false disagreement against the figure its owner had
+actually typed — and the calendar counted a row with neither an R multiple nor a reported figure as
+a valid result. Both would have shown plausible wrong numbers rather than failing.
+
+A genuine zero still counts: a scratch is a result, not a missing one.

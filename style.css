@@ -1751,3 +1751,5 @@ a.tool-chip:hover {
   a { color: #000; }
   .lesson, .phase, .callout { border-color: #ccc; box-shadow: none; }
 }
+
+.cal-account { width: auto !important; min-width: 12em; margin: 0 !important; }

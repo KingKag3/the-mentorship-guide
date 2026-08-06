@@ -94,6 +94,49 @@
     forward, on a simulator, before it touches money.</p>
   </div>
 
+  <h2>Indicators and strategies</h2>
+
+  <p>Two different things wear the same badge on TradingView, and the difference matters more than
+  the name suggests.</p>
+
+  <p>An <strong>indicator</strong> draws. It marks sessions, levels and setups on your chart and
+  leaves every decision to you. Everything on this page is an indicator unless it says otherwise.</p>
+
+  <p>A <strong>strategy</strong> decides. It takes the same logic and adds simulated entries and
+  exits, so TradingView can run it across all the history your plan gives you and report what it
+  would have done. Add one and a <strong>Strategy Tester</strong> panel opens along the bottom of the
+  screen with net profit, win rate, profit factor and a list of every trade it took.</p>
+
+  <p>A strategy exists to answer questions, not to trade. Ours carries the same rules as the day
+  model, with the drawing stripped out: you change one input, re-read the tester, and find out
+  whether that input was doing anything. It is how a guess becomes a measurement.</p>
+
+  <div class="callout warn">
+    <span class="callout-label">Read the tester sceptically</span>
+    <p><strong>Same-bar ambiguity.</strong> When one five-minute bar covers both your stop and your
+    target, nothing in the data says which came first. Our strategy treats those as losses on
+    purpose. Turn on the <strong>bar magnifier</strong> in Properties if your plan has it — it is the
+    only thing that replaces the guess with intrabar data.</p>
+    <p><strong>Fixed size, not compounding.</strong> One contract, always. Percent-of-equity sizing
+    makes one good early run inflate everything after it, and a curve that looks exponential is
+    usually just that.</p>
+    <p><strong>Commission is on.</strong> Two dollars per contract per side. Switch it off and a
+    model that scalps for two points starts looking profitable when it is not.</p>
+    <p><strong>Sample size.</strong> Five-minute history is capped by your plan — often a few months
+    and perhaps sixty to a hundred trades. That is enough to reject something badly broken. It is
+    nowhere near enough to trust a small edge, and the tester will print three decimal places
+    regardless of how little it knows.</p>
+  </div>
+
+  <div class="callout risk">
+    <span class="callout-label">A backtest is not a promise</span>
+    <p>It is a record of what these rules would have done on data that has already happened, on one
+    instrument, over one stretch of market. It cannot know about slippage, a fill you would not have
+    got, the news you would have traded through, or the morning you overslept.</p>
+    <p>Use it to throw ideas away. It is very good at that, and much worse at telling you which one
+    to keep.</p>
+  </div>
+
   <h2 id="list-heading">Available scripts</h2>
   <div id="scripts"></div>
 

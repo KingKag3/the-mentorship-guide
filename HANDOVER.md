@@ -44,6 +44,13 @@ pages, same copy, same arguments, same diagram geometry. What changed is the pre
 - `h2::before { content: "## " }` removed — it printed a literal `## ` before every heading.
 - 161 hardcoded hex values in the SVG diagrams converted to themed classes.
 - `index.html` opens with a hero and now links the tools; every page has a real footer.
+- **Layout rebuilt.** `<main>` no longer inherits the prose measure, so a 1600px screen no longer
+  showed a 621px column beside 665px of nothing. Prose is capped element by element; figures,
+  tables and grids take the full column. The five long-form pages carry a generated section rail
+  (`contents.js`), the landing and glossary pages run full width, and sign-in is a two-column
+  layout. Pages now use 87-95% of a 1440px viewport, up from 39%.
+- A utility strip above the masthead carrying the standing disclaimer, breadcrumbs on the
+  long-form pages, and continuation links as panels rather than as two stray words.
 
 ### What was actually verified
 
@@ -51,8 +58,12 @@ Measured in a browser against the running site, not asserted:
 
 - Every page loads with no console errors, and all 18 pass a structural check (masthead, footer,
   theme bootstrap, balanced tags, no leftover hex attributes).
-- Contrast was computed for 19 foreground/background pairs in **both** themes. Everything clears
-  WCAG AA; most clear AAA. Nothing measured below 4.5:1.
+- Contrast was computed for 30 foreground/background pairs in **both** themes. Everything clears
+  WCAG AA; most clear AAA. Three failures were found and fixed this way, including a utility bar
+  that rendered white-on-white in the dark theme at 1.08:1 because it borrowed `--ink-900`, a
+  token that inverts.
+- No horizontal overflow at 390, 768 or 1440px across twelve pages, checked in sized iframes so the
+  media queries actually applied.
 - The theme toggle, the token cascade and `--on-brand` were checked under forced light and forced
   dark.
 

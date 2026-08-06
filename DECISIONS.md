@@ -325,6 +325,46 @@ where a reader expects to find it.
 
 ---
 
+## 2026-08-06 — The reading measure caps prose, not the page
+
+**Decided:** `<main>` takes the full width. Running text is capped at `--measure` element by
+element; figures, tables and card grids are not. Long-form pages put a section rail in the space
+that opens up.
+
+**Instead of:** `main { max-width: var(--measure) }`, which is what shipped.
+
+**Why:** measured on a 1600px screen, the index rendered a **621px column of content with 665px of
+empty space beside it**, inside a wrapper whose own footer spanned 1076px. It read as a phone
+layout that had been stretched, because functionally that is what it was. A reading measure is the
+right rule for a paragraph and the wrong rule for a page; the mistake was letting one decide the
+other.
+
+The rail is not decoration — it is what makes the extra width *useful* rather than merely occupied.
+It is generated from the page's own `h2` elements by `contents.js`, because a hand-written table of
+contents goes stale the first time somebody adds a section, and a stale one is worse than none.
+Below three sections it removes itself and gives the column back.
+
+**Measured after:** every page uses 87–95% of a 1440px viewport, versus 39% before. No horizontal
+overflow at 390, 768 or 1440 across twelve pages.
+
+---
+
+## 2026-08-06 — A token that inverts must never be used for a fixed surface
+
+**Observed, then fixed.** The utility strip was given `background: var(--ink-900)`. In the light
+theme that is near-black and the white text on it was fine. In the dark theme `--ink-900` is
+near-*white*, so the bar turned white and its white text vanished — 1.08:1, invisible.
+
+**Fixed** with `--bar-bg` / `--bar-fg` / `--bar-fg-strong`, which are declared once and deliberately
+not overridden per theme, because the strip is meant to be a dark bar in both.
+
+**Worth generalising:** the ink and surface scales are *semantic* — they mean "furthest from the
+page" and "the page" — so they flip. Any element that must stay one colour regardless of theme
+needs its own token, not a borrowed one that happens to look right in whichever theme was open at
+the time. The contrast sweep caught this; reading the CSS did not.
+
+---
+
 ## 2026-08-06 — Interface text is sentence case
 
 **Decided:** "Sign in", "Sign out", "Admin", "Next: Liquidity". Not lowercase.

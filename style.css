@@ -62,6 +62,13 @@
   --brand-solid-hover: #a71f26;
   --on-brand: #ffffff;
 
+  /* The utility strip is a dark bar in both themes, the way it is on every
+     brokerage site. Deliberately NOT --ink-900: that token inverts with the
+     theme, which would put white text on a near-white bar in dark mode. */
+  --bar-bg: #14181f;
+  --bar-fg: #9aa1ab;
+  --bar-fg-strong: #ffffff;
+
   /* ---- market semantics. Direction only, never decoration -----
      Bearish red is the brand crimson on purpose: on a trading site
      red already means down, and inventing a second red would make
@@ -107,11 +114,16 @@
   --s-7: 84px;
   --s-8: 120px;
 
-  /* ---- measure and width -------------------------------------- */
-  --measure: 72ch;
+  /* ---- measure and width --------------------------------------
+     --measure caps running prose only. It is not the width of the
+     page: figures, tables and card grids take the full column, which
+     is what stops a wide screen from showing a phone-width strip of
+     text with dead space beside it. */
+  --measure: 68ch;
   --measure-wide: 100%;
-  --wrap: 1120px;
-  --wrap-wide: 1320px;
+  --wrap: 1320px;
+  --wrap-wide: 1480px;
+  --rail: 250px;        /* the on-this-page sidebar */
 
   /* ---- shape ---------------------------------------------------
      Small radii and hairlines. Institutional finance sites separate
@@ -310,13 +322,138 @@ table, .readout, .tag, .kbd-time, code, pre,
 .wrap {
   max-width: var(--wrap);
   margin: 0 auto;
-  padding: 0 var(--s-4) var(--s-7);
+  padding: 0 var(--s-5) var(--s-7);
 }
 
 .wrap--wide { max-width: var(--wrap-wide); }
 .wrap--wide main { max-width: var(--measure-wide); }
 
 main { max-width: var(--measure); }
+
+/* ---------------------------------------------------------------
+   Article layout — text column plus a working sidebar
+
+   The previous layout capped <main> at the prose measure and left
+   everything to the right of it empty, which on a 1600px screen was a
+   658px column of text and 440px of nothing. Reading measure is still
+   right for prose; the mistake was letting it decide the width of the
+   page.
+
+   Here the article column takes the full remaining width, prose
+   inside it is capped, and figures, tables and grids are free to use
+   all of it. The rail carries the section navigation, so the width is
+   occupied by something useful rather than by margin.
+   --------------------------------------------------------------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail);
+  gap: var(--s-6) var(--s-7);
+  align-items: start;
+}
+
+.layout > main { max-width: none; }
+
+/* Running text keeps the measure; everything else does not. */
+.layout > main > p,
+.layout > main > ul,
+.layout > main > ol,
+.layout > main > h1,
+.layout > main > h2,
+.layout > main > h3,
+.layout > main > h4,
+.layout > main > .lede,
+.layout > main > .callout,
+.layout > main > blockquote {
+  max-width: var(--measure);
+}
+
+/* Figures and data are the reason for the extra width. */
+.layout > main > .figure,
+.layout > main > .table-scroll,
+.layout > main > .card-grid,
+.layout > main > .steps { max-width: none; }
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .page-nav { display: none; }
+}
+
+/* ---- the on-this-page rail ---- */
+
+.page-nav {
+  position: sticky;
+  top: 88px;
+  font-family: var(--sans);
+  font-size: 0.84rem;
+  border-left: 1px solid var(--line);
+  padding-left: var(--s-4);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.page-nav h2 {
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  border: none;
+}
+
+.page-nav ol { list-style: none; margin: 0; padding: 0; counter-reset: sec; }
+
+.page-nav li {
+  margin: 0;
+  counter-increment: sec;
+}
+
+.page-nav a {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: var(--s-2);
+  padding: 6px 0;
+  color: var(--ink-600);
+  text-decoration: none;
+  line-height: 1.4;
+  border-left: 2px solid transparent;
+  margin-left: calc(var(--s-4) * -1 - 1px);
+  padding-left: var(--s-4);
+  transition: color var(--fast), border-color var(--fast);
+}
+
+.page-nav a::before {
+  content: counter(sec, decimal-leading-zero);
+  font-size: 0.72rem;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink-500);
+}
+
+.page-nav a:hover { color: var(--ink-900); }
+.page-nav a:hover::before { color: var(--brand-500); }
+
+.page-nav a.is-current {
+  color: var(--brand-500);
+  font-weight: 600;
+  border-left-color: var(--brand-solid);
+}
+
+.page-nav a.is-current::before { color: var(--brand-500); }
+
+.page-nav .nav-top {
+  display: block;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-lo);
+  font-size: 0.8rem;
+  color: var(--ink-500);
+  text-decoration: none;
+}
+
+.page-nav .nav-top:hover { color: var(--brand-500); }
 
 /* Full-bleed band that escapes the wrap. Used by the hero and by any
    section that should read as a different surface. */
@@ -334,6 +471,50 @@ main { max-width: var(--measure); }
 /* ---------------------------------------------------------------
    Masthead and navigation
    --------------------------------------------------------------- */
+
+/* A thin strip above the masthead. Every retail brokerage has one, and
+   it is the natural home for the standing disclaimer — which is both
+   honest and the single cheapest signal that a site knows what
+   category it is in. */
+.utility-bar {
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+}
+
+.utility-inner {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 7px var(--s-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.masthead--wide + .utility-bar .utility-inner,
+.utility-bar--wide .utility-inner { max-width: var(--wrap-wide); }
+
+.utility-bar strong { color: var(--bar-fg-strong); font-weight: 600; }
+.utility-bar a { color: var(--bar-fg); text-decoration: none; }
+.utility-bar a:hover { color: var(--bar-fg-strong); text-decoration: underline; }
+
+.utility-note { display: flex; align-items: center; gap: var(--s-2); }
+
+.utility-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-solid);
+  flex: none;
+}
+
+@media (max-width: 760px) {
+  .utility-links { display: none; }
+  .utility-inner { justify-content: center; }
+}
 
 .masthead {
   background: color-mix(in srgb, var(--paper) 88%, transparent);
@@ -514,6 +695,8 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--ink-900);
   text-wrap: balance;
   font-variant-numeric: lining-nums;
+  /* Clears the sticky masthead when a rail link jumps to a section. */
+  scroll-margin-top: 96px;
 }
 
 h1 {
@@ -631,6 +814,42 @@ blockquote {
    Hero â€” the index page opener
    --------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------
+   Landing page
+
+   A landing page has no single column of running text to protect, so
+   capping <main> at the reading measure just strands two thirds of a
+   desktop screen. Here the page is full width and the prose inside it
+   is capped instead — the same rule the article layout uses, applied
+   without a rail.
+   --------------------------------------------------------------- */
+
+main.landing { max-width: none; }
+
+main.landing > p,
+main.landing > h2,
+main.landing > h3,
+main.landing > h4,
+main.landing > ol,
+main.landing > ul,
+main.landing > blockquote,
+main.landing > .callout,
+main.landing > .stat-note { max-width: var(--measure); }
+
+main.landing > .card-grid,
+main.landing > .figure,
+main.landing > .table-scroll { max-width: none; }
+
+/* Six study cards read best as two rows of three. */
+main.landing .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 1000px) {
+  main.landing .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  main.landing .card-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* No gradient wash, no glow. The opener is set with a rule, a label and
    whitespace — the way a research note opens — because a coloured
    gradient behind a headline is the house style of a product launch,
@@ -639,6 +858,19 @@ blockquote {
   padding: var(--s-6) 0 var(--s-6);
   border-bottom: 1px solid var(--line);
   margin-bottom: var(--s-6);
+}
+
+/* Headline against the standfirst, the way a broadsheet opens a
+   feature. Only at a width where both columns can breathe. */
+@media (min-width: 1040px) {
+  .hero-head {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: var(--s-7);
+    align-items: end;
+  }
+  .hero-head .lede { margin-bottom: 0; }
+  .hero h1 { margin-bottom: 0; }
 }
 
 .hero .eyebrow {
@@ -650,13 +882,13 @@ blockquote {
 
 .hero h1 {
   font-size: var(--step-4);
-  line-height: 1.06;
-  letter-spacing: -0.028em;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
   margin: 0 0 var(--s-4);
-  max-width: 17ch;
+  max-width: 15ch;
 }
 
-.hero .lede { font-size: var(--step-1); max-width: 56ch; }
+.hero .lede { font-size: var(--step-1); max-width: 52ch; }
 
 .hero-actions {
   display: flex;
@@ -1155,15 +1387,23 @@ td.num, th.num { text-align: right; font-family: var(--mono); }
   margin: 0 0 var(--s-4);
 }
 
-.glossary { list-style: none; padding: 0; margin: 0; }
+/* Ninety-odd short entries in one narrow column is a very long scroll for
+   no reason. A grid puts three or four screens' worth in one. */
+.glossary {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 0 var(--s-6);
+  align-items: start;
+}
 
 .glossary li {
   border-bottom: 1px solid var(--line-lo);
   padding: var(--s-3) 0;
   margin: 0;
 }
-
-.glossary li:last-child { border-bottom: none; }
 
 .glossary .term {
   font-family: var(--sans);
@@ -1270,21 +1510,68 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
    Pager
    --------------------------------------------------------------- */
 
+/* Continuation links as panels rather than as two stray words. On a
+   sequential curriculum the next step is the most likely action on the
+   page, so it should look like one. */
 .pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--s-3);
   margin-top: var(--s-6);
-  padding-top: var(--s-4);
+  padding-top: var(--s-5);
   border-top: 1px solid var(--line);
   font-family: var(--sans);
-  font-size: 0.9rem;
-  font-weight: 500;
 }
 
-.pager a { text-decoration: none; }
-.pager a:hover { text-decoration: underline; }
+.pager > a,
+.pager > span {
+  display: block;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-900);
+  background: var(--paper);
+  transition: border-color var(--fast), background-color var(--fast);
+}
+
+.pager > a:last-child { text-align: right; }
+.pager > span { border: none; background: none; }
+
+.pager > a:hover {
+  border-color: var(--ink-400);
+  background: var(--inset);
+  text-decoration: none;
+  color: var(--brand-500);
+}
+
+@media (max-width: 620px) {
+  .pager { grid-template-columns: 1fr; }
+  .pager > a:last-child { text-align: left; }
+  .pager > span { display: none; }
+}
+
+/* ---------------------------------------------------------------
+   Breadcrumb
+   --------------------------------------------------------------- */
+
+.breadcrumb {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin: var(--s-5) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.breadcrumb a { color: var(--ink-500); text-decoration: none; }
+.breadcrumb a:hover { color: var(--brand-500); text-decoration: underline; }
+.breadcrumb span[aria-current] { color: var(--ink-700); font-weight: 500; }
+.breadcrumb .sep { color: var(--ink-400); }
 
 /* ---------------------------------------------------------------
    Account strip
@@ -1342,14 +1629,45 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
    Forms
    --------------------------------------------------------------- */
 
+/* Sign-in page: the form beside what it is for. A lone 460px card in a
+   1320px page reads as a broken layout rather than as a focused one. */
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 460px) minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+  margin-top: var(--s-5);
+}
+
+@media (max-width: 900px) {
+  .auth-layout { grid-template-columns: minmax(0, 1fr); gap: var(--s-5); }
+}
+
+.auth-side { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+.auth-side h2 { margin-top: 0; font-size: var(--step-1); }
+.auth-side ul { list-style: none; padding: 0; }
+
+.auth-side li {
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line-lo);
+  font-size: var(--step--1);
+  color: var(--ink-600);
+}
+
+.auth-side li:last-child { border-bottom: none; }
+.auth-side li strong { display: block; color: var(--ink-900); margin-bottom: 2px; }
+
+@media (max-width: 900px) {
+  .auth-side { border-left: none; border-top: 1px solid var(--line); padding-left: 0; padding-top: var(--s-4); }
+}
+
 .auth-card {
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: var(--paper);
   max-width: 460px;
-  margin: var(--s-5) 0;
+  margin: 0;
   overflow: hidden;
-  box-shadow: var(--shadow-2);
 }
 
 .auth-tabs { display: flex; border-bottom: 1px solid var(--line); }

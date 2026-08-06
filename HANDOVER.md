@@ -3,9 +3,30 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 5 August 2026, third session.
+Last updated: 6 August 2026, fourth session.
 
-## Since the last update
+## Since the last update — fourth session
+
+- **`admin.html` is tabbed**: Accounts, Invites, Indicators, Phases, Entries. One page, one auth
+  check, one load — the tabs only decide what is visible, so nothing refetches on a switch and a
+  half-filled form survives moving away and back. A hash deep-links a tab and beats the remembered
+  one.
+- **The indicators page can carry an install walkthrough video**, set from the admin page rather
+  than hardcoded. New `settings` key/value table; `supabase/settings.sql` **has been run and
+  verified** — the table resolves, an anonymous read returns `[]` rather than an error, and an
+  anonymous write is refused with 401.
+- **The admin indicators table shows an Added column**, created date and time plus the updated date
+  when it differs. `updated_at` is the field the members' "new" badge compares against, so
+  re-pasting a source re-flags it as new for everybody — there is currently no way to fix a typo
+  without re-notifying.
+- **Slugs are normalised on save.** `TK - HTF Candles` and `TK-HTF` were two rows because the unique
+  constraint saw two different strings. Existing rows keep their slugs until re-saved.
+- **`tools/lint-pine.py` in the pine repo** checks the traps that have actually bitten: CE10156
+  dangling continuations, CE10123, missing version line, duplicate declarations, non-ASCII in
+  runtime strings, nested declarations, bracket balance, security-call count. All four scripts pass.
+  That is not a compile.
+
+## Since the last update — third session
 
 - **The site is Trade Karma now.** Masthead, titles, footers, docs. "Smart Money" survives in 18
   places as the name of the *subject*, which is deliberate — the glossary and the credit line depend
@@ -183,6 +204,19 @@ For a short session on a machine already set up, this is enough:
 `trade-karma-pd-arrays.pine`. Both carry unverified subsystems, and the pine work is where this
 session left off. Paste over the whole editor buffer — pasting *into* it leaves the old
 declaration and produces "your script has 2".
+
+Three things to expect on `trade-karma-htf.pine` specifically, none of them errors:
+
+- The panel draws roughly **100 bars to the right of the last candle** at default settings. If the
+  chart is not scrolled or zoomed to show empty space after price, it looks like nothing rendered.
+- It makes **30 `request.security` calls at runtime** — five in the source, but `drawTf` is called
+  six times. The limit is 40, so a seventh timeframe would break it.
+- At maximum settings (six timeframes, 40 candles each, all traces on) it needs **516 lines against
+  `max_lines_count = 500`**. Pine drops the oldest silently, so candles would vanish from the left
+  rather than erroring. Defaults use about 26.
+
+If it fails to compile, suspect lines 130–137 first: they use the legacy `float[]` array syntax
+rather than `array<float>`.
 
 **Then:** apply the Supabase **Site URL** fix if it is still outstanding. `SETUP.md` step 4 now specifies it, but the setting
 itself is in the dashboard and was still wrong at the end of this session — new members confirming

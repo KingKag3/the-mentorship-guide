@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import — Trade Karma</title>
+<meta name="description" content="Bring a broker export into the journal.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Import</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">A broker export, straight into the journal. Nothing is written until you have seen
+  what it read — and importing the same range twice updates those trades rather than doubling
+  them.</p>
+
+  <div id="tool-rail"></div>
+
+  <h2>Tradovate</h2>
+
+  <p>Desktop client → the dropdown with your account name → the gear icon → <strong>Account
+  reports</strong> → set your date range → <strong>Download Report</strong>.</p>
+
+  <div class="callout">
+    <span class="callout-label">One file per account</span>
+    <p>The export does not say which account it came from, so the account is set here rather than
+    read from the file. With several copied accounts that means one export and one import each —
+    which is worth doing, because the account that behaves differently from its copies is the only
+    one telling you anything.</p>
+  </div>
+
+  <form class="auth-form auth-form-wide" id="import-form" autocomplete="off">
+    <label for="acct">Account these trades belong to</label>
+    <input id="acct" type="text" list="dl-acct" placeholder="Main" required>
+    <datalist id="dl-acct"></datalist>
+
+    <label for="file">Export file <span class="opt">— CSV</span></label>
+    <input id="file" type="file" accept=".csv,text/csv" required>
+
+    <p class="form-status" id="status"></p>
+  </form>
+
+  <div id="preview"></div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Trade Karma — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
+         money, dbError, migrationHint, contractFor } from './app.js';
+
+renderAccountStrip();
+renderToolRail('#tool-rail', 'import.html');
+
+const profile = await requireRole(['member', 'admin']);
+if (!profile) { throw new Error('not signed in'); }
+
+document.getElementById('body').hidden = false;
+
+const $ = (id) => document.getElementById(id);
+let parsed = [];
+
+// Accounts already in use, so a second import into the same one is a pick
+// rather than a retype that silently creates a second account.
+{
+  const { data } = await supabase.from('trades').select('account').limit(2000);
+  const names = [...new Set((data || []).map((r) => r.account).filter(Boolean))].sort();
+  $('dl-acct').innerHTML = names.map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
+}
+
+/* ------------------------------- parsing ------------------------------- */
+
+// Small hand-rolled reader rather than a library: the no-build-step rule means
+// any dependency arrives over a CDN, and this format is a plain comma file.
+// Quoted fields are handled because a symbol description could contain a comma.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+      continue;
+    }
+
+    if (c === '"') quoted = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c !== '\r') cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+
+  return rows.filter((r) => r.some((v) => v.trim() !== ''));
+}
+
+const numeric = (v) => {
+  const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+
+// MM/DD/YYYY HH:MM:SS, built as a local Date. Parsing it with Date() directly
+// is what varies between browsers, so the parts are taken apart by hand.
+function parseStamp(value) {
+  const m = String(value ?? '').trim()
+    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const d = new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +(m[6] || 0));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// NQU6 -> NQ. The CME month letter plus a single year digit comes off the end.
+function rootSymbol(s) {
+  return String(s ?? '').trim().toUpperCase().replace(/[FGHJKMNQUVXZ]\d$/, '');
+}
+
+function mapRow(r, account) {
+  const bought = parseStamp(r.boughtTimestamp);
+  const sold = parseStamp(r.soldTimestamp);
+  if (!bought || !sold) return null;
+
+  const buy = numeric(r.buyPrice);
+  const sell = numeric(r.sellPrice);
+  const qty = numeric(r.qty);
+  const pnl = numeric(r.pnl);
+  if (buy === null || sell === null) return null;
+
+  // Direction comes from the ORDER of the fills, not from the prices. A short
+  // sells first. Reading it off the prices would call every short a long, and
+  // the P&L would still look right, so nothing would ever flag it.
+  const isShort = sold < bought;
+  const entry = isShort ? sell : buy;
+  const exit = isShort ? buy : sell;
+
+  // Sell minus buy either way, and not by accident: the journal stores points
+  // signed in favour of the trade, which for a short is (exit - entry) * -1,
+  // and that expands to sell - buy. A round turn's profit in points does not
+  // depend on which side opened it.
+  const points = sell - buy;
+
+  return {
+    external_id: [r.buyFillId, r.sellFillId].filter(Boolean).join('-') || null,
+    account,
+    opened_at: (isShort ? sold : bought).toISOString(),
+    symbol: rootSymbol(r.symbol) || r.symbol,
+    direction: isShort ? 'short' : 'long',
+    contracts: qty,
+    entry,
+    exit_price: exit,
+    points,
+    net_pnl: pnl,
+    outcome: pnl === null ? null : pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
+    notes: 'Imported from ' + (r.symbol || 'a broker export') +
+           (r.duration ? ' — held ' + r.duration : ''),
+    imported_at: new Date().toISOString(),
+    checklist_done: false
+  };
+}
+
+/* ------------------------------- preview ------------------------------- */
+
+$('file').addEventListener('change', async () => {
+  const file = $('file').files[0];
+  parsed = [];
+  $('preview').innerHTML = '';
+  if (!file) return;
+
+  const account = $('acct').value.trim();
+  if (!account) {
+    setStatus('#status', 'Name the account first — the file does not carry it.', 'error');
+    $('file').value = '';
+    return;
+  }
+
+  const text = await file.text();
+  const rows = parseCsv(text);
+
+  if (rows.length < 2) {
+    setStatus('#status', 'That file has no rows under its header.', 'error');
+    return;
+  }
+
+  const header = rows[0].map((h) => h.trim());
+  const need = ['symbol', 'qty', 'buyPrice', 'sellPrice', 'boughtTimestamp', 'soldTimestamp'];
+  const missing = need.filter((h) => !header.includes(h));
+
+  if (missing.length) {
+    setStatus('#status',
+      'This does not look like a Tradovate performance export — missing ' + missing.join(', ') +
+      '. Export from Account reports rather than the dashboard summary.', 'error');
+    return;
+  }
+
+  const objects = rows.slice(1).map((r) => {
+    const o = {};
+    header.forEach((h, i) => { o[h] = r[i]; });
+    return o;
+  });
+
+  const mapped = objects.map((o) => mapRow(o, account));
+  parsed = mapped.filter(Boolean);
+  const skipped = mapped.length - parsed.length;
+
+  setStatus('#status', '', 'info');
+  renderPreview(parsed, skipped, file.name);
+});
+
+function renderPreview(rows, skipped, filename) {
+  if (!rows.length) {
+    $('preview').innerHTML =
+      '<div class="callout risk"><span class="callout-label">Nothing usable</span>' +
+      '<p>No row in that file had both timestamps and both prices.</p></div>';
+    return;
+  }
+
+  const total = rows.reduce((a, r) => a + (r.net_pnl ?? 0), 0);
+  const wins = rows.filter((r) => (r.net_pnl ?? 0) > 0).length;
+  const unknown = rows.filter((r) => !contractFor(r.symbol)).length;
+
+  $('preview').innerHTML =
+    '<h2>What it read</h2>' +
+    '<div class="card-grid">' +
+      card('Trades', String(rows.length), escapeHtml(filename)) +
+      card('Total', money(total), wins + ' of ' + rows.length + ' green') +
+      card('Range', span(rows), 'first to last') +
+    '</div>' +
+    (skipped ? '<p class="stat-note">' + skipped + ' row' + (skipped === 1 ? '' : 's') +
+      ' skipped for missing timestamps or prices.</p>' : '') +
+    (unknown ? '<div class="callout warn"><span class="callout-label">Unknown contract</span>' +
+      '<p>' + unknown + ' trade' + (unknown === 1 ? ' uses a symbol' : 's use symbols') +
+      ' with no contract spec here. The dollar figures still import — they come from the file — but ' +
+      'ticks will not be worked out.</p></div>' : '') +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>When</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>' +
+      '<th>Points</th><th>P&amp;L</th>' +
+    '</tr></thead><tbody>' +
+    rows.slice(0, 50).map((r) =>
+      '<tr>' +
+        '<td>' + escapeHtml(new Date(r.opened_at).toLocaleString()) + '</td>' +
+        '<td>' + escapeHtml(r.symbol) + '</td>' +
+        '<td><span class="tag ' + (r.direction === 'long' ? 'bull' : 'bear') + '">' +
+          escapeHtml(r.direction) + '</span></td>' +
+        '<td>' + escapeHtml(r.contracts ?? '—') + '</td>' +
+        '<td>' + escapeHtml(r.entry) + '</td>' +
+        '<td>' + escapeHtml(r.exit_price) + '</td>' +
+        '<td>' + (r.points === null ? '—' : r.points.toFixed(2)) + '</td>' +
+        '<td class="' + ((r.net_pnl ?? 0) >= 0 ? 'field-note-ok' : 'field-note-bad') + '">' +
+          money(r.net_pnl) + '</td>' +
+      '</tr>').join('') +
+    '</tbody></table></div>' +
+    (rows.length > 50 ? '<p class="stat-note">Showing the first 50.</p>' : '') +
+    '<div class="row-actions">' +
+      '<button class="btn-primary" type="button" id="do-import">Import ' + rows.length +
+        ' trade' + (rows.length === 1 ? '' : 's') + '</button>' +
+      '<button class="link-button" type="button" id="cancel">Cancel</button>' +
+    '</div>' +
+    '<p class="form-status" id="import-status"></p>';
+
+  $('do-import').addEventListener('click', runImport);
+  $('cancel').addEventListener('click', () => {
+    parsed = [];
+    $('file').value = '';
+    $('preview').innerHTML = '';
+  });
+}
+
+function span(rows) {
+  const times = rows.map((r) => new Date(r.opened_at).getTime()).sort((a, b) => a - b);
+  const first = new Date(times[0]).toLocaleDateString();
+  const last = new Date(times[times.length - 1]).toLocaleDateString();
+  return first === last ? first : first + ' – ' + last;
+}
+
+function card(label, value, note) {
+  return '<div class="card"><h3>' + escapeHtml(label) + '</h3>' +
+    '<div class="readout-big">' + escapeHtml(value) + '</div>' +
+    '<p>' + escapeHtml(note) + '</p></div>';
+}
+
+/* -------------------------------- import -------------------------------- */
+
+async function runImport() {
+  const btn = $('do-import');
+  btn.disabled = true;
+  setStatus('#import-status', 'Importing…', 'info');
+
+  // Upserted on the broker's own id, so importing an overlapping range
+  // corrects those rows instead of creating a second copy of the month.
+  const rows = parsed.map((r) => ({ ...r, user_id: profile.id }));
+
+  const { error } = await supabase
+    .from('trades')
+    .upsert(rows, { onConflict: 'user_id,external_id' });
+
+  if (error) {
+    const file = migrationHint(error);
+    setStatus('#import-status',
+      file ? error.message + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
+           : error.message,
+      'error');
+    btn.disabled = false;
+    return;
+  }
+
+  setStatus('#import-status',
+    rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' imported into ' +
+    parsed[0].account + '. They are in the journal and on the calendar now.', 'ok');
+  btn.textContent = 'Imported';
+}
+</script>
+
+</body>
+</html>

@@ -29,6 +29,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `journal.html` | Trade journal — tagged against the curriculum's vocabulary, private per member |
 | `scripts.html` | TradingView indicators for members, with install instructions |
 | `calendar.html` | Month grid of trading days, green or red, in dollars or R |
+| `import.html` | Broker CSV import — Tradovate performance exports, one account at a time |
 | `stats.html` | Statistics over the journal, sliced by model, session, array and bias |
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |
@@ -38,6 +39,9 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `supabase/storage.sql` | Private `lesson-media` bucket and cover image field |
 | `supabase/phases.sql` | Phases — the parts of the curriculum entries belong to |
 | `supabase/trades.sql` | Trade journal: table, row-level security, per-member storage policies |
+| `supabase/trade-exits.sql` | Scale-outs, and the fees column |
+| `supabase/trade-accounts.sql` | Per-account tagging and a reported dollar result |
+| `supabase/trade-import.sql` | De-duplication key for CSV import |
 | `supabase/scripts.sql` | Pine source for members - stored in the database, never as a file here |
 
 ## Tools

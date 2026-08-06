@@ -100,7 +100,7 @@ down, and having that said by a tool rather than by willpower is the point.
 The indicator in the private `the-mentorship-pine` repo already draws this on a chart. The page
 exists for planning away from the chart and for logging the numbers into the journal.
 
-### 2.5 Broker CSV import
+### 2.5 Broker CSV import — **built** (`import.html`)
 
 **The one that unblocks everything else at scale.** A member running seventeen copied prop accounts
 cannot hand-log the same trade seventeen times, and that is the case actually in front of us.

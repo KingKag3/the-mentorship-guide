@@ -491,3 +491,31 @@ actually typed — and the calendar counted a row with neither an R multiple nor
 a valid result. Both would have shown plausible wrong numbers rather than failing.
 
 A genuine zero still counts: a scratch is a result, not a missing one.
+
+---
+
+## 2026-08-06 — Import from the Performance export, not Orders
+
+**Decided:** `import.html` reads Tradovate's **Performance** CSV.
+
+**Instead of:** the Orders export, which is what `IMPORTS.md` originally recommended on the strength
+of a third-party journal's guide.
+
+**Why:** a real file settled it. The Performance export is already one row per round turn with the
+P&L worked out, which is the shape of the `trades` table. The Orders export is raw fills that an
+importer would have to match into round turns itself. The original advice is correct for importers
+that want fills; this one does not.
+
+**Direction is derived from the fill order, not the prices.** A short sells first, so `soldTimestamp`
+precedes `boughtTimestamp`. Reading direction off the prices would label every short a long *and
+still show the right P&L*, because a round turn's profit is `sell − buy` either way. Nothing
+downstream would ever flag it.
+
+**De-duplication is on the broker's own ids.** `buyFillId-sellFillId` is unique per round turn and
+stable across exports, so re-importing an overlapping range corrects rows rather than doubling a
+month. Unique per user, not globally — two members exporting the same copied account would otherwise
+collide.
+
+**The file verified the contract table.** $40.00 over 2 points on 1 NQ contract is $20 per point,
+matching `CONTRACTS.NQ.perPoint`. First real-world confirmation of a table that had only ever been
+checked against documentation.

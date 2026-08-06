@@ -25,12 +25,52 @@ is the entire reason per-account data is worth carrying, and it is invisible in 
 The most complete export, and the one to build against first: it covers a **whole date range in one
 file**, per account.
 
-**Orders CSV**
-Desktop client → account-name dropdown → gear icon → *Account reports* → **Orders** tab → set date
-range and filters → *Download Report*.
+### Use the Performance export — corrected 6 August 2026
 
-**Export from Orders, not Performance.** The Performance tab produces a different, wrong-shaped file,
-and it is the single most common import failure.
+The research below originally said *"export from Orders, not Performance"*, taken from a third-party
+journal's import guide. **A real file proves that advice does not apply here.** It is correct for
+importers that expect raw orders and match them into round turns themselves; this schema does not
+want that.
+
+The Performance export is already **one row per round turn, with the P&L worked out**, which is
+almost exactly the shape of the `trades` table. Verified against a real single-trade export:
+
+| Column | Example | Notes |
+| --- | --- | --- |
+| `symbol` | `NQU6` | Contract month code, **not** `NQ`. Root has to be extracted |
+| `_tickSize` | `0.25` | The file carries it, so tick maths needs no lookup |
+| `buyFillId` | `611824210017` | With `sellFillId`, a natural key for de-duplication |
+| `sellFillId` | `611824210007` | |
+| `qty` | `1` | |
+| `buyPrice` | `29423.50` | |
+| `sellPrice` | `29425.50` | |
+| `pnl` | `$40.00` | Currency **string**, needs stripping |
+| `boughtTimestamp` | `08/06/2026 08:48:22` | US `MM/DD/YYYY`, local exchange time |
+| `soldTimestamp` | `08/06/2026 08:48:12` | |
+| `duration` | `10sec` | |
+
+**Direction is not in the file.** It comes from which timestamp is earlier: sold before bought is a
+short. In the verified example the sell is ten seconds *before* the buy, so a naive reading of
+"bought then sold" would record every short as a long — and the P&L would still look right, because
+`sellPrice − buyPrice` is signed correctly either way. That is the kind of error that never
+announces itself.
+
+**There is no account column.** For seventeen copied accounts this means seventeen files, each
+tagged at import time. The account cannot be recovered from the file.
+
+**There are no stops or targets**, so no R can be computed. This is exactly what `net_pnl` exists
+for: the calendar fills in from the reported figure and the statistics page correctly leaves these
+trades out of any expectancy slice.
+
+**No commissions**, consistent with the note below — they are in the separate *Cash history* file.
+
+**The P&L confirms the contract table.** $40.00 over 2 points on 1 contract is $20 per point, which
+is what `CONTRACTS.NQ.perPoint` says. First real-world check of that table.
+
+### Where to click
+
+Desktop client → account-name dropdown → gear icon → *Account reports* → set date range and filters
+→ *Download Report*.
 
 **Commissions are not in it.** They live in the separate *Cash history* file, which has to be merged
 against the orders by hand or by the importer.
@@ -111,8 +151,8 @@ member.
 
 ## What this means for the importer
 
-**Build against the Tradovate Orders CSV first.** One file, whole date range, per account, and the
-most likely source for these accounts.
+**Build against the Tradovate Performance CSV.** One row per round turn with the P&L already
+worked out, one file per account, whole date range. Verified against a real export.
 
 **The schema is already the right shape.** `account`, `fees`, `net_pnl` and `trade_exits` map onto
 what a broker export carries. `net_pnl` matters most: an import does not need entry and stop prices
@@ -122,11 +162,13 @@ to produce a usable calendar, because it can take the realised figure straight f
 instinct is to import one and multiply. Resist it — the one account that diverged is the only thing
 worth knowing, and collapsing them hides exactly that.
 
-**Fills map to `trade_exits`.** A broker export is a list of fills already, so the scale-out
-structure is what an importer should build rather than something it has to flatten.
+**De-duplicate on the fill ids.** `buyFillId` + `sellFillId` identifies a round turn uniquely, so
+re-importing an overlapping date range is safe rather than doubling a month.
 
-**Open question:** whether to match orders into round-turn trades in the importer, or store fills and
-derive. The former is what most journals do; the latter is closer to how this schema already works.
+**Fills map to `trade_exits`** when importing the Orders export, which is a list of fills. The
+Performance export has already collapsed them, so it fills the trade row directly and leaves
+`trade_exits` empty — a scale-out imported this way arrives as its weighted average, which is what
+the schema stores anyway.
 
 ---
 

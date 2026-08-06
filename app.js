@@ -353,6 +353,8 @@ export function safeUrl(url) {
 export const TOOLS = [
   { href: 'journal.html', name: 'Journal',
     blurb: 'Log a trade against the vocabulary you are being taught. Private to you.' },
+  { href: 'import.html', name: 'Import',
+    blurb: 'A broker export straight into the journal, one account at a time.' },
   { href: 'calendar.html', name: 'Calendar',
     blurb: 'Every trading day as a green or red square, and what each one was worth.' },
   { href: 'stats.html', name: 'Statistics',

@@ -51,6 +51,39 @@
   <form class="auth-form auth-form-wide" id="trade-form" autocomplete="off">
     <input type="hidden" id="trade-id">
 
+    <fieldset class="checklist">
+      <legend>Pre-trade checklist</legend>
+      <p class="checklist-intro">Ticked <em>before</em> entering, not reconstructed afterwards. An
+      honest incomplete checklist is worth more than a complete one filled in from memory — the
+      statistics page compares the two, and that comparison is the only thing that can settle
+      whether the discipline pays.</p>
+
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_bias">
+        <span>I had a daily bias, and this trade agreed with it</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_draw">
+        <span>I named the draw on liquidity before entering</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_array">
+        <span>The entry came from a PD array I identified in advance</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_kz">
+        <span>The entry was inside a killzone, not chased outside one</span>
+      </label>
+      <label class="check-line">
+        <input type="checkbox" class="ck" id="ck_risk">
+        <span>I sized the position before entering, and the stop was placed at once</span>
+      </label>
+
+      <p class="field-note" id="checklist-count">0 of 5</p>
+      <input id="checklist_done" type="checkbox" hidden>
+    </fieldset>
+
+
     <div class="field-pair">
       <div>
         <label for="opened_at">When</label>
@@ -170,37 +203,6 @@
       <option value="scratch">Scratch</option>
     </select>
 
-    <fieldset class="checklist">
-      <legend>Pre-trade checklist</legend>
-      <p class="checklist-intro">Ticked <em>before</em> entering, not reconstructed afterwards. An
-      honest incomplete checklist is worth more than a complete one filled in from memory — the
-      statistics page compares the two, and that comparison is the only thing that can settle
-      whether the discipline pays.</p>
-
-      <label class="check-line">
-        <input type="checkbox" class="ck" id="ck_bias">
-        <span>I had a daily bias, and this trade agreed with it</span>
-      </label>
-      <label class="check-line">
-        <input type="checkbox" class="ck" id="ck_draw">
-        <span>I named the draw on liquidity before entering</span>
-      </label>
-      <label class="check-line">
-        <input type="checkbox" class="ck" id="ck_array">
-        <span>The entry came from a PD array I identified in advance</span>
-      </label>
-      <label class="check-line">
-        <input type="checkbox" class="ck" id="ck_kz">
-        <span>The entry was inside a killzone, not chased outside one</span>
-      </label>
-      <label class="check-line">
-        <input type="checkbox" class="ck" id="ck_risk">
-        <span>I sized the position before entering, and the stop was placed at once</span>
-      </label>
-
-      <p class="field-note" id="checklist-count">0 of 5</p>
-      <input id="checklist_done" type="checkbox" hidden>
-    </fieldset>
 
     <label for="management">How it was managed <span class="opt">— optional</span></label>
     <input id="management" type="text" placeholder="held to target / moved to breakeven at 1R">
@@ -242,7 +244,8 @@
 <script type="module">
 import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
-  compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail } from './app.js';
+  compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
+  tradeValue, money, CONTRACTS } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'journal.html');
@@ -312,9 +315,30 @@ function derive() {
     if (risk > 0) r = points / risk;
   }
 
-  $('derived').textContent = points === null
-    ? 'Points and R are worked out from entry, stop and exit.'
-    : points.toFixed(2) + ' points' + (r === null ? '' : ', ' + r.toFixed(2) + 'R');
+  // Ticks and dollars follow from the contract, so they are shown rather than
+  // asked for. An unknown symbol still gets points and R — those need no spec.
+  const symbol = $('symbol').value;
+  const contracts = parseFloat($('contracts').value);
+  const v = tradeValue({ symbol, points, contracts });
+
+  if (points === null) {
+    $('derived').textContent =
+      'Points, ticks, dollars and R are all worked out from entry, stop and exit.';
+  } else {
+    const parts = [points.toFixed(2) + ' pts'];
+    if (v.ticks !== null) parts.push(Math.round(v.ticks) + ' ticks');
+    if (v.dollars !== null) parts.push(money(v.dollars));
+    if (r !== null) parts.push(r.toFixed(2) + 'R');
+
+    let line = parts.join('  ·  ');
+    if (!v.spec) {
+      line += '  —  ticks and dollars need a known symbol (' +
+        Object.keys(CONTRACTS).join(', ') + ')';
+    } else if (!Number.isFinite(contracts)) {
+      line += '  —  set contracts for the dollar figure';
+    }
+    $('derived').textContent = line;
+  }
 
   return { points, r };
 }
@@ -503,6 +527,24 @@ function tone(r) {
   return r.r_multiple > 0 ? ' bull' : r.r_multiple < 0 ? ' bear' : '';
 }
 
+// Points always; ticks and dollars only where the symbol is one we hold a spec
+// for. A row from an unknown instrument still shows its points and R rather
+// than going blank.
+function resultDetail(r) {
+  if (r.points === null || r.points === undefined) return '';
+  const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts });
+
+  const bits = [Number(r.points).toFixed(2) + ' pts'];
+  if (v.ticks !== null) bits.push(Math.round(v.ticks) + ' tk');
+
+  let out = '<br><span class="acct-muted">' + bits.join(' · ') + '</span>';
+  if (v.dollars !== null) {
+    out += '<br><span class="' + (v.dollars >= 0 ? 'field-note-ok' : 'field-note-bad') + '">' +
+      money(v.dollars) + '</span>';
+  }
+  return out;
+}
+
 function renderRow(r, shotUrl) {
   const when = new Date(r.opened_at);
   const result = (r.r_multiple === null || r.r_multiple === undefined)
@@ -526,9 +568,7 @@ function renderRow(r, shotUrl) {
     '<td>' + escapeHtml(r.pd_array || '—') +
       (r.liquidity ? '<br><span class="acct-muted">after ' + escapeHtml(r.liquidity) + '</span>' : '') +
       '</td>' +
-    '<td>' + result +
-      (r.points !== null && r.points !== undefined
-        ? '<br><span class="acct-muted">' + Number(r.points).toFixed(2) + ' pts</span>' : '') +
+    '<td>' + result + resultDetail(r) +
       (shotUrl ? '<br><a href="' + escapeHtml(shotUrl) + '" target="_blank" rel="noopener">shot</a>' : '') +
       '</td>' +
     '<td class="row-actions">' +

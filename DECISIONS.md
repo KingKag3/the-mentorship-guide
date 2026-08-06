@@ -358,3 +358,53 @@ real the moment that changed.
 
 **Site URL still matters** as the fallback for anything that does not pass a redirect, so it should
 stay correct. It is no longer the only thing standing between a new member and a 404.
+
+---
+
+## 2026-08-06 — Dollars are derived, never stored
+
+**Decided:** the journal and calendar compute ticks and dollars from the symbol, the points and the
+contract count. No `dollars` column.
+
+**Instead of:** storing a dollar figure on the row alongside `points` and `r_multiple`.
+
+**Why:** the same argument that keeps points and R derived. A stored dollar figure is a second
+version of the truth that can disagree with the prices it came from — and it would be wrong
+permanently the first time a contract spec were corrected.
+
+`CONTRACTS` now lives in `app.js` rather than in `sizer.html`, because the moment a second page
+needed it the two copies would have drifted and two pages would have disagreed about what a trade
+was worth.
+
+**Known limit:** a trade in a symbol with no spec shows points and R but no ticks or dollars. That is
+the honest answer — the site does not know what a point of it is worth — and the calendar says so
+rather than silently totalling a partial month.
+
+---
+
+## 2026-08-06 — The checklist comes first in the form
+
+**Decided:** the pre-trade checklist sits at the top of the journal form, above the trade details.
+
+**Instead of:** near the bottom, where it shipped.
+
+**Why:** it is a *pre*-trade checklist. Below the exit price it reads as one more thing to fill in
+after the fact, which is exactly the reconstruction-from-memory the checklist exists to detect.
+Nothing enforces the order — a member can still scroll past it — but the first thing on the form is
+the thing that was supposed to happen first.
+
+---
+
+## 2026-08-06 — The calendar groups by local day, not UTC
+
+**Decided:** trades are bucketed with a local-time date key.
+
+**Instead of:** `toISOString().slice(0, 10)`, which is the obvious one-liner.
+
+**Why:** a trade at 23:30 New York is that day's trade. `toISOString()` files it under tomorrow, so
+an evening trade would land on the wrong square and two days would both be wrong — the day that
+lost it and the day that gained it. Verified: the same timestamp gives 2026-08-05 locally and
+2026-08-06 in UTC.
+
+Green and red are counted **per day, not per trade**, because that is the question a calendar
+answers. Colour never carries meaning alone; every coloured square also shows its number.

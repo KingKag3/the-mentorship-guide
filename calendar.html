@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar — Trade Karma</title>
+<meta name="description" content="Every trading day as a green or red square.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <div class="account-strip" id="account-strip"></div>
+    </div>
+    <nav class="site">
+      <a href="index.html">start</a>
+      <a href="liquidity.html">liquidity</a>
+      <a href="pd-arrays.html">pd arrays</a>
+      <a href="structure.html">structure</a>
+      <a href="time.html">time</a>
+      <a href="models.html">models</a>
+      <a href="glossary.html">glossary</a>
+      <a href="members.html" aria-current="page">members</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Calendar</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">Every day you traded, and what it was worth. The point is not the total at the
+  bottom — it is seeing whether the red days cluster on a weekday, a session, or a month you were
+  trying to force something.</p>
+
+  <div id="tool-rail"></div>
+
+  <div class="cal-head">
+    <button type="button" class="link-button" id="prev">&larr; previous</button>
+    <h2 id="month-label">—</h2>
+    <button type="button" class="link-button" id="next">next &rarr;</button>
+    <button type="button" class="link-button" id="today">this month</button>
+  </div>
+
+  <div class="cal-toggle">
+    <label class="check-line">
+      <input type="radio" name="metric" value="dollars" checked>
+      <span>Dollars</span>
+    </label>
+    <label class="check-line">
+      <input type="radio" name="metric" value="r">
+      <span>R multiple</span>
+    </label>
+  </div>
+
+  <div id="summary"></div>
+  <div id="grid"></div>
+  <div id="day-detail"></div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <p>Trade Karma — a static, no-framework study site.<br>
+  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
+         tradeValue, money, localDay } from './app.js';
+
+renderAccountStrip();
+renderToolRail('#tool-rail', 'calendar.html');
+
+const profile = await requireRole(['member', 'admin']);
+if (!profile) { throw new Error('not signed in'); }
+
+document.getElementById('body').hidden = false;
+
+const $ = (id) => document.getElementById(id);
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+let metric = 'dollars';
+let cursor = new Date();
+cursor.setDate(1);
+
+// --- data ------------------------------------------------------------------
+
+const { data, error } = await supabase
+  .from('trades')
+  .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz')
+  .order('opened_at', { ascending: true })
+  .limit(5000);
+
+if (error) {
+  $('summary').innerHTML =
+    '<div class="callout risk"><span class="callout-label">Could not load</span><p>' +
+    escapeHtml(error.message) + '</p></div>';
+  throw error;
+}
+
+// Only closed trades. An open position has no result, and a day whose only
+// trade is still running is not a green day or a red one — it is unfinished.
+const closed = (data || []).filter(
+  (r) => r.r_multiple !== null && r.r_multiple !== undefined && Number.isFinite(Number(r.r_multiple))
+);
+
+// Grouped by the LOCAL day. A trade at 20:00 New York belongs to that day, and
+// grouping on the UTC date would file it under tomorrow.
+const byDay = new Map();
+for (const row of closed) {
+  const key = localDay(row.opened_at);
+  if (!key) continue;
+  if (!byDay.has(key)) byDay.set(key, []);
+  byDay.get(key).push(row);
+}
+
+function dayTotals(rows) {
+  let r = 0;
+  let dollars = 0;
+  let dollarsKnown = false;
+
+  for (const row of rows) {
+    r += Number(row.r_multiple);
+    const v = tradeValue({ symbol: row.symbol, points: row.points, contracts: row.contracts });
+    if (v.dollars !== null) { dollars += v.dollars; dollarsKnown = true; }
+  }
+  return { n: rows.length, r, dollars, dollarsKnown };
+}
+
+function dayValue(t) {
+  if (metric === 'r') return t.r;
+  return t.dollarsKnown ? t.dollars : null;
+}
+
+function fmt(value) {
+  if (value === null) return '—';
+  return metric === 'r'
+    ? (value > 0 ? '+' : '') + value.toFixed(2) + 'R'
+    : money(value);
+}
+
+// --- rendering -------------------------------------------------------------
+
+function render() {
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+
+  $('month-label').textContent =
+    cursor.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Monday-first: a trading week starts on Monday, and a grid starting Sunday
+  // splits it across two rows.
+  const lead = (first.getDay() + 6) % 7;
+
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push('<div class="cal-cell is-empty"></div>');
+
+  const monthRows = [];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const rows = byDay.get(key);
+
+    if (!rows) {
+      cells.push('<div class="cal-cell"><span class="cal-date">' + d + '</span></div>');
+      continue;
+    }
+
+    monthRows.push(...rows);
+    const t = dayTotals(rows);
+    const value = dayValue(t);
+    const cls = value === null ? 'is-unknown' : value > 0 ? 'is-up' : value < 0 ? 'is-down' : 'is-flat';
+
+    cells.push(
+      '<button type="button" class="cal-cell has-trades ' + cls + '" data-day="' + key + '">' +
+        '<span class="cal-date">' + d + '</span>' +
+        '<span class="cal-value">' + fmt(value) + '</span>' +
+        '<span class="cal-count">' + t.n + (t.n === 1 ? ' trade' : ' trades') + '</span>' +
+      '</button>'
+    );
+  }
+
+  $('grid').innerHTML =
+    '<div class="cal-grid">' +
+      DAYS.map((d) => '<div class="cal-dow">' + d + '</div>').join('') +
+      cells.join('') +
+    '</div>';
+
+  renderSummary(monthRows);
+  $('day-detail').innerHTML = '';
+}
+
+function renderSummary(rows) {
+  if (!rows.length) {
+    $('summary').innerHTML =
+      '<div class="callout"><span class="callout-label">Nothing this month</span>' +
+      '<p>No closed trades in ' + escapeHtml($('month-label').textContent) +
+      '. Use the arrows to look at another month, or ' +
+      '<a href="journal.html">log a trade</a>.</p></div>';
+    return;
+  }
+
+  const t = dayTotals(rows);
+
+  // Counted per day, not per trade: the question a calendar answers is how many
+  // days went your way, which is not the same as how many trades did.
+  const days = [...new Set(rows.map((r) => localDay(r.opened_at)))];
+  let green = 0;
+  let red = 0;
+  for (const key of days) {
+    const v = dayValue(dayTotals(byDay.get(key)));
+    if (v === null) continue;
+    if (v > 0) green++;
+    else if (v < 0) red++;
+  }
+
+  const total = dayValue(t);
+
+  $('summary').innerHTML =
+    '<div class="card-grid">' +
+      card('Days traded', String(days.length), green + ' green, ' + red + ' red') +
+      card('Trades', String(t.n), 'closed this month') +
+      card('Total', fmt(total), metric === 'r' ? 'sum of R' : 'sum across known contracts') +
+      card('Best day', fmt(bestWorst(days, Math.max)), 'largest single day') +
+      card('Worst day', fmt(bestWorst(days, Math.min)), 'largest single loss') +
+    '</div>' +
+    (t.dollarsKnown || metric === 'r' ? '' :
+      '<p class="stat-note">No dollar figures this month — none of these trades used a symbol ' +
+      'with a known contract spec. Switch to R, or use ES, MES, NQ or MNQ.</p>');
+}
+
+function bestWorst(days, pick) {
+  const values = days.map((k) => dayValue(dayTotals(byDay.get(k)))).filter((v) => v !== null);
+  return values.length ? pick(...values) : null;
+}
+
+function card(label, value, note) {
+  return '<div class="card"><h3>' + escapeHtml(label) + '</h3>' +
+    '<div class="readout-big">' + escapeHtml(value) + '</div>' +
+    '<p>' + escapeHtml(note) + '</p></div>';
+}
+
+// --- a single day ----------------------------------------------------------
+
+$('grid').addEventListener('click', (e) => {
+  const cell = e.target.closest('[data-day]');
+  if (!cell) return;
+
+  const key = cell.dataset.day;
+  const rows = byDay.get(key) || [];
+  const t = dayTotals(rows);
+
+  $('day-detail').innerHTML =
+    '<h2>' + escapeHtml(new Date(key + 'T12:00:00').toLocaleDateString(undefined,
+      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</h2>' +
+    '<p class="stat-note">' + t.n + (t.n === 1 ? ' trade' : ' trades') + ', ' +
+      fmt(dayValue(t)) + ' on the day.</p>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +
+    '</tr></thead><tbody>' +
+    rows.map((r) => {
+      const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts });
+      const rm = Number(r.r_multiple);
+      return '<tr>' +
+        '<td>' + escapeHtml(new Date(r.opened_at)
+          .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
+        '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
+          escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
+          (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
+        '<td>' + escapeHtml(r.model || '—') + '</td>' +
+        '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
+        '<td><span class="tag' + (rm > 0 ? ' bull' : rm < 0 ? ' bear' : '') + '">' +
+          (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R</span>' +
+          (v.dollars !== null ? '<br><span class="acct-muted">' + money(v.dollars) + '</span>' : '') +
+        '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+
+  $('day-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// --- controls --------------------------------------------------------------
+
+$('prev').addEventListener('click', () => {
+  cursor.setMonth(cursor.getMonth() - 1);
+  render();
+});
+
+$('next').addEventListener('click', () => {
+  cursor.setMonth(cursor.getMonth() + 1);
+  render();
+});
+
+$('today').addEventListener('click', () => {
+  cursor = new Date();
+  cursor.setDate(1);
+  render();
+});
+
+for (const radio of document.querySelectorAll('input[name="metric"]')) {
+  radio.addEventListener('change', (e) => {
+    metric = e.target.value;
+    render();
+  });
+}
+
+render();
+</script>
+
+</body>
+</html>

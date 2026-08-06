@@ -353,6 +353,8 @@ export function safeUrl(url) {
 export const TOOLS = [
   { href: 'journal.html', name: 'Journal',
     blurb: 'Log a trade against the vocabulary you are being taught. Private to you.' },
+  { href: 'calendar.html', name: 'Calendar',
+    blurb: 'Every trading day as a green or red square, and what each one was worth.' },
   { href: 'stats.html', name: 'Statistics',
     blurb: 'Which models, sessions and arrays actually pay, sliced out of your own journal.' },
   { href: 'sizer.html', name: 'Position sizer',
@@ -364,6 +366,78 @@ export const TOOLS = [
   { href: 'scripts.html', name: 'Indicators',
     blurb: 'TradingView scripts for the concepts here, with how to install them.' }
 ];
+
+/* -------------------------------------------------------------------------
+   Contract specifications
+   -------------------------------------------------------------------------
+   One table, imported by the sizer, the journal and the calendar. It used to
+   live in sizer.html alone; the moment a second page needed it, two copies
+   would have drifted and the two pages would have disagreed about what a
+   trade was worth.
+
+   Verify against the CME contract specifications rather than trusting this.
+   It is the one thing here that can go silently out of date, and everything
+   downstream — dollars, ticks, the calendar totals — inherits the error.
+   ------------------------------------------------------------------------- */
+
+export const CONTRACTS = {
+  ES:  { perPoint: 50, tick: 0.25, micro: 'MES' },
+  MES: { perPoint: 5,  tick: 0.25, micro: null  },
+  NQ:  { perPoint: 20, tick: 0.25, micro: 'MNQ' },
+  MNQ: { perPoint: 2,  tick: 0.25, micro: null  }
+};
+
+/** The spec for a symbol, or null when it is one we do not know. */
+export function contractFor(symbol) {
+  const key = String(symbol ?? '').trim().toUpperCase();
+  return CONTRACTS[key] || null;
+}
+
+/**
+ * Points, ticks and dollars for a closed trade.
+ *
+ * Dollars are deliberately not stored on the row. They are a function of
+ * points, contracts and the contract spec, so storing them would create a
+ * second version of the truth that could disagree with the prices — the same
+ * reason points and R are derived rather than typed.
+ *
+ * Returns nulls rather than zeros for anything unknown, so a display can tell
+ * "no result" from "broke even".
+ */
+export function tradeValue({ symbol, points, contracts }) {
+  const spec = contractFor(symbol);
+  const pts = Number(points);
+  const size = Number(contracts);
+
+  if (!Number.isFinite(pts)) return { points: null, ticks: null, dollars: null, spec };
+
+  const ticks = spec ? pts / spec.tick : null;
+  const dollars = spec && Number.isFinite(size) ? pts * spec.perPoint * size : null;
+
+  return { points: pts, ticks, dollars, spec };
+}
+
+/** $1,234.50, with the sign kept because a loss reading as a gain is worse than ugly. */
+export function money(value) {
+  if (!Number.isFinite(value)) return '—';
+  const sign = value < 0 ? '-' : '';
+  return sign + '$' + Math.abs(value).toLocaleString('en-US',
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * The local calendar day a timestamp falls on, as YYYY-MM-DD.
+ *
+ * Local, not UTC: a trade at 20:00 New York is that day's trade, and
+ * toISOString() would file it under tomorrow.
+ */
+export function localDay(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
 
 const SEEN_KEY = 'tk_scripts_seen_at';
 

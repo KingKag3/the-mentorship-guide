@@ -28,6 +28,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 | `admin.html` | Approve accounts, set roles, publish members-only entries |
 | `journal.html` | Trade journal — tagged against the curriculum's vocabulary, private per member |
 | `scripts.html` | TradingView indicators for members, with install instructions |
+| `calendar.html` | Month grid of trading days, green or red, in dollars or R |
 | `stats.html` | Statistics over the journal, sliced by model, session, array and bias |
 | `app.js` | Shared auth helpers |
 | `supabase-config.js` | Project URL and anon key — both public by design |

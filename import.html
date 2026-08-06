@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Import — Trade Karma</title>
-<meta name="description" content="Bring a broker export into the journal.">
+<meta name="description" content="Bring a broker export or a spreadsheet into the journal.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,36 +41,87 @@
 
 <div id="body" hidden>
 
-  <p class="lede">A broker export, straight into the journal. Nothing is written until you have seen
-  what it read — and importing the same range twice updates those trades rather than doubling
-  them.</p>
+  <p class="lede">A broker export or your own spreadsheet, straight into the journal. Any column
+  layout works — you say which column means what, and nothing is written until you have seen what it
+  read.</p>
 
   <div id="tool-rail"></div>
 
-  <h2>Tradovate</h2>
+  <h2>What it accepts</h2>
 
-  <p>Desktop client → the dropdown with your account name → the gear icon → <strong>Account
-  reports</strong> → set your date range → <strong>Download Report</strong>.</p>
+  <p>CSV, TSV, and Excel workbooks (<code>.xlsx</code> and the older <code>.xls</code>). The columns
+  can be named anything and sit in any order. Common names are recognised on sight — a column called
+  <code>Qty</code>, <code>Quantity</code>, <code>Size</code> or <code>Contracts</code> all land on
+  quantity — and anything not recognised you set by hand from a dropdown.</p>
+
+  <p>Three columns are needed: <strong>when the trade opened, what you traded, and which way.</strong>
+  Everything else is optional. A file carrying only those three and a profit figure still produces a
+  working calendar and a usable set of statistics, which is the point — most broker statements do not
+  give you a stop price, and waiting for one would mean importing nothing.</p>
 
   <div class="callout">
-    <span class="callout-label">One file per account</span>
-    <p>The export does not say which account it came from, so the account is set here rather than
-    read from the file. With several copied accounts that means one export and one import each —
-    which is worth doing, because the account that behaves differently from its copies is the only
-    one telling you anything.</p>
+    <span class="callout-label">Start from the template if you keep your own records</span>
+    <p>It has the column names already in place, so nothing needs mapping. Fill in the rows,
+    delete the two examples, and import it.</p>
+    <div class="row-actions">
+      <button class="btn-primary" type="button" id="tpl-csv">Download the CSV template</button>
+      <button class="link-button" type="button" id="tpl-xlsx">or as an Excel workbook</button>
+    </div>
+  </div>
+
+  <h2>Bringing a file out of a platform</h2>
+
+  <p>Every one of these exports round turns — a row per completed trade — which is the shape this
+  page expects. An export of individual fills imports too, but each fill arrives as its own trade.</p>
+
+  <dl class="import-sources">
+    <dt>Tradovate</dt>
+    <dd>Desktop client, the dropdown with your account name, the gear icon, <strong>Account
+    reports</strong>, set a date range, <strong>Download Report</strong>. Use the Performance export
+    rather than the dashboard summary. It carries its own fill identifiers, so re-importing an
+    overlapping range corrects those trades instead of duplicating them.</dd>
+
+    <dt>R|Trader Pro (Rithmic)</dt>
+    <dd>The completed orders view, right-click, export. It lists fills rather than round turns, so
+    expect to tidy up afterwards.</dd>
+
+    <dt>TradingView</dt>
+    <dd>Paper or broker account, the Trading panel, <strong>History</strong>, then the export icon.
+    One tab exports at a time.</dd>
+
+    <dt>NinjaTrader</dt>
+    <dd>Control Center, <strong>Trade Performance</strong>, run a report, right-click the grid,
+    <strong>Export</strong>.</dd>
+
+    <dt>Anything else</dt>
+    <dd>If it produces a spreadsheet with one row per trade, it will import. Match the columns by
+    hand once and check the preview.</dd>
+  </dl>
+
+  <div class="callout">
+    <span class="callout-label">Which account the trades belong to</span>
+    <p>If your file has an account column, map it and each row keeps its own. If it does not — most
+    exports do not name the account they came from — set one below and it applies to the whole file.
+    With several copied prop accounts that means one export and one import each, which is worth
+    doing: the account that behaves differently from its copies is the only one telling you
+    anything.</p>
   </div>
 
   <form class="auth-form auth-form-wide" id="import-form" autocomplete="off">
-    <label for="acct">Account these trades belong to</label>
+    <label for="acct">Account name <span class="opt">— used for any row the file does not name</span></label>
     <input id="acct" type="text" list="dl-acct" placeholder="Main" required>
     <datalist id="dl-acct"></datalist>
 
-    <label for="file">Export file <span class="opt">— CSV</span></label>
-    <input id="file" type="file" accept=".csv,text/csv" required>
+    <label for="file">Export file <span class="opt">— CSV, TSV, XLSX or XLS</span></label>
+    <input id="file" type="file"
+           accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+           required>
 
     <p class="form-status" id="status"></p>
   </form>
 
+  <div id="shape"></div>
+  <div id="mapping"></div>
   <div id="preview"></div>
 
 </div>
@@ -85,7 +136,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
-         money, dbError, migrationHint, contractFor } from './app.js';
+         money, migrationHint, contractFor } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'import.html');
@@ -96,7 +147,126 @@ if (!profile) { throw new Error('not signed in'); }
 document.getElementById('body').hidden = false;
 
 const $ = (id) => document.getElementById(id);
-let parsed = [];
+
+/* --------------------------- what a column can be ---------------------------
+
+   One entry per field the journal stores. `syn` is matched against the file's
+   own header after both are stripped to letters and digits, so "Net P&L",
+   "net_pnl" and "NetPnL" all collapse to the same thing and only need listing
+   once.
+
+   Recognition is a convenience, not the mechanism. Every field is settable by
+   hand, which is what makes the page work for a platform nobody here has seen.
+--------------------------------------------------------------------------- */
+
+const FIELDS = [
+  { key: 'opened_at', label: 'when', req: true,
+    hint: 'Date and time the trade opened',
+    syn: ['when', 'date', 'time', 'datetime', 'dateandtime', 'datetime', 'opened', 'openedat',
+          'opentime', 'opendate', 'entrytime', 'entrydate', 'tradedate', 'timestamp', 'filledat',
+          'executiontime', 'entrydatetime', 'openingtime'] },
+
+  { key: 'symbol', label: 'symbol', req: true,
+    hint: 'NQ, ES, MNQ and so on',
+    syn: ['symbol', 'instrument', 'ticker', 'contract', 'market', 'product', 'asset', 'pair',
+          'securitysymbol'] },
+
+  { key: 'direction', label: 'side', req: true,
+    hint: 'Long or short. Buy/Sell and B/S are understood',
+    syn: ['side', 'direction', 'longshort', 'ls', 'buysell', 'bs', 'type', 'position',
+          'action', 'tradetype', 'ordertype', 'positiontype'] },
+
+  { key: 'entry', label: 'entry',
+    hint: 'Price the position opened at',
+    syn: ['entry', 'entryprice', 'pricein', 'openprice', 'avgentry', 'averageentry', 'entryavg',
+          'openingprice', 'entryfillprice'] },
+
+  { key: 'exit_price', label: 'exit',
+    hint: 'Price it closed at',
+    syn: ['exit', 'exitprice', 'priceout', 'closeprice', 'avgexit', 'averageexit', 'exitavg',
+          'closingprice', 'exitfillprice'] },
+
+  { key: 'contracts', label: 'quantity',
+    hint: 'Contracts, lots or shares',
+    syn: ['qty', 'quantity', 'size', 'contracts', 'lots', 'volume', 'units', 'positionsize',
+          'numberofcontracts', 'filledqty'] },
+
+  { key: 'net_pnl', label: 'net p&l',
+    hint: 'The realised figure in currency, after fees if the file nets them',
+    syn: ['pnl', 'pl', 'netpnl', 'netpl', 'profit', 'netprofit', 'realized', 'realised',
+          'realizedpnl', 'realisedpnl', 'profitloss', 'grosspl', 'grosspnl', 'result',
+          'netprofitloss', 'pandl'] },
+
+  { key: 'fees', label: 'fees',
+    hint: 'Commission and exchange fees',
+    syn: ['fee', 'fees', 'commission', 'commissions', 'costs', 'cost', 'charges', 'totalfees',
+          'commissionandfees'] },
+
+  { key: 'stop', label: 'stop',
+    hint: 'Needed for an R multiple. Most statements do not carry one',
+    syn: ['stop', 'stoploss', 'sl', 'stopprice', 'initialstop', 'risk'] },
+
+  { key: 'target', label: 'target',
+    hint: 'Where you were aiming',
+    syn: ['target', 'takeprofit', 'tp', 'targetprice', 'profittarget'] },
+
+  { key: 'account', label: 'account',
+    hint: 'Overrides the account named above, row by row',
+    syn: ['account', 'accountname', 'accountid', 'accountnumber', 'acct', 'accountalias'] },
+
+  { key: 'external_id', label: 'id',
+    hint: 'The platform’s own identifier. What makes a re-import correct rather than double',
+    syn: ['id', 'tradeid', 'orderid', 'ticket', 'ticketid', 'externalid', 'fillid', 'tradenumber',
+          'reference', 'transactionid', 'dealid', 'positionid'] },
+
+  { key: 'notes', label: 'notes',
+    hint: 'Anything you wrote about the trade',
+    syn: ['notes', 'note', 'comment', 'comments', 'description', 'remark', 'remarks', 'tags',
+          'journal'] }
+];
+
+/* Exports that timestamp and price each side of the round turn separately —
+   Tradovate's performance report is the one this was built against. Direction
+   is then a fact about which fill came first, not a column. */
+
+const PAIRED = [
+  { key: 'bought_at', label: 'bought at',
+    hint: 'When the buy filled',
+    syn: ['boughttimestamp', 'boughtat', 'buytime', 'buytimestamp', 'timebought', 'buydate'] },
+
+  { key: 'sold_at', label: 'sold at',
+    hint: 'When the sell filled',
+    syn: ['soldtimestamp', 'soldat', 'selltime', 'selltimestamp', 'timesold', 'selldate'] },
+
+  { key: 'buy_price', label: 'buy price',
+    hint: 'Price of the buy fill',
+    syn: ['buyprice', 'pricebought', 'buyfillprice', 'boughtprice'] },
+
+  { key: 'sell_price', label: 'sell price',
+    hint: 'Price of the sell fill',
+    syn: ['sellprice', 'pricesold', 'sellfillprice', 'soldprice'] },
+
+  { key: 'buy_id', label: 'buy fill id',
+    hint: 'Joined with the sell id to identify the round turn',
+    syn: ['buyfillid', 'buyid', 'buyorderid'] },
+
+  { key: 'sell_id', label: 'sell fill id',
+    hint: 'Joined with the buy id to identify the round turn',
+    syn: ['sellfillid', 'sellid', 'sellorderid'] }
+];
+
+const ALL_FIELDS = [...FIELDS, ...PAIRED];
+
+/* --------------------------------- state --------------------------------- */
+
+let rows = [];        // every row of the chosen sheet, as arrays of cells
+let headerAt = 0;     // which of them is the header
+let headers = [];     // that row, trimmed
+let mapping = {};     // field key -> column index, -1 for unset
+let parsed = [];      // rows ready for the database
+let sheetNames = [];
+let sheetIndex = 0;
+let lastFile = null;
 
 // Accounts already in use, so a second import into the same one is a pick
 // rather than a retype that silently creates a second account.
@@ -106,13 +276,13 @@ let parsed = [];
   $('dl-acct').innerHTML = names.map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
 }
 
-/* ------------------------------- parsing ------------------------------- */
+/* -------------------------------- reading -------------------------------- */
 
-// Small hand-rolled reader rather than a library: the no-build-step rule means
-// any dependency arrives over a CDN, and this format is a plain comma file.
-// Quoted fields are handled because a symbol description could contain a comma.
-function parseCsv(text) {
-  const rows = [];
+// Hand-rolled rather than a library: the no-build-step rule means any
+// dependency arrives over a CDN, and a delimited text file is a morning's work.
+// Quoted fields are handled because a description can contain the delimiter.
+function parseDelimited(text, delimiter) {
+  const out = [];
   let row = [];
   let cell = '';
   let quoted = false;
@@ -128,187 +298,581 @@ function parseCsv(text) {
     }
 
     if (c === '"') quoted = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
-    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c === delimiter) { row.push(cell); cell = ''; }
+    else if (c === '\n') { row.push(cell); out.push(row); row = []; cell = ''; }
     else if (c !== '\r') cell += c;
   }
-  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  if (cell !== '' || row.length) { row.push(cell); out.push(row); }
 
-  return rows.filter((r) => r.some((v) => v.trim() !== ''));
+  return out.filter((r) => r.some((v) => String(v).trim() !== ''));
 }
 
-const numeric = (v) => {
-  const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
-  return Number.isFinite(n) ? n : null;
-};
-
-// MM/DD/YYYY HH:MM:SS, built as a local Date. Parsing it with Date() directly
-// is what varies between browsers, so the parts are taken apart by hand.
-function parseStamp(value) {
-  const m = String(value ?? '').trim()
-    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (!m) return null;
-  const d = new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +(m[6] || 0));
-  return Number.isNaN(d.getTime()) ? null : d;
+// Counted on the first line only. A tab inside a note should not outvote the
+// delimiter that actually separates the columns.
+function sniffDelimiter(text) {
+  const line = text.slice(0, text.indexOf('\n') + 1 || text.length);
+  const tabs = (line.match(/\t/g) || []).length;
+  const commas = (line.match(/,/g) || []).length;
+  const semis = (line.match(/;/g) || []).length;
+  if (tabs > commas && tabs > semis) return '\t';
+  if (semis > commas) return ';';
+  return ',';
 }
 
-// NQU6 -> NQ. The CME month letter plus a single year digit comes off the end.
+// Loaded only when a spreadsheet is actually chosen, so a CSV import pays
+// nothing for it.
+let xlsxLib = null;
+async function loadXlsx() {
+  if (xlsxLib) return xlsxLib;
+  const mod = await import('https://esm.sh/xlsx@0.18.5');
+  xlsxLib = mod && typeof mod.read === 'function' ? mod : mod.default;
+  if (!xlsxLib || typeof xlsxLib.read !== 'function') {
+    throw new Error('The spreadsheet reader did not load. Save the file as CSV and try that.');
+  }
+  return xlsxLib;
+}
+
+let workbook = null;
+
+async function readFile(file) {
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    const XLSX = await loadXlsx();
+    // cellDates so a date arrives as a Date rather than a serial number that
+    // looks like a plausible price.
+    workbook = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    sheetNames = workbook.SheetNames.slice();
+    sheetIndex = sheetNames.findIndex((n) =>
+      XLSX.utils.sheet_to_json(workbook.Sheets[n], { header: 1, defval: '' })
+        .filter((r) => r.some((v) => String(v).trim() !== '')).length > 1);
+    if (sheetIndex < 0) sheetIndex = 0;
+    return sheetRows();
+  }
+
+  workbook = null;
+  sheetNames = [];
+  const text = await file.text();
+  return parseDelimited(text, sniffDelimiter(text));
+}
+
+function sheetRows() {
+  const XLSX = xlsxLib;
+  const sheet = workbook.Sheets[sheetNames[sheetIndex]];
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true })
+    .filter((r) => r.some((v) => String(v).trim() !== ''));
+}
+
+// Exports often carry a title and a blank line above the real header. The first
+// row with three or more filled cells is it, near enough — and the control on
+// screen lets you disagree.
+function guessHeaderRow(all) {
+  for (let i = 0; i < Math.min(all.length, 12); i++) {
+    const filled = all[i].filter((v) => String(v).trim() !== '').length;
+    if (filled >= 3) return i;
+  }
+  return 0;
+}
+
+/* -------------------------------- mapping -------------------------------- */
+
+const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Exact matches first across every field, then loose ones. Done in two passes
+// so a column called "id" cannot be claimed as a loose match for "fillid"
+// before the field actually named "id" has had its turn.
+function autoMap() {
+  const normalised = headers.map(norm);
+  const taken = new Set();
+  const found = {};
+
+  for (const field of ALL_FIELDS) found[field.key] = -1;
+
+  for (const field of ALL_FIELDS) {
+    const i = normalised.findIndex((h, idx) => !taken.has(idx) && h && field.syn.includes(h));
+    if (i >= 0) { found[field.key] = i; taken.add(i); }
+  }
+
+  for (const field of ALL_FIELDS) {
+    if (found[field.key] >= 0) continue;
+    const i = normalised.findIndex((h, idx) =>
+      !taken.has(idx) && h && field.syn.some((s) => s.length > 2 && (h.includes(s) || s.includes(h))));
+    if (i >= 0) { found[field.key] = i; taken.add(i); }
+  }
+
+  return found;
+}
+
+// First value under a header that is not blank. Worth more than the header
+// itself: it is how you notice a date column mapped onto a price.
+function sample(index) {
+  if (index < 0) return '';
+  for (let i = headerAt + 1; i < rows.length; i++) {
+    const v = rows[i][index];
+    if (v instanceof Date) return v.toLocaleString();
+    if (String(v ?? '').trim() !== '') return String(v).trim();
+  }
+  return '';
+}
+
+function fieldRow(field) {
+  const chosen = mapping[field.key] ?? -1;
+  const options = ['<option value="-1">— not in this file —</option>']
+    .concat(headers.map((h, i) =>
+      '<option value="' + i + '"' + (i === chosen ? ' selected' : '') + '>' +
+      escapeHtml(h || 'column ' + (i + 1)) + '</option>'));
+
+  return '<div class="map-row">' +
+    '<div><span class="map-name">' + escapeHtml(field.label) +
+      (field.req ? ' <span class="req">*</span>' : '') + '</span>' +
+      '<span class="map-hint">' + escapeHtml(field.hint) + '</span></div>' +
+    '<div><select data-field="' + field.key + '">' + options.join('') + '</select>' +
+      '<span class="map-sample" id="s-' + field.key + '">' +
+        escapeHtml(sample(chosen)) + '</span></div>' +
+  '</div>';
+}
+
+function renderMapping() {
+  const paired = PAIRED.some((f) => (mapping[f.key] ?? -1) >= 0);
+
+  $('mapping').innerHTML =
+    '<h2>Which column is which</h2>' +
+    '<p>Recognised columns are filled in already. Anything marked ' +
+      '<span class="map-unset">not in this file</span> is simply left empty on the trade — only ' +
+      'the three starred fields have to be set.</p>' +
+    '<div class="map-grid">' + FIELDS.map(fieldRow).join('') + '</div>' +
+    '<details' + (paired ? ' open' : '') + '>' +
+      '<summary>Exports that record the buy and the sell separately</summary>' +
+      '<p>Some platforms give a timestamp and a price for each side of the round turn rather than ' +
+      'an entry, an exit and a direction. Fill these in instead and the side is worked out from ' +
+      'which fill came first — which is the only reliable way to read it, because the prices alone ' +
+      'would call every short a long and the profit would still come out right.</p>' +
+      '<div class="map-grid">' + PAIRED.map(fieldRow).join('') + '</div>' +
+    '</details>';
+
+  $('mapping').querySelectorAll('select[data-field]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const key = select.dataset.field;
+      mapping[key] = Number(select.value);
+      const cell = $('s-' + key);
+      if (cell) cell.textContent = sample(mapping[key]);
+      recompute();
+    });
+  });
+}
+
+function renderShape() {
+  const bits = [];
+
+  if (sheetNames.length > 1) {
+    bits.push('<label for="sheet">Sheet</label><select id="sheet">' +
+      sheetNames.map((n, i) =>
+        '<option value="' + i + '"' + (i === sheetIndex ? ' selected' : '') + '>' +
+        escapeHtml(n) + '</option>').join('') + '</select>');
+  }
+
+  bits.push('<label for="hrow">Header row</label>' +
+    '<input id="hrow" type="number" min="1" max="' + rows.length + '" value="' + (headerAt + 1) + '">');
+
+  $('shape').innerHTML =
+    '<form class="auth-form auth-form-wide"><div class="field-pair">' + bits.join('') +
+    '</div><p class="stat-note">Row ' + (headerAt + 1) + ' is being read as the column names' +
+    (sheetNames.length > 1 ? ', from sheet ' + escapeHtml(sheetNames[sheetIndex]) : '') +
+    '. Change either if that is wrong.</p></form>';
+
+  const sheet = $('sheet');
+  if (sheet) {
+    sheet.addEventListener('change', () => {
+      sheetIndex = Number(sheet.value);
+      rows = sheetRows();
+      headerAt = guessHeaderRow(rows);
+      afterRows();
+    });
+  }
+
+  $('hrow').addEventListener('change', () => {
+    const n = Number($('hrow').value) - 1;
+    if (!Number.isFinite(n) || n < 0 || n >= rows.length) return;
+    headerAt = n;
+    afterRows();
+  });
+}
+
+/* ------------------------------ interpreting ------------------------------ */
+
+function raw(row, key) {
+  const i = mapping[key] ?? -1;
+  return i < 0 ? null : row[i];
+}
+
+function text(row, key) {
+  const v = raw(row, key);
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
+// Currency, thousands separators and accountants' parentheses for a negative.
+function numeric(row, key) {
+  const v = raw(row, key);
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+
+  const s = String(v).trim();
+  const negative = /^\(.*\)$/.test(s) || s.startsWith('-');
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(n)) return null;
+  return negative ? -n : n;
+}
+
+function parseSide(value) {
+  if (typeof value === 'number') return value < 0 ? 'short' : value > 0 ? 'long' : null;
+
+  const s = String(value ?? '').trim().toLowerCase();
+  if (!s) return null;
+
+  // Some exports carry the side as a signed quantity rather than a word.
+  const signed = s.match(/^[+-]?\d+(?:\.\d+)?$/);
+  if (signed) {
+    const n = parseFloat(s);
+    return n < 0 ? 'short' : n > 0 ? 'long' : null;
+  }
+
+  if (/^(s|short|sell|sold|sld|sel)/.test(s)) return 'short';
+  if (/^(l|long|buy|bot|bought|byy|b)/.test(s)) return 'long';
+  return null;
+}
+
+// Deliberately not Date(), which disagrees between browsers on anything but
+// ISO. Excel hands us a real Date already; everything else is taken apart.
+function parseStamp(value, dayFirst) {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  const s = String(value ?? '').trim();
+  if (!s) return null;
+
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (iso) {
+    return build(+iso[1], +iso[2], +iso[3], +(iso[4] || 0), +(iso[5] || 0), +(iso[6] || 0));
+  }
+
+  const slash = s.match(
+    /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*(am|pm)?/i);
+  if (slash) {
+    let a = +slash[1];
+    let b = +slash[2];
+    let year = +slash[3];
+    if (year < 100) year += 2000;
+
+    // A value above twelve can only be the day, whichever order the file uses.
+    const dFirst = a > 12 ? true : b > 12 ? false : dayFirst;
+    const month = dFirst ? b : a;
+    const day = dFirst ? a : b;
+
+    let hour = +(slash[4] || 0);
+    const meridiem = (slash[7] || '').toLowerCase();
+    if (meridiem === 'pm' && hour < 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+
+    return build(year, month, day, hour, +(slash[5] || 0), +(slash[6] || 0));
+  }
+
+  const loose = Date.parse(s);
+  return Number.isNaN(loose) ? null : new Date(loose);
+}
+
+function build(y, m, d, hh, mm, ss) {
+  const date = new Date(y, m - 1, d, hh, mm, ss);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// NQU6 -> NQ. The CME month letter plus a year digit comes off the end.
 function rootSymbol(s) {
-  return String(s ?? '').trim().toUpperCase().replace(/[FGHJKMNQUVXZ]\d$/, '');
+  return String(s ?? '').trim().toUpperCase().replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '');
 }
 
-function mapRow(r, account) {
-  const bought = parseStamp(r.boughtTimestamp);
-  const sold = parseStamp(r.soldTimestamp);
-  if (!bought || !sold) return null;
+// Stable across re-imports of the same file, so a platform that gives no
+// identifier of its own still gets corrected rather than duplicated. Two
+// genuinely identical trades collapse into one, which is called out on screen.
+function fingerprint(parts) {
+  const s = parts.join('|');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return 'auto-' + h.toString(36) + s.length.toString(36);
+}
 
-  const buy = numeric(r.buyPrice);
-  const sell = numeric(r.sellPrice);
-  const qty = numeric(r.qty);
-  const pnl = numeric(r.pnl);
-  if (buy === null || sell === null) return null;
+const skipped = {};
+function skip(reason) { skipped[reason] = (skipped[reason] || 0) + 1; return null; }
 
-  // Direction comes from the ORDER of the fills, not from the prices. A short
-  // sells first. Reading it off the prices would call every short a long, and
-  // the P&L would still look right, so nothing would ever flag it.
-  const isShort = sold < bought;
-  const entry = isShort ? sell : buy;
-  const exit = isShort ? buy : sell;
+function mapRow(row, fallbackAccount, dayFirst) {
+  const bought = parseStamp(raw(row, 'bought_at'), dayFirst);
+  const sold = parseStamp(raw(row, 'sold_at'), dayFirst);
+  const paired = bought && sold;
 
-  // Sell minus buy either way, and not by accident: the journal stores points
-  // signed in favour of the trade, which for a short is (exit - entry) * -1,
-  // and that expands to sell - buy. A round turn's profit in points does not
-  // depend on which side opened it.
-  const points = sell - buy;
+  // Direction from a column when there is one. Otherwise from the order of the
+  // fills, never from the prices — reading it off the prices calls every short
+  // a long, and the profit still looks right, so nothing would ever flag it.
+  let direction = parseSide(text(row, 'direction'));
+  if (!direction && paired) direction = sold < bought ? 'short' : 'long';
+  if (!direction) return skip('no side that could be read');
+
+  const stamp = parseStamp(raw(row, 'opened_at'), dayFirst) ||
+    (paired ? (direction === 'short' ? sold : bought) : null);
+  if (!stamp) return skip('no date that could be read');
+
+  const symbol = text(row, 'symbol');
+  if (!symbol) return skip('no symbol');
+
+  const buy = numeric(row, 'buy_price');
+  const sell = numeric(row, 'sell_price');
+
+  let entry = numeric(row, 'entry');
+  let exit = numeric(row, 'exit_price');
+
+  if (entry === null && buy !== null && sell !== null) {
+    entry = direction === 'short' ? sell : buy;
+    exit = direction === 'short' ? buy : sell;
+  }
+
+  // Signed in favour of the trade, which is the journal's convention: a short
+  // that fell is positive.
+  const points = entry !== null && exit !== null
+    ? (direction === 'short' ? entry - exit : exit - entry)
+    : null;
+
+  const stop = numeric(row, 'stop');
+  const risk = entry !== null && stop !== null ? Math.abs(entry - stop) : null;
+
+  const pnl = numeric(row, 'net_pnl');
+  const account = text(row, 'account') || fallbackAccount;
+
+  const ids = [text(row, 'buy_id'), text(row, 'sell_id')].filter(Boolean);
+  const external = text(row, 'external_id') ||
+    (ids.length ? ids.join('-') : null) ||
+    fingerprint([account, stamp.toISOString(), symbol, direction,
+                 entry ?? '', exit ?? '', numeric(row, 'contracts') ?? '', pnl ?? '']);
+
+  const result = pnl !== null ? pnl : points;
 
   return {
-    external_id: [r.buyFillId, r.sellFillId].filter(Boolean).join('-') || null,
+    external_id: external,
     account,
-    opened_at: (isShort ? sold : bought).toISOString(),
-    symbol: rootSymbol(r.symbol) || r.symbol,
-    direction: isShort ? 'short' : 'long',
-    contracts: qty,
+    opened_at: stamp.toISOString(),
+    symbol: rootSymbol(symbol) || symbol,
+    direction,
+    contracts: numeric(row, 'contracts'),
     entry,
+    stop,
+    target: numeric(row, 'target'),
     exit_price: exit,
     points,
+    r_multiple: risk && points !== null ? Number((points / risk).toFixed(3)) : null,
     net_pnl: pnl,
-    outcome: pnl === null ? null : pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
-    notes: 'Imported from ' + (r.symbol || 'a broker export') +
-           (r.duration ? ' — held ' + r.duration : ''),
+    fees: numeric(row, 'fees'),
+    outcome: result === null ? null : result > 0 ? 'win' : result < 0 ? 'loss' : 'breakeven',
+    notes: text(row, 'notes'),
     imported_at: new Date().toISOString(),
     checklist_done: false
   };
 }
 
-/* ------------------------------- preview ------------------------------- */
+/* -------------------------------- the page -------------------------------- */
 
 $('file').addEventListener('change', async () => {
   const file = $('file').files[0];
-  parsed = [];
-  $('preview').innerHTML = '';
+  reset();
   if (!file) return;
 
-  const account = $('acct').value.trim();
-  if (!account) {
-    setStatus('#status', 'Name the account first — the file does not carry it.', 'error');
+  if (!$('acct').value.trim()) {
+    setStatus('#status', 'Name an account first — most files do not carry one.', 'error');
     $('file').value = '';
     return;
   }
 
-  const text = await file.text();
-  const rows = parseCsv(text);
+  lastFile = file;
+  setStatus('#status', 'Reading ' + file.name + '…', 'info');
+
+  try {
+    rows = await readFile(file);
+  } catch (err) {
+    setStatus('#status', err && err.message ? err.message : String(err), 'error');
+    return;
+  }
 
   if (rows.length < 2) {
     setStatus('#status', 'That file has no rows under its header.', 'error');
     return;
   }
 
-  const header = rows[0].map((h) => h.trim());
-  const need = ['symbol', 'qty', 'buyPrice', 'sellPrice', 'boughtTimestamp', 'soldTimestamp'];
-  const missing = need.filter((h) => !header.includes(h));
-
-  if (missing.length) {
-    setStatus('#status',
-      'This does not look like a Tradovate performance export — missing ' + missing.join(', ') +
-      '. Export from Account reports rather than the dashboard summary.', 'error');
-    return;
-  }
-
-  const objects = rows.slice(1).map((r) => {
-    const o = {};
-    header.forEach((h, i) => { o[h] = r[i]; });
-    return o;
-  });
-
-  const mapped = objects.map((o) => mapRow(o, account));
-  parsed = mapped.filter(Boolean);
-  const skipped = mapped.length - parsed.length;
-
+  headerAt = guessHeaderRow(rows);
   setStatus('#status', '', 'info');
-  renderPreview(parsed, skipped, file.name);
+  afterRows();
 });
 
-function renderPreview(rows, skipped, filename) {
-  if (!rows.length) {
+$('acct').addEventListener('change', () => { if (rows.length) recompute(); });
+
+function reset() {
+  rows = [];
+  headers = [];
+  mapping = {};
+  parsed = [];
+  workbook = null;
+  sheetNames = [];
+  sheetIndex = 0;
+  $('shape').innerHTML = '';
+  $('mapping').innerHTML = '';
+  $('preview').innerHTML = '';
+}
+
+function afterRows() {
+  headers = (rows[headerAt] || []).map((h) => String(h ?? '').trim());
+  mapping = autoMap();
+  renderShape();
+  renderMapping();
+  recompute();
+}
+
+function recompute() {
+  const account = $('acct').value.trim();
+  const missing = FIELDS.filter((f) => f.req && (mapping[f.key] ?? -1) < 0)
+    .filter((f) => !(f.key === 'direction' && (mapping.bought_at ?? -1) >= 0 &&
+                                              (mapping.sold_at ?? -1) >= 0))
+    .filter((f) => !(f.key === 'opened_at' && (mapping.bought_at ?? -1) >= 0 &&
+                                              (mapping.sold_at ?? -1) >= 0));
+
+  if (missing.length) {
+    parsed = [];
     $('preview').innerHTML =
-      '<div class="callout risk"><span class="callout-label">Nothing usable</span>' +
-      '<p>No row in that file had both timestamps and both prices.</p></div>';
+      '<div class="callout warn"><span class="callout-label">Not enough mapped yet</span>' +
+      '<p>Set ' + missing.map((f) => '<strong>' + escapeHtml(f.label) + '</strong>').join(', ') +
+      ' above. If the file genuinely has no such column, it cannot be imported as trades — a row ' +
+      'with no date, no instrument or no side is not a trade, it is a number.</p></div>';
     return;
   }
 
-  const total = rows.reduce((a, r) => a + (r.net_pnl ?? 0), 0);
-  const wins = rows.filter((r) => (r.net_pnl ?? 0) > 0).length;
-  const unknown = rows.filter((r) => !contractFor(r.symbol)).length;
+  for (const key of Object.keys(skipped)) delete skipped[key];
+
+  const body = rows.slice(headerAt + 1);
+  const dayFirst = guessDayFirst(body);
+  const mapped = body.map((r) => mapRow(r, account, dayFirst));
+  parsed = mapped.filter(Boolean);
+
+  renderPreview(dayFirst);
+}
+
+// Ambiguous only while every day-of-month in the file is twelve or under. One
+// value above twelve settles it for the whole file, which is far safer than
+// settling it row by row and silently mixing two calendars.
+function guessDayFirst(body) {
+  const index = (mapping.opened_at ?? -1) >= 0 ? mapping.opened_at : (mapping.bought_at ?? -1);
+  if (index < 0) return false;
+
+  for (const row of body) {
+    const m = String(row[index] ?? '').trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-]\d{2,4}/);
+    if (!m) continue;
+    if (+m[1] > 12) return true;
+    if (+m[2] > 12) return false;
+  }
+  return false;
+}
+
+function renderPreview(dayFirst) {
+  const reasons = Object.entries(skipped);
+
+  if (!parsed.length) {
+    $('preview').innerHTML =
+      '<div class="callout risk"><span class="callout-label">Nothing usable</span>' +
+      '<p>No row survived: ' + escapeHtml(reasons.map(([r, n]) => n + ' with ' + r).join(', ')) +
+      '. Check the mapping above — the sample value beside each dropdown shows what that column ' +
+      'really holds.</p></div>';
+    return;
+  }
+
+  const total = parsed.reduce((a, r) => a + (r.net_pnl ?? 0), 0);
+  const wins = parsed.filter((r) => r.outcome === 'win').length;
+  const unknown = parsed.filter((r) => !contractFor(r.symbol)).length;
+  const generated = parsed.filter((r) => r.external_id.startsWith('auto-')).length;
+  const priced = parsed.filter((r) => r.net_pnl !== null).length;
+
+  const collapsed = parsed.length - new Set(parsed.map((r) => r.external_id)).size;
+  const ambiguous = dayFirst;
 
   $('preview').innerHTML =
     '<h2>What it read</h2>' +
     '<div class="card-grid">' +
-      card('Trades', String(rows.length), escapeHtml(filename)) +
-      card('Total', money(total), wins + ' of ' + rows.length + ' green') +
-      card('Range', span(rows), 'first to last') +
+      card('Trades', String(parsed.length), escapeHtml(lastFile ? lastFile.name : '')) +
+      card('Total', priced ? money(total) : '—', pnlNote(priced, parsed.length, wins)) +
+      card('Range', span(parsed), 'first to last') +
     '</div>' +
-    (skipped ? '<p class="stat-note">' + skipped + ' row' + (skipped === 1 ? '' : 's') +
-      ' skipped for missing timestamps or prices.</p>' : '') +
+
+    (reasons.length ? '<p class="stat-note">Skipped: ' +
+      escapeHtml(reasons.map(([r, n]) => n + ' with ' + r).join(', ')) + '.</p>' : '') +
+
+    (ambiguous ? '<div class="callout warn"><span class="callout-label">Dates read day first</span>' +
+      '<p>A day above the twelfth appears in this file, so the dates are being read as ' +
+      'day/month/year. Check the first column of the table below against what you expect.</p>' +
+      '</div>' : '') +
+
+    (generated ? '<div class="callout warn"><span class="callout-label">No identifier in this file</span>' +
+      '<p>' + generated + ' of these carry no id of their own, so one is derived from the trade’s ' +
+      'own details. Re-importing the same file corrects those rows rather than doubling them — but ' +
+      'two genuinely separate trades with the same instrument, time, prices and size cannot be told ' +
+      'apart, and arrive as one.</p></div>' : '') +
+
+    (collapsed ? '<div class="callout warn"><span class="callout-label">' + collapsed +
+      ' duplicate row' + (collapsed === 1 ? '' : 's') + '</span>' +
+      '<p>Rows sharing an identifier are the same trade, so only the last of each is written. ' +
+      (parsed.length - collapsed) + ' will land.</p></div>' : '') +
+
     (unknown ? '<div class="callout warn"><span class="callout-label">Unknown contract</span>' +
       '<p>' + unknown + ' trade' + (unknown === 1 ? ' uses a symbol' : 's use symbols') +
-      ' with no contract spec here. The dollar figures still import — they come from the file — but ' +
+      ' with no contract spec here. Currency figures still import — they come from the file — but ' +
       'ticks will not be worked out.</p></div>' : '') +
+
     '<div class="table-scroll"><table><thead><tr>' +
       '<th>When</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>' +
-      '<th>Points</th><th>P&amp;L</th>' +
+      '<th>Points</th><th>P&amp;L</th><th>Account</th>' +
     '</tr></thead><tbody>' +
-    rows.slice(0, 50).map((r) =>
+    parsed.slice(0, 50).map((r) =>
       '<tr>' +
         '<td>' + escapeHtml(new Date(r.opened_at).toLocaleString()) + '</td>' +
         '<td>' + escapeHtml(r.symbol) + '</td>' +
         '<td><span class="tag ' + (r.direction === 'long' ? 'bull' : 'bear') + '">' +
           escapeHtml(r.direction) + '</span></td>' +
         '<td>' + escapeHtml(r.contracts ?? '—') + '</td>' +
-        '<td>' + escapeHtml(r.entry) + '</td>' +
-        '<td>' + escapeHtml(r.exit_price) + '</td>' +
+        '<td>' + escapeHtml(r.entry ?? '—') + '</td>' +
+        '<td>' + escapeHtml(r.exit_price ?? '—') + '</td>' +
         '<td>' + (r.points === null ? '—' : r.points.toFixed(2)) + '</td>' +
         '<td class="' + ((r.net_pnl ?? 0) >= 0 ? 'field-note-ok' : 'field-note-bad') + '">' +
-          money(r.net_pnl) + '</td>' +
+          (r.net_pnl === null ? '—' : money(r.net_pnl)) + '</td>' +
+        '<td>' + escapeHtml(r.account) + '</td>' +
       '</tr>').join('') +
     '</tbody></table></div>' +
-    (rows.length > 50 ? '<p class="stat-note">Showing the first 50.</p>' : '') +
+    (parsed.length > 50 ? '<p class="stat-note">Showing the first 50.</p>' : '') +
+
     '<div class="row-actions">' +
-      '<button class="btn-primary" type="button" id="do-import">Import ' + rows.length +
-        ' trade' + (rows.length === 1 ? '' : 's') + '</button>' +
+      '<button class="btn-primary" type="button" id="do-import">Import ' +
+        (parsed.length - collapsed) + ' trade' +
+        (parsed.length - collapsed === 1 ? '' : 's') + '</button>' +
       '<button class="link-button" type="button" id="cancel">Cancel</button>' +
     '</div>' +
     '<p class="form-status" id="import-status"></p>';
 
   $('do-import').addEventListener('click', runImport);
   $('cancel').addEventListener('click', () => {
-    parsed = [];
     $('file').value = '';
-    $('preview').innerHTML = '';
+    reset();
   });
 }
 
-function span(rows) {
-  const times = rows.map((r) => new Date(r.opened_at).getTime()).sort((a, b) => a - b);
+function pnlNote(priced, count, wins) {
+  if (!priced) return 'no profit column mapped';
+  const note = wins + ' of ' + count + ' green';
+  return priced === count ? note : note + ', ' + (count - priced) + ' without a figure';
+}
+
+function span(list) {
+  const times = list.map((r) => new Date(r.opened_at).getTime()).sort((a, b) => a - b);
   const first = new Date(times[0]).toLocaleDateString();
   const last = new Date(times[times.length - 1]).toLocaleDateString();
   return first === last ? first : first + ' – ' + last;
@@ -320,20 +884,23 @@ function card(label, value, note) {
     '<p>' + escapeHtml(note) + '</p></div>';
 }
 
-/* -------------------------------- import -------------------------------- */
+/* -------------------------------- the write ------------------------------- */
 
 async function runImport() {
   const btn = $('do-import');
   btn.disabled = true;
   setStatus('#import-status', 'Importing…', 'info');
 
-  // Upserted on the broker's own id, so importing an overlapping range
-  // corrects those rows instead of creating a second copy of the month.
-  const rows = parsed.map((r) => ({ ...r, user_id: profile.id }));
+  // Collapsed before the write, not after. Postgres refuses an upsert whose
+  // payload touches the same key twice, and the error it gives for it explains
+  // nothing to anybody.
+  const byId = new Map();
+  for (const row of parsed) byId.set(row.external_id, { ...row, user_id: profile.id });
+  const payload = [...byId.values()];
 
   const { error } = await supabase
     .from('trades')
-    .upsert(rows, { onConflict: 'user_id,external_id' });
+    .upsert(payload, { onConflict: 'user_id,external_id' });
 
   if (error) {
     const file = migrationHint(error);
@@ -345,11 +912,74 @@ async function runImport() {
     return;
   }
 
+  const accounts = [...new Set(payload.map((r) => r.account))];
   setStatus('#import-status',
-    rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' imported into ' +
-    parsed[0].account + '. They are in the journal and on the calendar now.', 'ok');
+    payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' +
+    accounts.join(', ') + '. They are in the journal and on the calendar now.', 'ok');
   btn.textContent = 'Imported';
 }
+
+/* ------------------------------- the template ------------------------------ */
+
+// Built from the same field list the importer reads, so it cannot drift out of
+// step with what the page recognises.
+const TEMPLATE_FIELDS = ['opened_at', 'symbol', 'direction', 'contracts', 'entry', 'exit_price',
+                         'stop', 'target', 'fees', 'net_pnl', 'account', 'external_id', 'notes'];
+
+function templateGrid() {
+  const header = TEMPLATE_FIELDS.map((k) => FIELDS.find((f) => f.key === k).label);
+  return [
+    header,
+    ['2026-08-06 08:48', 'NQ', 'short', 1, 29425.50, 29423.50, 29431.00, 29415.00,
+     2.34, 40.00, 'Main', '', 'Sold the sweep of the Asian high'],
+    ['2026-08-06 10:12', 'ES', 'long', 2, 6412.25, 6409.75, 6409.50, 6420.00,
+     4.68, -250.00, 'Main', '', 'Stopped — took it before the range was set']
+  ];
+}
+
+function download(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+$('tpl-csv').addEventListener('click', () => {
+  const csv = templateGrid()
+    .map((row) => row.map((cell) => {
+      const s = String(cell);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(','))
+    .join('\r\n');
+
+  download('trade-karma-template.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+});
+
+$('tpl-xlsx').addEventListener('click', async () => {
+  const button = $('tpl-xlsx');
+  const label = button.textContent;
+  button.textContent = 'building…';
+  button.disabled = true;
+
+  try {
+    const XLSX = await loadXlsx();
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(templateGrid()), 'Trades');
+    const out = XLSX.write(book, { bookType: 'xlsx', type: 'array' });
+    download('trade-karma-template.xlsx', new Blob([out], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }));
+  } catch (err) {
+    setStatus('#status', err && err.message ? err.message : String(err), 'error');
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+  }
+});
 </script>
 
 </body>

@@ -154,6 +154,13 @@ member.
 **Build against the Tradovate Performance CSV.** One row per round turn with the P&L already
 worked out, one file per account, whole date range. Verified against a real export.
 
+**Superseded 6 August 2026 — the importer is now format-agnostic.** Tradovate is still the shape it
+was built and tested against, and its paired-fill layout is still recognised on sight, but nothing
+in the page is specific to it. Columns are matched against a synonym list and every one of them is
+settable by hand, so a platform nobody here has seen imports without a code change. See the entry in
+`DECISIONS.md`. The research below still stands and is still what the per-platform instructions on
+the page are drawn from.
+
 **The schema is already the right shape.** `account`, `fees`, `net_pnl` and `trade_exits` map onto
 what a broker export carries. `net_pnl` matters most: an import does not need entry and stop prices
 to produce a usable calendar, because it can take the realised figure straight from the statement.

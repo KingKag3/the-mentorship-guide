@@ -387,6 +387,61 @@ rather than being hidden, so a thin sample teaches instead of disappearing.</p>
   time in running text.</p>
 </div>
 
+<h3>Column mapping</h3>
+
+<p>One row per field the journal stores, against a select of the columns a file actually has.
+Used by <code>import.html</code>, where the file's own headers are unknown until it is opened.
+The sample beside each control is the first real value in that column — it is what catches a date
+mapped onto a price, which a label alone never would. Collapses to one column under 620px.</p>
+
+<div class="demo">
+  <div class="map-grid">
+    <div class="map-row">
+      <div><span class="map-name">when <span class="req">*</span></span>
+        <span class="map-hint">Date and time the trade opened</span></div>
+      <div><select>
+        <option>boughtTimestamp</option>
+        <option>soldTimestamp</option>
+      </select><span class="map-sample">8/6/2026 08:48:12</span></div>
+    </div>
+    <div class="map-row">
+      <div><span class="map-name">stop</span>
+        <span class="map-hint">Needed for an R multiple</span></div>
+      <div><select><option>— not in this file —</option></select>
+        <span class="map-sample"></span></div>
+    </div>
+  </div>
+  <p><span class="map-unset">not in this file</span> — <code>.map-unset</code>, for naming the
+  unset state in running prose. An empty <code>.map-sample</code> shows an em dash by itself.</p>
+</div>
+
+<h3>Source list</h3>
+
+<p>A definition list for per-platform instructions, because that is what it is: a platform, and
+what to click inside it.</p>
+
+<div class="demo">
+  <dl class="import-sources">
+    <dt>Tradovate</dt>
+    <dd>Account reports, a date range, Download Report.</dd>
+    <dt>NinjaTrader</dt>
+    <dd>Trade Performance, right-click the grid, Export.</dd>
+  </dl>
+</div>
+
+<h3>Disclosure</h3>
+
+<p>A plain <code>&lt;details&gt;</code>. The summary is mono at the small step and turns accent on
+hover, so it reads as a control rather than a heading. For a section worth offering without
+spending the room by default.</p>
+
+<div class="demo">
+  <details>
+    <summary>Exports that record the buy and the sell separately</summary>
+    <p>The contents sit in normal prose.</p>
+  </details>
+</div>
+
 <h2>Diagram palette</h2>
 
 <p>Diagrams are hand-written inline SVG so they inherit the palette and need no assets. The helper

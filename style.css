@@ -1742,6 +1742,99 @@ a.tool-chip:hover {
 }
 ::-webkit-scrollbar-thumb:hover { background: #33404d; }
 
+/* ---------- import column mapping ----------
+
+   One row per field the journal stores, against a select of the columns the
+   file actually has. The two-column grid collapses on a phone, where a label
+   sitting above its own control reads better than either half squeezed. */
+
+.map-grid {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  padding: var(--s-3) var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-2) 0;
+}
+
+.map-row + .map-row { border-top: 1px solid var(--border-lo); }
+
+.map-row select { margin: 0; }
+
+.map-name {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--fg-strong);
+}
+
+/* Marks a field the import cannot proceed without. */
+.map-name .req { color: var(--accent); }
+
+.map-hint {
+  display: block;
+  font-family: var(--serif);
+  font-size: var(--step--1);
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* The first value found in that column. Worth more than any label: it is how
+   you catch a date column mapped onto a price. */
+.map-sample {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--accent);
+}
+
+.map-sample:empty::before { content: "—"; color: var(--muted); }
+
+.map-unset { color: var(--amber); }
+
+@media (max-width: 620px) {
+  .map-row { grid-template-columns: 1fr; gap: var(--s-1); }
+}
+
+/* Per-platform export instructions. A definition list because that is what it
+   is — a platform, and what to click in it. */
+
+.import-sources {
+  margin: var(--s-4) 0;
+  max-width: var(--measure);
+}
+
+.import-sources dt {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--accent);
+  margin-top: var(--s-3);
+}
+
+.import-sources dd {
+  margin: var(--s-1) 0 0;
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--border);
+}
+
+/* The paired-fill mapping panel, and anywhere else a section is worth offering
+   without spending the room by default. */
+
+details > summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--fg-strong);
+  padding: var(--s-2) 0;
+}
+
+details > summary:hover { color: var(--accent); }
+
 /* ---------- print ---------- */
 
 @media print {

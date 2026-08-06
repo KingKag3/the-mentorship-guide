@@ -519,3 +519,70 @@ collide.
 **The file verified the contract table.** $40.00 over 2 points on 1 NQ contract is $20 per point,
 matching `CONTRACTS.NQ.perPoint`. First real-world confirmation of a table that had only ever been
 checked against documentation.
+
+---
+
+## 2026-08-06 - The importer maps columns rather than knowing formats
+
+**Decided:** `import.html` matches a file's headers against a synonym list, shows what it matched,
+and lets every field be reassigned by hand. Three fields are required - when, what, and which way.
+
+**Instead of:** one parser per platform, which is what shipped and what `IMPORTS.md` recommended
+after a day of research into six of them.
+
+**Why:** the per-platform parser is wrong the first time somebody arrives with a seventh. It also
+fails silently in the worst way available - a column order that shifted by one in a vendor update
+still parses, and every price is quietly off by a field. Mapping puts the file's own first value
+beside each choice, so a date landing on a price is visible before anything is written rather than
+after.
+
+Recognition still does the work in practice. A Tradovate export needs nothing touched; so does the
+template. Recognition is the convenience and the mapping is the mechanism, not the other way round.
+
+**What is deliberately not inferred:**
+
+Direction is never read from the prices. For a paired-fill export it comes from which fill was
+first, and everywhere else from a column. Prices alone call every short a long, the profit still
+comes out right, and nothing ever flags it.
+
+A missing side, date or symbol refuses the row and says which, rather than defaulting. The column is
+`not null default 'long'`, so a guess would be indistinguishable from a fact.
+
+Ambiguous dates are settled once for the whole file, by looking for any day above the twelfth, and
+the reading is announced on screen. Deciding per row would mix two calendars in one import.
+
+**Known limit:** side values are read in English, plus the signed-number convention. A platform
+exporting "Venta" refuses the row and says so, which is recoverable; guessing at it would not be.
+
+---
+
+## 2026-08-06 - Files without an identifier get a derived one
+
+**Decided:** when no id column is mapped, `external_id` is a hash of the trade's own details, and
+the page says so.
+
+**Instead of:** leaving it null and inserting.
+
+**Why:** re-importing an overlapping range is the normal case, not the exception, and null
+external_id means every re-import doubles the month. The cost is real and stated on screen: two
+genuinely separate trades with identical instrument, time, prices and size arrive as one.
+
+Duplicates are also collapsed **before** the write. Postgres refuses an upsert whose payload touches
+the same key twice, and the error it gives for it - "command cannot affect row a second time" -
+explains nothing to a member holding a broker export.
+
+---
+
+## 2026-08-06 - Excel is read, but only when an Excel file is opened
+
+**Decided:** `.xlsx` and `.xls` are supported through SheetJS, imported dynamically the first
+time a spreadsheet is actually chosen.
+
+**Instead of:** CSV only, or loading the reader on every visit.
+
+**Why:** members keeping their own records keep them in Excel, and "save as CSV first" is the kind
+of instruction that stops people using a tool. The dynamic import keeps the cost off everybody who
+brings a CSV, which is what a broker export is.
+
+Delimited files are still parsed by hand rather than through the same library. It is fifty lines,
+it already existed, and it works when a CDN does not.

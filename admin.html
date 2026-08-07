@@ -339,7 +339,7 @@
 import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
-         hydrateStorageImages, humanSize, discordToHtml,
+         hydrateStorageImages, humanSize, discordToHtml, dataUrlToFile,
          looksLikeDiscordMarkup, getSetting, setSetting } from './app.js';
 
 renderAccountStrip();
@@ -383,6 +383,7 @@ if (me) {
     }
   });
 
+  wireImagePaste();
   wireDiscordPaste();
 
   // Wrapped so one failing query cannot abort module evaluation and leave the
@@ -1174,6 +1175,96 @@ document.getElementById('lessons-body').addEventListener('click', async (e) => {
 /* -------- Discord markup -------- */
 
 /**
+ * Pasted and dragged images, uploaded rather than embedded.
+ *
+ * Left to itself Quill turns a pasted image into a data: URI inside the HTML.
+ * A screenshot arrives as several megabytes of base64 in one column, the insert
+ * runs past the statement timeout, and the save fails with a message about the
+ * database giving up - which is true and tells the author nothing about what to
+ * do. The image button already uploaded properly; only paste and drop did not.
+ *
+ * Registered in the capture phase and stopped there, because Quill's own
+ * clipboard listener sits on the same element and would otherwise embed the
+ * image anyway.
+ */
+function wireImagePaste() {
+  const absorb = async (event, list) => {
+    const images = [...list].filter((f) => f.type && f.type.startsWith('image/'));
+    if (!images.length) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    const range = quill.getSelection(true);
+    let at = range ? range.index : quill.getLength();
+
+    for (let i = 0; i < images.length; i++) {
+      setStatus('#status-lesson', images.length === 1
+        ? 'Uploading pasted image...'
+        : 'Uploading pasted image ' + (i + 1) + ' of ' + images.length + '...', 'info');
+
+      try {
+        const compressed = await compressImage(images[i]);
+        const path = await uploadMedia(compressed);
+        const url = await signedUrl(path);
+
+        quill.insertEmbed(at, 'image', url, 'user');
+        const node = quill.root.querySelector('img[src="' + url + '"]');
+        if (node) node.dataset.path = path;
+        at += 1;
+      } catch (err) {
+        setStatus('#status-lesson',
+          'That image could not be uploaded: ' + (err && err.message ? err.message : err) +
+          ' Nothing was inserted.', 'error');
+        return;
+      }
+    }
+
+    quill.setSelection(at, 0, 'silent');
+    setStatus('#status-lesson', images.length +
+      (images.length === 1 ? ' image uploaded.' : ' images uploaded.'), 'ok');
+  };
+
+  quill.root.addEventListener('paste', (event) => {
+    const files = event.clipboardData && event.clipboardData.files;
+    if (files && files.length) absorb(event, files);
+  }, true);
+
+  quill.root.addEventListener('drop', (event) => {
+    const files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files.length) absorb(event, files);
+  }, true);
+}
+
+/**
+ * The safety net for images already inside the body as data: URIs - pasted
+ * before the handler above existed, or arriving inside pasted HTML, where they
+ * are markup rather than files and never reach a paste handler at all.
+ *
+ * Runs before every save. Uploading here rather than refusing means an entry
+ * that has been sitting broken in the editor still saves on the next attempt.
+ */
+async function absorbInlineImages() {
+  const inline = [...quill.root.querySelectorAll('img[src^="data:"]')];
+  if (!inline.length) return 0;
+
+  for (let i = 0; i < inline.length; i++) {
+    setStatus('#status-lesson', 'Moving embedded image ' + (i + 1) + ' of ' +
+      inline.length + ' into storage...', 'info');
+
+    const img = inline[i];
+    const file = await dataUrlToFile(img.getAttribute('src'), 'pasted-' + i);
+    const compressed = await compressImage(file);
+    const path = await uploadMedia(compressed);
+
+    img.dataset.path = path;
+    img.setAttribute('src', await signedUrl(path));
+  }
+
+  return inline.length;
+}
+
+/**
  * Pasting plain text that looks like Discord markup converts it.
  *
  * A paste that carries text/html is left alone: copying from the Discord app
@@ -1545,7 +1636,36 @@ document.getElementById('form-lesson').addEventListener('submit', async (e) => {
     return;
   }
 
+  // Anything embedded as base64 goes to storage first. Skipping this is what
+  // sent a multi-megabyte column at the database and got a timeout back.
+  try {
+    const moved = await absorbInlineImages();
+    if (moved) {
+      setStatus('#status-lesson', moved +
+        (moved === 1 ? ' embedded image moved into storage. Saving...'
+                     : ' embedded images moved into storage. Saving...'), 'info');
+    }
+  } catch (err) {
+    setStatus('#status-lesson',
+      'An image embedded in the body could not be moved into storage: ' +
+      (err && err.message ? err.message : err) +
+      ' Nothing has been saved. Remove that image and try again.', 'error');
+    return;
+  }
+
   const bodyHtml = bodyForStorage();
+
+  // A body this large will time out rather than fail cleanly, and the timeout
+  // message describes the symptom rather than the cause. Say the cause instead.
+  const BODY_LIMIT = 500 * 1024;
+  if (bodyHtml.length > BODY_LIMIT) {
+    setStatus('#status-lesson',
+      'The body is ' + humanSize(bodyHtml.length) + ', which is past the ' +
+      humanSize(BODY_LIMIT) + ' this will write reliably. Nothing has been saved. ' +
+      'Split it into two entries, or cut some of the text - images are already ' +
+      'stored separately and are not what is making it large.', 'error');
+    return;
+  }
 
   const payload = {
     title:      document.getElementById('l-title').value.trim(),

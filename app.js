@@ -928,6 +928,17 @@ export async function compressImage(file, maxWidth = 1600, quality = 0.82) {
   }
 }
 
+/**
+ * A data: URI as a File, so a pasted image can go through the same compress and
+ * upload path as a chosen one. fetch() decodes a data URI without touching the
+ * network, which is the shortest correct way to get the bytes back.
+ */
+export async function dataUrlToFile(dataUrl, name = 'pasted') {
+  const blob = await (await fetch(dataUrl)).blob();
+  const ext = ((blob.type.split('/')[1] || 'png').match(/[a-z0-9]+/) || ['png'])[0];
+  return new File([blob], name + '.' + ext, { type: blob.type || 'image/png' });
+}
+
 /** Upload to the private bucket, returning the stored path. */
 export async function uploadMedia(file, folder = 'lessons') {
   const ext = (file.name.match(/\.(\w+)$/) || [, 'bin'])[1].toLowerCase();

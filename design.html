@@ -382,9 +382,16 @@ the wide layout is a container class rather than a global change.</p>
 <table>
   <thead><tr><th>Token</th><th>Meaning</th><th>Used by</th></tr></thead>
   <tbody>
-    <tr><td><code>--accent</code></td><td>Bullish, primary</td><td>Links, buttons, up moves</td></tr>
-    <tr><td><code>--red</code></td><td>Bearish, danger</td><td>Down moves, destructive buttons</td></tr>
+    <tr><td><code>--accent</code></td><td><strong>Brand red.</strong> Not bullish — it maps to
+      <code>--brand-500</code></td><td>Links, buttons, focus. <strong>Never an up move</strong></td></tr>
+    <tr><td><code>--bull</code></td><td>Bullish, as text on the page</td><td>Up moves, gains</td></tr>
+    <tr><td><code>--bear</code></td><td>Bearish, as text on the page</td><td>Down moves, losses</td></tr>
+    <tr><td><code>--red</code></td><td>Alias of <code>--bear</code></td><td>Destructive buttons</td></tr>
     <tr><td><code>--amber</code></td><td>Time, caution</td><td>Killzones, warnings</td></tr>
+    <tr><td><code>--cal-up</code> / <code>--cal-down</code></td><td>Calendar swatches, same in
+      both themes</td><td>Day cells only — too light to read as text</td></tr>
+    <tr><td><code>--cal-ink</code></td><td>Text on a swatch</td><td>Dark in both themes; see the
+      contrast note</td></tr>
   </tbody>
 </table>
 </div>
@@ -504,6 +511,58 @@ rather than being hidden, so a thin sample teaches instead of disappearing.</p>
   <p class="field-note field-note-bad">Rejected — what is wrong with it.</p>
   <p><span class="kbd-time">10:00–11:00</span> — <code>.kbd-time</code>, for any New York clock
   time in running text.</p>
+</div>
+
+<h3>Calendar grid</h3>
+
+<p>A month of trading days in <code>calendar.html</code>. The swatch carries the sign and is
+deliberately <strong>identical in both themes</strong> — the colour is the signal, and a month that
+reads one way in dark and another in light is two different months. Only the ink changes, and it is
+dark in both because both swatches are light: white on <code>--cal-up</code> measures 1.5:1, which
+is unreadable.</p>
+
+<p>The number is always present. Colour alone is no use to anyone who cannot separate red from
+green, so the swatch is a second encoding of something already written down — never the only
+one.</p>
+
+<p class="field-note">This block exists because its absence let a real bug through. The redesign
+remapped <code>--accent</code> from green to the brand red, and every winning day printed its profit
+in the losing colour for as long as nobody logged in to look. A component that is not on this page
+is a component with no regression check.</p>
+
+<div class="demo">
+  <div class="cal-grid">
+    <div class="cal-dow">MON</div><div class="cal-dow">TUE</div><div class="cal-dow">WED</div>
+    <div class="cal-dow">THU</div><div class="cal-dow">FRI</div><div class="cal-dow">SAT</div>
+    <div class="cal-dow">SUN</div>
+    <div class="cal-cell has-trades is-up">
+      <span class="cal-date">3</span>
+      <span class="cal-value">$134.34</span>
+      <span class="cal-count">4 trades</span>
+    </div>
+    <div class="cal-cell has-trades is-up">
+      <span class="cal-date">4</span>
+      <span class="cal-value">$166.46</span>
+      <span class="cal-count">1 trade</span>
+    </div>
+    <div class="cal-cell has-trades is-down">
+      <span class="cal-date">5</span>
+      <span class="cal-value">−$298.12</span>
+      <span class="cal-count">3 trades</span>
+    </div>
+    <div class="cal-cell has-trades is-flat">
+      <span class="cal-date">6</span>
+      <span class="cal-value">$0.00</span>
+      <span class="cal-count">2 trades</span>
+    </div>
+    <div class="cal-cell has-trades is-unknown">
+      <span class="cal-date">7</span>
+      <span class="cal-value">—</span>
+      <span class="cal-count">1 trade, no result</span>
+    </div>
+    <div class="cal-cell"><span class="cal-date">8</span></div>
+    <div class="cal-cell"><span class="cal-date">9</span></div>
+  </div>
 </div>
 
 <h3>Day group</h3>

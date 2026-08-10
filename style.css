@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------
-   Trade Karma â€” shared stylesheet
+   Trade Karma — shared stylesheet
 
    Editorial light theme with a full dark counterpart.
    Serif for content, sans for interface, mono for data.
@@ -9,7 +9,7 @@
 
    1. Never hardcode a colour. Use a token. Every token has a value in
       both themes, which is the only reason the dark mode works.
-   2. Green and red are reserved for market direction â€” bull and bear,
+   2. Green and red are reserved for market direction — bull and bear,
       profit and loss. They are never used for navigation, links,
       buttons or decoration. When the whole interface is green, green
       stops carrying information; this is a trading site, so it has to
@@ -182,6 +182,28 @@
   --surface-1: var(--paper);
   --surface-2: var(--inset);
   --surface-3: var(--hover);
+
+  /* Calendar day swatches. Identical in both themes - see the note above the
+     .cal-cell rules for why the colour must not follow the theme.
+
+     THE INK IS BLACK IN BOTH, and that is a deliberate departure from "white
+     in dark mode". Measured against these two swatches:
+
+       white on #c7db9c   1.5 : 1     black on #c7db9c   14.0 : 1
+       white on #ff748b   2.6 : 1     black on #ff748b    8.1 : 1
+
+     WCAG asks 4.5:1 for body text. White fails both, and fails the green badly
+     enough to be unreadable - which is the opposite of the reason the colours
+     were changed. Both swatches are light, so they want dark ink whatever the
+     surrounding page is doing.
+
+     If white in dark mode is wanted anyway, it is one line: override
+     --cal-ink in the two dark blocks below. */
+  --cal-up:        #c7db9c;
+  --cal-down:      #ff748b;
+  --cal-ink:       #14161a;
+  --cal-up-line:   #a8c072;
+  --cal-down-line: #e05572;
 }
 
 /* ---------------------------------------------------------------
@@ -321,7 +343,7 @@ body {
   font-variant-numeric: oldstyle-nums proportional-nums;
 }
 
-/* Data must never use old-style figures â€” a lining, tabular 7 is the
+/* Data must never use old-style figures — a lining, tabular 7 is the
    point of showing a number at all. */
 table, .readout, .tag, .kbd-time, code, pre,
 .readout-big, .bar-row, .stat-value, .metric-value {
@@ -837,7 +859,7 @@ blockquote {
 }
 
 /* ---------------------------------------------------------------
-   Hero â€” the index page opener
+   Hero — the index page opener
    --------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------
@@ -924,7 +946,7 @@ main.landing .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* A row of framing numbers under the hero. Facts about the material,
-   not performance claims â€” this site does not have a track record and
+   not performance claims — this site does not have a track record and
    must not imply one. */
 /* Ruled columns, like a fact table at the head of a research note. */
 .hero-stats {
@@ -1198,7 +1220,7 @@ a.card:hover h3 { color: var(--brand-500); }
 
 /* ---- inline SVG helpers -------------------------------------
    Diagrams are hand-written SVG so they inherit the palette. These
-   classes are how they do it â€” a diagram must never carry a hex, or
+   classes are how they do it — a diagram must never carry a hex, or
    it will be wrong in one of the two themes. */
 
 .svg-label    { font-family: var(--sans); font-size: 11.5px; fill: var(--ink-500); }
@@ -1213,7 +1235,7 @@ a.card:hover h3 { color: var(--brand-500); }
 .svg-brand   { stroke: var(--brand-500); fill: none; }
 .svg-warn    { stroke: var(--warn); fill: none; }
 
-/* Solid fills â€” dots, markers, text */
+/* Solid fills — dots, markers, text */
 .svg-up-f      { fill: var(--bull); stroke: none; }
 .svg-down-f    { fill: var(--bear); stroke: none; }
 .svg-neutral-f { fill: var(--ink-400); stroke: none; }
@@ -1221,7 +1243,7 @@ a.card:hover h3 { color: var(--brand-500); }
 .svg-warn-f    { fill: var(--warn); stroke: none; }
 .svg-ink-f     { fill: var(--ink-700); stroke: none; }
 
-/* Translucent zone fills â€” liquidity bands, gaps, ranges */
+/* Translucent zone fills — liquidity bands, gaps, ranges */
 .svg-zone-up      { fill: var(--bull); opacity: 0.13; stroke: none; }
 .svg-zone-down    { fill: var(--bear); opacity: 0.13; stroke: none; }
 .svg-zone-warn    { fill: var(--warn); opacity: 0.14; stroke: none; }
@@ -1310,7 +1332,7 @@ tbody tr { transition: background-color var(--fast); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--hover); }
 
-/* Numeric columns opt in â€” right aligned, tabular. */
+/* Numeric columns opt in — right aligned, tabular. */
 td.num, th.num { text-align: right; font-family: var(--mono); }
 
 /* ---------------------------------------------------------------
@@ -2817,10 +2839,38 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .cal-count { font-size: 0.66rem; color: var(--muted); }
 
-.cal-cell.is-up    { background: #10251a; border-color: var(--accent-dk); }
-.cal-cell.is-up    .cal-value { color: var(--accent); }
-.cal-cell.is-down  { background: #2a1416; border-color: #7f3535; }
-.cal-cell.is-down  .cal-value { color: var(--red); }
+/* WHAT WAS WRONG HERE, because it was not a taste problem.
+
+   A green day printed its profit in `var(--accent)`. Before the redesign that
+   token was green; the redesign remapped it to `--brand-500`, which is the
+   brand RED. So every winning day rendered its number in the losing colour and
+   nothing in the CSS looked odd enough to notice.
+
+   And the two backgrounds were hardcoded hex - #10251a and #2a1416 - with no
+   light-mode value, which is why light mode drew near-black cells on a white
+   page. `CLAUDE.md` says never hardcode a colour for exactly this reason: a
+   token would have followed the theme, a hex could not.
+
+   The swatch is the same in both themes on purpose. The colour IS the signal,
+   and a month that reads one way in dark and another in light is two different
+   months. Only the ink changes - see --cal-ink. */
+
+.cal-cell.is-up    { background: var(--cal-up); border-color: var(--cal-up-line); }
+.cal-cell.is-down  { background: var(--cal-down); border-color: var(--cal-down-line); }
+
+.cal-cell.is-up    .cal-value,
+.cal-cell.is-down  .cal-value { color: var(--cal-ink); }
+
+/* The date and the trade count sit on the swatch too, so --muted would put
+   grey on light green and lose them. Same ink, stepped back. */
+.cal-cell.is-up    .cal-date,
+.cal-cell.is-up    .cal-count,
+.cal-cell.is-down  .cal-date,
+.cal-cell.is-down  .cal-count { color: var(--cal-ink); opacity: 0.68; }
+
+.cal-cell.is-up:hover,
+.cal-cell.is-down:hover { border-color: var(--cal-ink); }
+
 .cal-cell.is-flat  .cal-value { color: var(--muted); }
 .cal-cell.is-unknown .cal-value { color: var(--muted); }
 
@@ -2885,7 +2935,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   color: var(--accent);
 }
 
-.map-sample:empty::before { content: "â€”"; color: var(--muted); }
+.map-sample:empty::before { content: "—"; color: var(--muted); }
 
 .map-unset { color: var(--amber); }
 
@@ -2905,8 +2955,12 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   border-left: 3px solid var(--border);
 }
 
-.day-group.is-up   { border-left-color: var(--accent); }
-.day-group.is-down { border-left-color: var(--red); }
+/* Same remapping bug the grid had: --accent is the brand red now, so a winning
+   day carried a red edge. These use the swatch's own line colour, which is the
+   grid's green and red at a strength that reads against the page rather than
+   against the swatch. */
+.day-group.is-up   { border-left-color: var(--cal-up-line); }
+.day-group.is-down { border-left-color: var(--cal-down-line); }
 
 .day-group h3 {
   display: flex;
@@ -2917,8 +2971,12 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .day-group-sum { font-family: var(--mono); color: var(--fg-strong); }
-.day-group.is-up   .day-group-sum { color: var(--accent); }
-.day-group.is-down .day-group-sum { color: var(--red); }
+/* The third place --accent was standing in for green. This text sits on the
+   page rather than on a swatch, so it uses --bull and --bear, which the theme
+   already tunes for legibility on either background. The swatch colours are
+   for swatches; they are too light to read as text on a white page. */
+.day-group.is-up   .day-group-sum { color: var(--bull); }
+.day-group.is-down .day-group-sum { color: var(--bear); }
 
 .day-group-n {
   font-family: var(--serif);
@@ -2943,7 +3001,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* Per-platform export instructions. A definition list because that is what it
-   is â€” a platform, and what to click in it. */
+   is — a platform, and what to click in it. */
 
 .import-sources {
   margin: var(--s-4) 0;

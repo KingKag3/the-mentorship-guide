@@ -633,6 +633,17 @@ select.role-select:disabled { color: var(--muted); cursor: not-allowed; }
 
 .btn-primary:hover { background: #6ee79b; }
 
+/* The same button as a link, for a call to action that navigates rather than
+   submits. Needs the block display and the underline removed; everything else
+   is inherited. */
+a.btn-primary {
+  display: inline-block;
+  text-decoration: none;
+  color: #08130c;
+}
+
+a.btn-primary:hover { color: #08130c; }
+
 .btn-danger {
   font-family: var(--mono);
   font-size: 0.7rem;

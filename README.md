@@ -8,7 +8,7 @@ A small static site that explains Smart Money trading vocabulary in ordinary lan
 
 | File | Covers |
 | --- | --- |
-| `index.html` | Overview, how the vocabulary is organised, suggested order of study |
+| `index.html` | Landing page — what the site is, what is free, what the members area is for |
 | `liquidity.html` | Buyside/sellside, internal vs external range, draw on liquidity, LRLR/HRLR, stop hunts, Judas swing, turtle soup, liquidity voids |
 | `pd-arrays.html` | Premium/discount/equilibrium, fair value gaps, BISI/SIBI, order blocks, breakers, mitigation, rejection, propulsion, vacuum blocks, BPR/RDRB, NWOG/NDOG |
 | `structure.html` | Swing points, STH/ITH/LTH hierarchy, displacement, MSS vs BOS, three drives, market phases, daily bias, SMT divergence, top-down analysis |

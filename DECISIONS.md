@@ -586,3 +586,36 @@ brings a CSV, which is what a broker export is.
 
 Delimited files are still parsed by hand rather than through the same library. It is fifty lines,
 it already existed, and it works when a CDN does not.
+---
+
+## 2026-08-10 - The concept pages stay public, and the front page sells the members area
+
+**Decided:** `index.html` is rewritten as a landing page that names the two halves - free concepts,
+paid measurement. The seven concept pages stay open.
+
+**Instead of:** putting the concept pages behind `requireRole`, which is what was asked for.
+
+**Why:** it would not have worked, and it would have looked like it did. This repository is public,
+so `raw.githubusercontent.com` serves `liquidity.html` to anyone right now, no login. Checked, not
+assumed: it returns 200. A gate on those pages hides the content from members who have paid while
+leaving it available to anyone with the repo URL - the worst of both, and a false claim of privacy
+made to paying customers.
+
+Three things would actually gate content. Moving it into Supabase as lesson rows behind RLS, which
+works and is a large job. Making the repo private, which stops the raw URLs but not Pages, since the
+published site still serves the same HTML. A JavaScript gate, which stops nothing. Only the first is
+real, and `README.md` has said so since the beginning.
+
+**The commercial argument, which is separate and also mattered.** The vocabulary is free in a dozen
+places, so charging for it means competing with free while removing the only thing a stranger can
+evaluate the writing by. What is actually scarce here is the journal, the statistics over it, the
+importer and the indicators - none of which can be found elsewhere and none of which a member can
+take with them. The pages are the funnel; the tooling is the product.
+
+**Left open deliberately:** the page names no price and promises no recurring service. Kag3 asked for
+the offer to stay vague until the commercial side is decided, so nothing on the page commits him to
+delivering anything on a schedule.
+
+**Recorded as a standing risk:** if the concept pages are ever gated, this entry is the argument
+against doing it with JavaScript, and the migration into the database is the only version worth
+building.

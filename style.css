@@ -396,9 +396,16 @@ main { max-width: var(--measure); }
 
 /* ---- the on-this-page rail ---- */
 
+/* The sticky offset is the pinned masthead's height plus a gap, so the rail
+   clears it once the page has moved. At the top of the page nothing is pinned
+   yet and the rail sat flush against the masthead's bottom edge - no overlap,
+   but no air either, which read as the heading being clipped. The margin gives
+   it the same clearance before scrolling that the offset gives it after, so the
+   two states agree. */
 .page-nav {
   position: sticky;
-  top: 88px;
+  top: calc(63px + var(--s-4));
+  margin-top: var(--s-4);
   font-family: var(--sans);
   font-size: 0.84rem;
   border-left: 1px solid var(--line);

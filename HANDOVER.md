@@ -28,10 +28,13 @@ Last updated: 6 August 2026, fifth session.
 > unchanged. (`trade-import-fix.sql` has since replaced that index with a plain one, because a
 > partial index cannot be named by an upsert — see `DECISIONS.md`.)
 >
-> Nor can it see `curriculum-arrays.sql`'s rows. `phases` and `lessons` both answer 200 with `[]` to
-> the anon key, which proves the policies hold and says nothing about content. **Signed in, the
-> members index should show Phase 2, "Arrays, imbalance and the opening prices", with seven
-> entries.** That is the only check that means anything, and it has not been done.
+> `curriculum-arrays.sql` is **verified from inside**, 10 August 2026, which the anon key cannot do —
+> `phases` and `lessons` answer 200 with `[]` to it, proving only that the policies hold. Queried as
+> the owner: phase `phase-2` exists and is published, all seven lessons are present, none orphaned,
+> none unpublished, and seven are visible under the phase. The seeding is sound.
+>
+> `supabase/curriculum-arrays-check.sql` is the query, kept because the three ways this can look
+> broken need three different fixes and the counts tell them apart in one read.
 
 - **`trade-karma-htf.pine` compiles clean.** Confirmed in the editor, no errors. The largest
   concentration of unverified code in the project is down to `trade-karma-pd-arrays.pine`, which has

@@ -19,11 +19,19 @@ Last updated: 6 August 2026, fifth session.
 > | `supabase/trade-import.sql` | run — `external_id`, `imported_at` |
 > | `supabase/settings.sql` | run |
 > | `supabase/scripts.sql` | run |
+> | `supabase/trade-import-fix.sql` | run — the import upsert works |
+> | `supabase/curriculum-arrays.sql` | run 10 August 2026 — content, not schema |
 >
 > What that check *cannot* see: whether the partial unique index on `(user_id, external_id)` was
 > created, because indexes are not visible to the anon key. The importer's de-duplication depends on
 > it. Importing the same file twice is the test — the second run should leave the trade count
-> unchanged.
+> unchanged. (`trade-import-fix.sql` has since replaced that index with a plain one, because a
+> partial index cannot be named by an upsert — see `DECISIONS.md`.)
+>
+> Nor can it see `curriculum-arrays.sql`'s rows. `phases` and `lessons` both answer 200 with `[]` to
+> the anon key, which proves the policies hold and says nothing about content. **Signed in, the
+> members index should show Phase 2, "Arrays, imbalance and the opening prices", with seven
+> entries.** That is the only check that means anything, and it has not been done.
 
 - **`trade-karma-htf.pine` compiles clean.** Confirmed in the editor, no errors. The largest
   concentration of unverified code in the project is down to `trade-karma-pd-arrays.pine`, which has

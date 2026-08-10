@@ -119,11 +119,26 @@
      page: figures, tables and card grids take the full column, which
      is what stops a wide screen from showing a phone-width strip of
      text with dead space beside it. */
-  --measure: 68ch;
+  --measure: 86ch;
   --measure-wide: 100%;
-  --wrap: 1320px;
+
+  /* One frame for every page. Reading pages used to sit in a 1320px
+     container while the members pages used 1480, which read as two
+     different sites - and on a 1920 screen the narrower one left 600px
+     of margin. Same number now, so the masthead, the content and the
+     footer line up whichever page you are on.
+
+     --measure is the width of running prose inside the article column,
+     and it is set close to the column rather than well inside it. At
+     68ch it left a 212px hole between the end of the text and the rail,
+     which is what makes a page look broken rather than airy. 86ch is a
+     long line and a deliberate trade: measured against this column at
+     this font, it closes the hole to about 135px, which reads as a
+     gutter. Figures, tables and card grids ignore it entirely and use
+     the whole column, which is the point of the grid. */
+  --wrap: 1480px;
   --wrap-wide: 1480px;
-  --rail: 250px;        /* the on-this-page sidebar */
+  --rail: 300px;        /* the on-this-page sidebar */
 
   /* ---- shape ---------------------------------------------------
      Small radii and hairlines. Institutional finance sites separate

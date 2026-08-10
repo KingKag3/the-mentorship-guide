@@ -52,6 +52,25 @@ Say what you actually verified. `HANDOVER.md` has an **Untested** section for a 
 of writing, nothing touching Supabase had ever been run against a live project. Do not describe
 untested code as working.
 
+## Always link what you changed
+
+End any turn that touched a file with links to it, so Kag3 can open, review and copy without going
+looking. This lives here rather than in a memory file because he works from two machines and
+`DECISIONS.md` (2026-08-05) records that anything written only to memory is invisible on the other
+one.
+
+- **Files** — a markdown link on the repo-relative path, which the app makes clickable:
+  `[import.html](import.html)`, `[knowledge/setups.md](knowledge/setups.md)`.
+- **Commits** — the GitHub URL, never a bare hash. Public repo:
+  `https://github.com/KingKag3/the-mentorship-guide/commit/<sha>`. Private pine repo is the same
+  shape under `the-mentorship-pine` and works while he is signed in.
+- **Pine scripts he has to paste into TradingView** — give the **raw** URL as well. That is the one
+  that copies cleanly:
+  `https://raw.githubusercontent.com/KingKag3/the-mentorship-pine/main/<file>.pine`. Repeat the
+  paste-over-the-whole-buffer warning; pasting *into* the editor leaves the old declaration and
+  produces "your script has 2".
+- **SQL he has to run** — raw URL too, for the same reason.
+
 ## Git
 
 Commit when asked. Push to `main` — the site publishes from it. Commit messages explain *why*, not

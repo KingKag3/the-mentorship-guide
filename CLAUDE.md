@@ -64,12 +64,14 @@ one.
 - **Commits** — the GitHub URL, never a bare hash. Public repo:
   `https://github.com/KingKag3/the-mentorship-guide/commit/<sha>`. Private pine repo is the same
   shape under `the-mentorship-pine` and works while he is signed in.
-- **Pine scripts he has to paste into TradingView** — give the **raw** URL as well. That is the one
-  that copies cleanly:
-  `https://raw.githubusercontent.com/KingKag3/the-mentorship-pine/main/<file>.pine`. Repeat the
-  paste-over-the-whole-buffer warning; pasting *into* the editor leaves the old declaration and
+- **Raw URLs work for this repo and not for the pine one.** `raw.githubusercontent.com` does not
+  read a browser session, so a raw link to anything in the **private** `the-mentorship-pine` repo
+  returns 404 no matter who is signed in. For public files a raw link is the best thing to give,
+  because it copies cleanly. For private ones give the `blob` URL and use the file-send tool to
+  attach the file itself — the "Copy raw file" button on the blob page is the working equivalent.
+- **Pine scripts he has to paste into TradingView** — attach the file, and repeat the
+  paste-over-the-whole-buffer warning. Pasting *into* the editor leaves the old declaration and
   produces "your script has 2".
-- **SQL he has to run** — raw URL too, for the same reason.
 
 ## Git
 

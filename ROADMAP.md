@@ -177,33 +177,78 @@ Without it, every member retypes the same eight numbers every evening, and most 
 
 ---
 
-## The redesign — a long-lived branch, not a phase
+## The redesign — landed, and still running
 
-`ui-overhaul` is where the visual system is being rebuilt: finance rather than terminal, a crimson
-mark, a theme toggle (`theme.js`) and a table of contents (`contents.js`). Will Jedrzejczak (`wjed`)
-works on it; it merges into `main` when Kag3 decides it is ready, not on any schedule.
+**Will Jedrzejczak's visual system is the site's, as of 10 August 2026** — commit `a113c65`. His
+stylesheet, his chrome, his light and dark themes. `ui-overhaul` is not a pending merge any more; it
+is where the next round of presentation work happens.
 
-It is deliberately **not** numbered alongside the tools above. Those are features that ship once and
-are done. This one is continuous — the look will keep changing after the first merge, and giving it
-a phase number would imply a finish line that does not exist.
+It is deliberately **not** numbered alongside the tools above. Those ship once and are done. This one
+is continuous — the look will keep changing, and a phase number would imply a finish line that does
+not exist.
+
+### What the first integration actually cost, which is worth knowing before the next one
+
+Thirty-five commits of divergence, and a stylesheet rewritten 2,049 lines up and 1,001 down against
+the 372 `main` had added. It read as a painful merge and was not one, for a reason that is entirely
+Will's doing: **he kept an alias layer.** `--bg` still resolves, to `var(--page)`; `--fg` to
+`var(--ink-700)`. So every rule written against the old token names kept working against the new
+palette.
+
+Measured rather than assumed, before a line was moved:
+
+| Check | Result |
+| --- | --- |
+| Tokens `main`'s newer CSS uses that his file defines | 27 of 27 |
+| His selectors colliding with `main`'s new components | 0 of 25 |
+| Selectors his rewrite dropped that a page still uses | 0 |
+
+That is what made "take his stylesheet whole and append `main`'s components" safe. **Run those three
+checks again next time** rather than trusting that it will hold — the alias layer is a convention, and
+nothing enforces it.
+
+One thing did not survive: `main`'s `a.btn-primary` override, which hardcoded a near-black against
+the old dark palette. Under a light theme it would have been unreadable, which is the exact failure
+the token system exists to prevent. Anything that hardcodes a colour is a light-mode bug waiting to
+be filed.
+
+### The theme switch, and why it is built the way it is
+
+Three states, not two. Unset **follows the operating system and keeps following it**; only a
+deliberate toggle pins light or dark. Returning to "follow the system" is not on the button, because
+a third state that looks identical to one of the other two is a control nobody can read — clearing
+`tk_theme` in devtools restores it.
+
+`theme.js` is a **classic script in `<head>`, not a module**, and that is load-bearing. A module is
+deferred, so it would run after first paint: the page would render in the wrong theme and visibly
+flip. Anyone tidying it into a module will reintroduce that.
+
+Dark is declared twice, under `prefers-color-scheme` and under `[data-theme="dark"]`. That
+duplication is what makes both "follow the system" and "pinned" work, and it is not redundancy to be
+cleaned up.
 
 ### How the two sides stay out of each other's way
 
-**Will owns presentation. Kag3 owns behaviour.** In practice that means `style.css`, `design.html`,
-the markup inside pages, and the two new scripts belong to the branch. Anything under `supabase/`,
-the query and write paths in `app.js`, and new pages belong to `main`.
+**Will owns presentation. Kag3 owns behaviour.** `style.css`, `design.html`, the markup inside pages,
+`theme.js` and `contents.js` belong to the branch. Anything under `supabase/`, the query and write
+paths in `app.js`, and new pages belong to `main`.
 
 Neither side is enforced by anything, so it holds only as long as both remember it. The cost of
-forgetting is a merge conflict in a three-thousand-line stylesheet, which is why it is written down.
+forgetting is a conflict in a three-thousand-line stylesheet.
 
-**Rebase the branch onto `main` regularly — weekly is plenty.** The branch was cut at `5b7076e` on
-5 August and by the next day `main` had gained the calendar, the importer, four migrations and a
-Pages workflow. None of those pages exist on the branch, so their links 404 when it is served, and
-every day the branch sits still is more stylesheet to reconcile later. Rebasing often turns one
-unmanageable merge into a series of small ones.
+**Reset the branch onto `main` before starting the next round.** It currently sits behind a `main`
+that contains its own work, so continuing on it as-is means conflicting with himself:
 
-**A new page on `main` arrives unstyled on the branch.** Whoever adds one should say so, so the
-branch can pick it up rather than discovering it at merge time.
+```
+git fetch origin && git checkout ui-overhaul && git reset --hard origin/main
+```
+
+**Rebase weekly after that.** The first branch was cut on 5 August and by the next day `main` had
+gained the calendar, the importer, four migrations and a Pages workflow — none of which existed on
+the branch, so their links 404 when it is served. Rebasing often turns one unmanageable merge into a
+series of small ones.
+
+**A new page on `main` arrives unstyled on the branch.** Whoever adds one should say so.
 
 ### Running it locally
 
@@ -216,18 +261,23 @@ cd ../the-mentorship-ui && python -m http.server 8765
 ```
 
 Sign-in will not work against `127.0.0.1` — Supabase's redirect URLs point at the GitHub Pages
-address. The public pages, the sizer, the clock and the SMT checker all work; anything behind a
-login needs the deployed site.
+address. The public pages, the sizer, the clock and the SMT checker all work; anything behind a login
+needs the deployed site.
 
-### Before merging
+### Before merging the next round
 
-- Rebase onto `main` first, so the conflicts are resolved in the branch rather than in a merge
-  commit nobody can read afterwards.
-- Check `design.html` renders every component, including the ones added on `main` since the branch
-  was cut. It is the visual regression check and it is the first place a broken token shows up.
+- Rebase onto `main` first, so conflicts are resolved in the branch rather than in a merge commit
+  nobody can read afterwards.
+- Re-run the three compatibility checks above. They passed once; that is not a guarantee.
+- **Look at every page in both themes.** The first integration was verified structurally — chrome
+  applied once per page, auth gates intact, markup balanced, tokens resolving — and not one page was
+  looked at rendered. Anything hardcoding a colour, and any diagram whose SVG carries fixed fills,
+  is where light mode will break first.
+- Check `design.html` renders every component. It is the visual regression check and the first place
+  a broken token shows up.
 - Confirm no page lost its `#auth-root` div or its `requireRole` call. A gate that vanishes during a
-  restyle is invisible until somebody who should not be reading a lesson reads one — and the
-  database still refuses them, but the page will have promised otherwise.
+  restyle is invisible until somebody who should not be reading a lesson reads one — the database
+  still refuses them, but the page will have promised otherwise.
 
 ---
 

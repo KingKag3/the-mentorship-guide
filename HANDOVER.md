@@ -147,9 +147,11 @@ Be honest about this list before trusting anything below it.
   on a narrow viewport.
 - **The new-indicator badge count.** The rendering is exercised; the count against real rows needs a
   signed-in session. Publish something and check the members index reads `new`.
-- **`trade-karma-pd-arrays.pine` since the model marker.** It compiled before the 2022-model block,
-  the session shading and the label rework went in. `trade-karma-htf.pine` has never compiled at
-  all.
+- **The pine scripts are no longer on this list.** `trade-karma-pd-arrays.pine` compiled and ran on
+  a live NQ 15m chart on 10 August 2026, with the unicorn scan, the A-12 validity tests, inversions
+  and the draw panel all in it. `trade-karma-htf.pine` was confirmed clean earlier. What is still
+  unverified about the array script is whether its *readings* are right, not whether it runs — see
+  the note below.
 
 ### The blank members page — settled
 
@@ -255,9 +257,19 @@ created.
 **Then:** log one closed trade by hand and confirm it reaches the calendar and the statistics. That
 round trip is still unproven.
 
-**Then:** compile the current `trade-karma-pd-arrays.pine`. `trade-karma-htf.pine` is now confirmed
-clean, so this is the last unverified script. Paste over the whole editor buffer — pasting *into* it leaves the old
-declaration and produces "your script has 2".
+**Then:** judge what `trade-karma-pd-arrays.pine` is *saying*. It compiles and runs; nothing has yet
+checked whether it is right. Two readings are worth an hour each:
+
+- Do the `x2` tags land on a sensible minority of order blocks? Nearly all of them means `obRatio` is
+  too loose to filter anything; nearly none means it is too strict to be useful.
+- Does a gap price closed through actually flip and keep drawing, rather than fading?
+
+**Adding it to a chart: remove the copy that is already there first.** This has now cost two separate
+sessions. Pasting *into* the editor rather than over it leaves the old declaration and produces "your
+script has 2". And adding a second instance without removing the first leaves both drawing — which
+presents as boxes that will not go away when the indicator is toggled off, and reads exactly like a
+frozen script. Pine drawings die with their script instance, so **anything still on the chart after
+the indicator is removed was never drawn by it.** That test settles it in one click.
 
 Three things to expect on `trade-karma-htf.pine` specifically, none of them errors:
 

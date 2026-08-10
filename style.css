@@ -440,7 +440,11 @@ main { max-width: var(--measure); }
   transition: color var(--fast), border-color var(--fast);
 }
 
-.page-nav a::before {
+/* Scoped to the list, not to every link in the rail. "Back to top" sits
+   outside the <ol> and so outside the counter's scope, which meant it
+   rendered whatever the counter last reached - the arrow came out as
+   "06 up Back to top". */
+.page-nav li a::before {
   content: counter(sec, decimal-leading-zero);
   font-size: 0.72rem;
   font-variant-numeric: lining-nums tabular-nums;
@@ -448,7 +452,7 @@ main { max-width: var(--measure); }
 }
 
 .page-nav a:hover { color: var(--ink-900); }
-.page-nav a:hover::before { color: var(--brand-500); }
+.page-nav li a:hover::before { color: var(--brand-500); }
 
 .page-nav a.is-current {
   color: var(--brand-500);
@@ -456,7 +460,7 @@ main { max-width: var(--measure); }
   border-left-color: var(--brand-solid);
 }
 
-.page-nav a.is-current::before { color: var(--brand-500); }
+.page-nav li a.is-current::before { color: var(--brand-500); }
 
 .page-nav .nav-top {
   display: block;

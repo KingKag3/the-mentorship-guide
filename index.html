@@ -7,27 +7,39 @@
 <meta name="description" content="Smart Money trading concepts explained in plain English, free to read. Members get a tagged trade journal, statistics over it, a broker importer and TradingView indicators.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
+<div class="utility-bar">
+  <div class="utility-inner">
+    <span class="utility-note"><span class="utility-dot" aria-hidden="true"></span>
+    <span><strong>Educational content only.</strong> Not investment advice. Trading involves substantial risk of loss.</span></span>
+    <span class="utility-links"><a href="glossary.html">Jargon decoder</a> &nbsp;&middot;&nbsp; <a href="members.html">Members</a></span>
+  </div>
+</div>
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html" aria-current="page">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html" aria-current="page">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -317,8 +329,61 @@ definition is described in plain language rather than quoted.</p>
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-legal">
+    <h6>Important disclosures</h6>
+    <p><strong>This site is educational material, not investment advice.</strong> Nothing on it is
+    a recommendation, solicitation or offer to buy or sell any security, future, or other financial
+    instrument, and nothing on it is tailored to the circumstances of any individual reader. No
+    content here should be relied upon as the basis for a trading decision.</p>
+    <p><strong>Trading futures involves substantial risk of loss and is not suitable for every
+    investor.</strong> Leverage works against you as readily as it works for you. You can lose more
+    than your initial deposit. The majority of retail traders who trade actively lose money. Past
+    performance, whether hypothetical or actual, is not indicative of future results, and no
+    performance record on this site has been audited or independently verified.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually labelled Smart
+    Money Concepts. Trade Karma is not affiliated with, endorsed by, or sponsored by him or any
+    related entity. All wording, diagrams and examples on this site were written from scratch; no
+    text from any book or course is reproduced.</p>
+    <p class="footer-copy">&copy; 2026 Trade Karma &middot; Educational content only &middot;
+    <a href="design.html">Design system</a></p>
+  </div>
 </footer>
 </div>
 

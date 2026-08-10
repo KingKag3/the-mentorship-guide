@@ -246,7 +246,7 @@ export async function renderAccountStrip(selector = '#account-strip') {
   if (!el) return;
 
   if (!IS_CONFIGURED) {
-    el.innerHTML = '<span class="acct-muted">auth not configured</span>';
+    el.innerHTML = '<span class="acct-muted">Not signed in</span>';
     return;
   }
 
@@ -263,19 +263,19 @@ export async function renderAccountStrip(selector = '#account-strip') {
   }
 
   if (!profile) {
-    el.innerHTML = '<a class="acct-link" href="login.html">sign in</a>';
+    el.innerHTML = '<a class="acct-link" href="login.html">Sign in</a>';
     return;
   }
 
   const adminLink = profile.role === 'admin'
-    ? '<a class="acct-link" href="admin.html">admin</a>'
+    ? '<a class="acct-link" href="admin.html">Admin</a>'
     : '';
 
   el.innerHTML =
     '<span class="acct-muted">' + escapeHtml(profile.email) + '</span>' +
     '<span class="role-badge role-' + escapeHtml(profile.role) + '">' + escapeHtml(profile.role) + '</span>' +
     adminLink +
-    '<button type="button" class="acct-link" id="sign-out">sign out</button>';
+    '<button type="button" class="acct-link" id="sign-out">Sign out</button>';
 
   const btn = document.getElementById('sign-out');
   if (btn) btn.addEventListener('click', signOut);

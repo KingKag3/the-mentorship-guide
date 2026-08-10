@@ -8,8 +8,9 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 <style>
 /* Page-local: only the swatch grid and spec rows, which exist nowhere else. */
 .swatches {
@@ -19,39 +20,39 @@
   margin: var(--s-4) 0;
 }
 .swatch {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--surface-1);
+  background: var(--paper);
 }
-.swatch .chip { height: 62px; display: block; }
+.swatch .chip { height: 58px; display: block; border-bottom: 1px solid var(--line); }
 .swatch .meta {
   padding: 9px 11px;
   font-family: var(--mono);
   font-size: 0.68rem;
   line-height: 1.6;
 }
-.swatch .meta b { display: block; color: var(--fg-strong); font-weight: 500; }
-.swatch .meta span { color: var(--muted); }
+.swatch .meta b { display: block; color: var(--ink-900); font-weight: 500; }
+.swatch .meta span { color: var(--ink-500); }
 
 .spec {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 150px 1fr;
   gap: var(--s-3);
   align-items: baseline;
   padding: var(--s-3) 0;
-  border-bottom: 1px solid var(--border-lo);
+  border-bottom: 1px solid var(--line-lo);
 }
 .spec code { white-space: nowrap; }
 
-.ruler { background: rgba(74, 222, 128, 0.2); display: inline-block; height: 14px; }
+.ruler { background: var(--brand-100); display: inline-block; height: 14px; }
 
 .demo {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   padding: var(--s-4);
   margin: var(--s-4) 0;
-  background: var(--surface-2);
+  background: var(--inset);
 }
 .demo > :first-child { margin-top: 0; }
 .demo > :last-child { margin-bottom: 0; }
@@ -59,22 +60,33 @@
 </head>
 <body>
 
+<div class="utility-bar utility-bar--wide">
+  <div class="utility-inner">
+    <span class="utility-note"><span class="utility-dot" aria-hidden="true"></span>
+    <span><strong>Educational content only.</strong> Not investment advice. Trading involves substantial risk of loss.</span></span>
+    <span class="utility-links"><a href="glossary.html">Jargon decoder</a> &nbsp;&middot;&nbsp; <a href="members.html">Members</a></span>
+  </div>
+</div>
 <header class="masthead masthead--wide">
   <div class="masthead-inner">
     <div class="masthead-top">
-      <a class="brand" href="index.html">trade <b>karma</b></a>
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html">Members</a>
+      </nav>
       <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
     </div>
-    <nav class="site">
-      <a href="index.html">start</a>
-      <a href="liquidity.html">liquidity</a>
-      <a href="pd-arrays.html">pd arrays</a>
-      <a href="structure.html">structure</a>
-      <a href="time.html">time</a>
-      <a href="models.html">models</a>
-      <a href="glossary.html">glossary</a>
-      <a href="members.html">members</a>
-    </nav>
   </div>
 </header>
 
@@ -95,52 +107,95 @@ everywhere.</p>
   one site.</p>
 </div>
 
+<div class="callout">
+  <span class="callout-label">Two themes, one set of names</span>
+  <p>Every token below has a value in both the light and the dark theme, and the page you are
+  reading re-renders in whichever is active — use the toggle in the masthead. That is the reason
+  nothing anywhere may hardcode a hex: a literal colour is, by definition, wrong in one of the two.
+  The dark theme follows the operating system until the toggle is used, after which the choice is
+  pinned in <code>localStorage</code>.</p>
+</div>
+
 <h2>Colour</h2>
 
 <h3>Surfaces</h3>
-<p>Depth is expressed by surface, not by shadow. Each step up is a lighter plane.</p>
+<p>Depth is expressed by a hairline rule and whitespace, not by shadow. <code>--shadow-1</code> is
+deliberately <code>none</code>: cards that float on soft shadow are the signature of a product
+dashboard, and this is meant to read as a research page.</p>
 
 <div class="swatches">
-  <div class="swatch"><span class="chip" style="background:var(--surface-0)"></span>
-    <span class="meta"><b>--surface-0</b><span>#0b0e11 · page</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--surface-1)"></span>
-    <span class="meta"><b>--surface-1</b><span>#12171d · raised card</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--surface-2)"></span>
-    <span class="meta"><b>--surface-2</b><span>#0f141a · inset, inputs</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--surface-3)"></span>
-    <span class="meta"><b>--surface-3</b><span>#171e26 · hover</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--border)"></span>
-    <span class="meta"><b>--border</b><span>#232b33</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--border-lo)"></span>
-    <span class="meta"><b>--border-lo</b><span>#1a2027 · row rules</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--page)"></span>
+    <span class="meta"><b>--page</b><span>the page itself</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--paper)"></span>
+    <span class="meta"><b>--paper</b><span>card, table, panel</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--inset)"></span>
+    <span class="meta"><b>--inset</b><span>input, code, recess</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--hover)"></span>
+    <span class="meta"><b>--hover</b><span>row and card hover</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--line)"></span>
+    <span class="meta"><b>--line</b><span>standard border</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--line-lo)"></span>
+    <span class="meta"><b>--line-lo</b><span>internal rules</span></span></div>
 </div>
 
-<h3>Text</h3>
+<h3>Ink</h3>
+<p>One scale, darkest to lightest. Body copy sits at 700; anything below 400 is decoration and
+will not pass a contrast check.</p>
 
 <div class="swatches">
-  <div class="swatch"><span class="chip" style="background:var(--fg-strong)"></span>
-    <span class="meta"><b>--fg-strong</b><span>headings, emphasis</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--fg)"></span>
-    <span class="meta"><b>--fg</b><span>body copy</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--muted)"></span>
-    <span class="meta"><b>--muted</b><span>secondary, labels</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--ink-900)"></span>
+    <span class="meta"><b>--ink-900</b><span>headings</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--ink-700)"></span>
+    <span class="meta"><b>--ink-700</b><span>body copy</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--ink-600)"></span>
+    <span class="meta"><b>--ink-600</b><span>secondary copy</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--ink-500)"></span>
+    <span class="meta"><b>--ink-500</b><span>muted, captions</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--ink-400)"></span>
+    <span class="meta"><b>--ink-400</b><span>placeholder, disabled</span></span></div>
 </div>
 
-<h3>Accents</h3>
-<p>Each accent carries a fixed meaning. Using them decoratively breaks the code the reader has
-already learned from the diagrams.</p>
+<h3>Brand</h3>
+<p>Crimson, from the mark. Used sparingly and on purpose: the badge, the current nav item, the
+primary action, links, and bearish data. Everything else on the page is ink on white — a page that
+is almost entirely black-on-white with a little red is what reads as a research house, and the
+moment red becomes the furniture it reads as a landing page instead.</p>
 
 <div class="swatches">
-  <div class="swatch"><span class="chip" style="background:var(--accent)"></span>
-    <span class="meta"><b>--accent</b><span>bullish, primary, links</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--accent-dk)"></span>
-    <span class="meta"><b>--accent-dk</b><span>quiet accent, rules</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--red)"></span>
-    <span class="meta"><b>--red</b><span>bearish, danger</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--amber)"></span>
-    <span class="meta"><b>--amber</b><span>time, caution</span></span></div>
-  <div class="swatch"><span class="chip" style="background:var(--blue)"></span>
-    <span class="meta"><b>--blue</b><span>neutral marker</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-solid)"></span>
+    <span class="meta"><b>--brand-solid</b><span>buttons, badge · same in both themes</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-solid-hover)"></span>
+    <span class="meta"><b>--brand-solid-hover</b><span>solid fill hover</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-500)"></span>
+    <span class="meta"><b>--brand-500</b><span>links, active nav</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-800)"></span>
+    <span class="meta"><b>--brand-800</b><span>deep crimson</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-100)"></span>
+    <span class="meta"><b>--brand-100</b><span>tint border</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--brand-050)"></span>
+    <span class="meta"><b>--brand-050</b><span>tint fill</span></span></div>
+</div>
+
+<div class="callout">
+  <span class="callout-label">Why two red tokens</span>
+  <p><code>--brand-solid</code> is one crimson used in <em>both</em> themes for anything filled —
+  buttons, the badge, tool flags — because white on it clears AA at 5.97:1 either way. Links need
+  the opposite treatment: <code>--brand-500</code> lightens in the dark theme so it stays legible
+  on a dark page, and white text on <em>that</em> red would fail. One token could not do both jobs,
+  so there are two.</p>
+</div>
+
+<h3>Market semantics</h3>
+<p>These four are the only colours that carry meaning, and they are never used for anything
+else.</p>
+
+<div class="swatches">
+  <div class="swatch"><span class="chip" style="background:var(--bull)"></span>
+    <span class="meta"><b>--bull</b><span>bullish, profit</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--bear)"></span>
+    <span class="meta"><b>--bear</b><span>bearish, loss, danger</span></span></div>
+  <div class="swatch"><span class="chip" style="background:var(--warn)"></span>
+    <span class="meta"><b>--warn</b><span>time, caution</span></span></div>
   <div class="swatch"><span class="chip" style="background:var(--violet)"></span>
     <span class="meta"><b>--violet</b><span>midpoints, code</span></span></div>
 </div>
@@ -151,37 +206,52 @@ already learned from the diagrams.</p>
   Amber means time or caution. Violet marks midpoints such as consequent encroachment and mean
   threshold. A reader learns these in the first diagram; breaking them later costs comprehension
   for the sake of variety.</p>
+  <p><strong>Red is the exception that proves it.</strong> Bearish red and the brand crimson are
+  deliberately the same colour: on a trading site red already means down, and inventing a second
+  red would make two things that mean the same thing look different. What keeps it readable is
+  volume — red covers a few percent of any page here. The original palette used bullish green for
+  links, buttons, the brand, the active nav item and the focus ring <em>as well as</em> for
+  direction, so green appeared several hundred times per page and signalled nothing.</p>
 </div>
 
 <h2>Type</h2>
 
-<p>Two families, each with a job. <strong>JetBrains Mono</strong> carries structure: headings,
-labels, data, anything the eye scans. <strong>Source Serif</strong> carries prose, because
-extended reading is what this site is for.</p>
+<p>Three families, each with one job. <strong>Source Serif&nbsp;4</strong> carries content —
+headlines and running prose, because extended reading is what this site is for.
+<strong>Libre Franklin</strong> carries the interface: navigation, labels, buttons, table headers,
+anything that is a control rather than a sentence. It is a Franklin Gothic descendant — the
+newspaper and banking grotesque — which is why the chrome reads institutional rather than like a
+product launch. <strong>JetBrains Mono</strong> is reserved for data — prices, R multiples, codes,
+source — where a tabular figure actually matters.</p>
 
-<p>The scale is fluid — sizes interpolate between phone and desktop with <code>clamp()</code>, so
+<p>The scale is fluid: sizes interpolate between phone and desktop with <code>clamp()</code>, so
 no breakpoint is needed to keep text readable.</p>
 
 <div class="demo">
+  <span class="eyebrow">Eyebrow · Inter, uppercase</span>
   <h1 style="margin-top:0">Heading one · --step-3</h1>
   <h2>Heading two · --step-2</h2>
-  <h3>Heading three · --step-1</h3>
+  <h3>Heading three · Inter 600</h3>
   <h4>Heading four · uppercase label</h4>
-  <p class="lede">Lede paragraph · --step-1, muted, capped at 62 characters so the opening
+  <p class="lede">Lede paragraph · --step-1, secondary ink, capped at 60 characters so the opening
   statement stays scannable.</p>
-  <p>Body copy · --step-0, Source Serif, 1.68 line height, capped at 78 characters. Long enough to
+  <p>Body copy · --step-0, Source Serif, 1.7 line height, capped at 72 characters. Long enough to
   carry an argument, short enough that the eye finds the next line without effort. This paragraph
   exists to show what a real block of running text looks like at the measure the site actually
   uses.</p>
   <p><code>inline code · mono, violet</code> and <a href="#">an inline link</a> and
   <strong>strong emphasis</strong> and <em>italic emphasis</em>.</p>
+  <p style="font-family:var(--mono);font-variant-numeric:lining-nums tabular-nums">
+  Data · JetBrains Mono, tabular · 18,412.25 &nbsp; −1.75R &nbsp; 09:30–10:00</p>
 </div>
 
-<div class="spec"><code>--step-3</code><span>1.55 → 2.20rem · h1</span></div>
-<div class="spec"><code>--step-2</code><span>1.24 → 1.50rem · h2</span></div>
-<div class="spec"><code>--step-1</code><span>1.10 → 1.24rem · h3, lede</span></div>
-<div class="spec"><code>--step-0</code><span>1.00 → 1.10rem · body</span></div>
-<div class="spec"><code>--step--1</code><span>0.78 → 0.84rem · captions, meta</span></div>
+<div class="spec"><code>--step-4</code><span>2.10 → 3.60rem · hero h1</span></div>
+<div class="spec"><code>--step-3</code><span>1.70 → 2.60rem · h1, readout</span></div>
+<div class="spec"><code>--step-2</code><span>1.34 → 1.72rem · h2, stat value</span></div>
+<div class="spec"><code>--step-1</code><span>1.14 → 1.30rem · lede</span></div>
+<div class="spec"><code>--step-0</code><span>1.02 → 1.12rem · body</span></div>
+<div class="spec"><code>--step--1</code><span>0.82 → 0.88rem · captions, tables</span></div>
+<div class="spec"><code>--step--2</code><span>0.72 → 0.77rem · fine print</span></div>
 
 <h2>Spacing</h2>
 
@@ -193,8 +263,57 @@ one-off, and one-offs are what make a layout feel unresolved.</p>
 <div class="spec"><code>--s-3</code><span><i class="ruler" style="width:14px"></i> 14px · between related items</span></div>
 <div class="spec"><code>--s-4</code><span><i class="ruler" style="width:22px"></i> 22px · component padding</span></div>
 <div class="spec"><code>--s-5</code><span><i class="ruler" style="width:34px"></i> 34px · between components</span></div>
-<div class="spec"><code>--s-6</code><span><i class="ruler" style="width:52px"></i> 52px · between sections</span></div>
-<div class="spec"><code>--s-7</code><span><i class="ruler" style="width:76px"></i> 76px · page bottom</span></div>
+<div class="spec"><code>--s-6</code><span><i class="ruler" style="width:54px"></i> 54px · between sections</span></div>
+<div class="spec"><code>--s-7</code><span><i class="ruler" style="width:84px"></i> 84px · page bottom</span></div>
+<div class="spec"><code>--s-8</code><span><i class="ruler" style="width:120px"></i> 120px · hero</span></div>
+
+<h2>Buttons</h2>
+
+<p>Two weights, and that is deliberate. A page with three equally loud actions has no primary
+action.</p>
+
+<div class="demo">
+  <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;align-items:center">
+    <button class="btn-primary" type="button">Primary action</button>
+    <button class="btn-secondary" type="button">Secondary</button>
+    <button class="btn-danger" type="button">Remove</button>
+    <button class="link-button" type="button">Link button</button>
+    <button class="btn-primary" type="button" disabled>Disabled</button>
+  </div>
+</div>
+
+<h2>Diagram colours</h2>
+
+<p>Diagrams are hand-written inline SVG so they inherit the palette and need no assets. A
+presentation attribute cannot hold a <code>var()</code>, so the colour has to live in a class —
+which is also what lets one diagram be correct in both themes.</p>
+
+<p><code>svg-f-*</code> sets fill, <code>svg-s-*</code> sets stroke; the two are separate so an
+element can carry a wash and an outline independently, and per-element
+<code>opacity</code> still controls the strength of a zone.</p>
+
+<div class="demo">
+<svg viewBox="0 0 720 120" role="img" aria-label="The diagram colour helpers rendered as swatches">
+  <rect class="svg-f-up"      x="0"   y="10" width="90" height="34"/>
+  <rect class="svg-f-down"    x="100" y="10" width="90" height="34"/>
+  <rect class="svg-f-warn"    x="200" y="10" width="90" height="34"/>
+  <rect class="svg-f-info"    x="300" y="10" width="90" height="34"/>
+  <rect class="svg-f-alt"     x="400" y="10" width="90" height="34"/>
+  <rect class="svg-f-mute"    x="500" y="10" width="90" height="34"/>
+  <rect class="svg-f-ink"     x="600" y="10" width="90" height="34"/>
+  <text class="svg-label" x="0"   y="60">-up</text>
+  <text class="svg-label" x="100" y="60">-down</text>
+  <text class="svg-label" x="200" y="60">-warn</text>
+  <text class="svg-label" x="300" y="60">-info</text>
+  <text class="svg-label" x="400" y="60">-alt</text>
+  <text class="svg-label" x="500" y="60">-mute</text>
+  <text class="svg-label" x="600" y="60">-ink</text>
+
+  <rect class="svg-f-up" x="0" y="78" width="200" height="30" opacity="0.13"/>
+  <line class="svg-s-up" x1="0" y1="78" x2="200" y2="78" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text class="svg-label" x="210" y="98">zone wash · fill helper at opacity 0.13</text>
+</svg>
+</div>
 
 <h2>Layout</h2>
 
@@ -213,7 +332,6 @@ the wide layout is a container class rather than a global change.</p>
 <div class="demo">
   <p>
     <button class="btn-primary">Primary action</button>
-    <a class="btn-primary" href="#">Primary action, as a link</a>
     <button class="btn-danger">Destructive</button>
     <button class="acct-link">quiet action</button>
     <button class="link-button">inline link button</button>
@@ -473,20 +591,19 @@ classes below keep labels consistent across every figure on the site.</p>
 
 <figure class="figure">
 <svg viewBox="0 0 720 190" role="img" aria-label="Reference showing the diagram palette and label styles">
-  <line x1="40" y1="46" x2="680" y2="46" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="40" y="38" class="svg-label-em" fill="#f87171">bearish level · --red · svg-label-em</text>
+  <line class="svg-s-down" x1="40" y1="46" x2="680" y2="46" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="40" y="38" class="svg-label-em svg-f-down">bearish level · --red · svg-label-em</text>
 
-  <rect x="40" y="78" width="640" height="26" fill="#60a5fa" opacity="0.13"/>
-  <text x="46" y="96" class="svg-label" fill="#60a5fa">neutral zone · --blue at 13% · svg-label</text>
+  <rect class="svg-f-info" x="40" y="78" width="640" height="26" opacity="0.13"/>
+  <text x="46" y="96" class="svg-label svg-f-info">neutral zone · --blue at 13% · svg-label</text>
 
-  <line x1="40" y1="140" x2="680" y2="140" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="40" y="160" class="svg-label-em" fill="#4ade80">bullish level · --accent</text>
+  <line class="svg-s-up" x1="40" y1="140" x2="680" y2="140" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="40" y="160" class="svg-label-em svg-f-up">bullish level · --accent</text>
 
-  <line x1="40" y1="120" x2="680" y2="120" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="2 4"/>
-  <text x="470" y="116" class="svg-label" fill="#c4b5fd">midpoint · --violet</text>
+  <line class="svg-s-alt" x1="40" y1="120" x2="680" y2="120" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="470" y="116" class="svg-label svg-f-alt">midpoint · --violet</text>
 
-  <path d="M 60 130 L 140 90 L 220 110 L 300 60 L 380 88 L 460 44 L 540 82 L 620 132"
-        fill="none" stroke="#d7dde3" stroke-width="2" stroke-linejoin="round"/>
+  <path class="svg-s-ink" d="M 60 130 L 140 90 L 220 110 L 300 60 L 380 88 L 460 44 L 540 82 L 620 132" fill="none" stroke-width="2" stroke-linejoin="round"/>
 </svg>
 <figcaption>Conventions: solid dashed lines for levels, translucent rectangles for zones, a light
 grey path for price, and labels in mono at 11px. Captions sit under a dashed rule in muted mono.</figcaption>
@@ -530,14 +647,67 @@ grey path for price, and labels in mono at 11px. Captions sit under a dashed rul
 
 <div class="pager">
   <a href="index.html">← start</a>
-  <a href="members.html">members →</a>
+  <a href="members.html">Members area →</a>
 </div>
 
 </main>
 
 <footer class="site">
-  <p>Trade Karma — a static, no-framework study site.<br>
-  Educational content only. Not financial advice. Trading involves substantial risk of loss.</p>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-legal">
+    <h6>Important disclosures</h6>
+    <p><strong>This site is educational material, not investment advice.</strong> Nothing on it is
+    a recommendation, solicitation or offer to buy or sell any security, future, or other financial
+    instrument, and nothing on it is tailored to the circumstances of any individual reader. No
+    content here should be relied upon as the basis for a trading decision.</p>
+    <p><strong>Trading futures involves substantial risk of loss and is not suitable for every
+    investor.</strong> Leverage works against you as readily as it works for you. You can lose more
+    than your initial deposit. The majority of retail traders who trade actively lose money. Past
+    performance, whether hypothetical or actual, is not indicative of future results, and no
+    performance record on this site has been audited or independently verified.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually labelled Smart
+    Money Concepts. Trade Karma is not affiliated with, endorsed by, or sponsored by him or any
+    related entity. All wording, diagrams and examples on this site were written from scratch; no
+    text from any book or course is reproduced.</p>
+    <p class="footer-copy">&copy; 2026 Trade Karma &middot; Educational content only &middot;
+    <a href="design.html">Design system</a></p>
+  </div>
 </footer>
 </div>
 

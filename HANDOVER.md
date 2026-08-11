@@ -5,6 +5,41 @@ with no memory of how any of it got here.
 
 Last updated: 6 August 2026, fifth session.
 
+## Sixth session — 10 August 2026
+
+- **`supabase/curriculum-prerequisites.sql` is written and NOT RUN.** It moves the seven arrays
+  lessons out of `phase-2` into a new `prerequisites` section between Phase 1 and Phase 2, renumbers
+  the phases in tens so there is room to insert again, leaves `phase-2` empty and **unpublished** for
+  its real content, and prepends a diagram to each of the seven lessons. Safe to re-run; each figure
+  is guarded on the lesson not already having one. The check query is commented at the foot of the
+  file.
+- **The seven diagrams were verified before they went into SQL**, in the browser, against both
+  themes: no missing classes, no colour literals, and the palette genuinely changes between light and
+  dark. What has *not* been verified is how they look once rendered through `lesson.html`, because
+  that needs the migration run and a login.
+- **The calendar's colours were wrong, not merely ugly.** The redesign remapped `--accent` from green
+  to the brand red and three rules still used it to mean "up", so every winning day printed its
+  number in the losing colour. Fixed, along with the hardcoded cell backgrounds that had no
+  light-mode value. The calendar grid is now on `design.html`, whose absence is why this survived.
+
+### The concept-page diagrams are wrong in light mode
+
+Not fixed, and worth knowing before anyone reports it as new. `style.css` states the rule — a diagram
+must never carry a hex, or it will be wrong in one of the two themes — and the six public concept
+pages break it **147 times**, because they were drawn before light mode existed.
+
+| Colour | Uses | What it does on a white page |
+| --- | --- | --- |
+| `#4ade80` | 60 | Bright green, roughly 1.7:1. Readable as a shape, poor as text |
+| `#f87171` | 37 | Same problem, salmon |
+| `#8b98a5` | 18 | Mid grey. The one that survives both |
+| `#fbbf24` `#60a5fa` `#c4b5fd` | 39 | Pale on white, acceptable as fills |
+| `#d7dde3` | 6 | **Near-invisible.** This is the acute one |
+| `#12171d` `#232b33` | 5 | Near-black; reads, but is not theme-aware |
+
+The `svg-*` classes to convert them to already exist and are proven by the seven new figures. It is
+mechanical work, not design work.
+
 ## Since the last update — fifth session
 
 > **All migrations are run.** Verified from outside the application with the anon key: every column

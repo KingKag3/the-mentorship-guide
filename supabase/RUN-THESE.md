@@ -11,18 +11,10 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `session-backfill.sql` | Fills `session_kz` from `opened_at` on trades that have none | The importer derives the session at import time, so anything imported before 11 August carries a blank one |
+Nothing. Everything written is applied — see Done.
 
-**It only ever fills a blank.** A session typed by hand is left alone, even where the query would
-have chosen differently — you were there and it was not. That is what makes it safe to run after
-editing trades, which re-importing the file is not.
 
-**Expect blanks to remain afterwards.** 00:00-02:00, 05:00-07:00 and 16:00-20:00 are not named
-windows in this methodology, and a trade in one of them keeps its blank rather than being given a
-session it was not in. Zero blanks would mean a window had been widened to cover hours nobody
-defined, which is worse than the gap.
+
 
 ### How to tell they worked, if you ever need to check again
 
@@ -48,6 +40,7 @@ select account, risk_per_trade, updated_at
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `session-backfill.sql` | 11 Aug 2026 | Fills `session_kz` from `opened_at` where it was blank. **Blanks are expected to remain**: 00:00-02:00, 05:00-07:00 and 16:00-20:00 are not named windows, and a trade there keeps its blank rather than being handed a session it was not in. Zero blanks would mean a window had been widened to cover hours nobody defined |
 | `prop-accounts.sql` | 11 Aug 2026 | **Confirmed from outside**: `prop_accounts` and `prop_presets` both answer 200 with `[]` to the anon key, which is a table that exists behind a policy that holds. Whether the seven ladder rows landed needs a signed-in look at `props.html` |
 | `trade-closed-at.sql` | 11 Aug 2026 | **Confirmed by the result**: the statistics page reports median hold times, and nothing but this column can produce them |
 | `risk-settings.sql` | 11 Aug 2026 | Same paste. **Not independently confirmed** — the table is only touched when the risk panel is saved, so save a figure once to be sure |

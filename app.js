@@ -465,6 +465,30 @@ export function sessionAt(when) {
   return best ? best.label : null;
 }
 
+/**
+ * One decision, however many accounts hold it.
+ *
+ * A member running copied prop accounts places one trade and it lands in every
+ * account at once. Money must stay pooled - eighteen accounts really did make
+ * eighteen lots of money - but anything that COUNTS or SEQUENCES has to
+ * collapse, or the page claims eighteen times the evidence it has.
+ *
+ * Two rows are one decision when every fact about the trade matches. Two
+ * genuinely separate trades at the same instant, same instrument, same
+ * direction and the same prices collapse too. That is the right way round:
+ * treating copies as independent inflates confidence, and this errs toward
+ * less.
+ */
+export function distinctDecisions(list) {
+  const seen = new Map();
+  for (const r of list) {
+    const key = [r.opened_at, r.symbol, r.direction, r.entry, r.exit_price,
+                 r.contracts].join('|');
+    if (!seen.has(key)) seen.set(key, r);
+  }
+  return [...seen.values()];
+}
+
 /* ------------------------------ sharing safely ----------------------------
 
    A screenshot of your accounts is a good thing to post and a bad thing to

@@ -157,7 +157,7 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError,
-         accountsHidden, setAccountsHidden, aliasMap } from './app.js';
+         accountsHidden, setAccountsHidden, aliasMap, distinctDecisions } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -347,14 +347,29 @@ function renderSummary(rows) {
   }
 
   const total = dayValue(t);
+  const best = bestWorst(days, Math.max);
+  const worst = bestWorst(days, Math.min);
+  const decisionCount = distinctDecisions(rows).length;
 
   $('summary').innerHTML =
     '<div class="card-grid">' +
       card('Days traded', String(days.length), green + ' green, ' + red + ' red') +
-      card('Trades', String(t.n), 'closed this month') +
+      // Copies are not extra trades. Money below stays pooled, because eighteen
+      // accounts really did make eighteen lots of money; the count does not,
+      // because you made the decision once.
+      card('Trades', String(decisionCount),
+        decisionCount === t.n ? 'closed this month'
+          : 'decisions this month, held across ' + t.n + ' rows') +
       card('Total', fmt(total), metric === 'r' ? 'sum of R' : 'sum across known contracts') +
-      card('Best day', fmt(bestWorst(days, Math.max)), 'largest single day') +
-      card('Worst day', fmt(bestWorst(days, Math.min)), 'largest single loss') +
+      card('Best day', fmt(best), best === null ? 'nothing to compare yet'
+        : days.length === 1 ? 'the only day this month' : 'largest single day') +
+      // A worst day that made money is not a loss, and calling it one on a
+      // month with a single green day is how a page loses trust. With one day
+      // the two cards are the same number twice, which is worse than saying so.
+      card('Worst day', worst !== null && worst < 0 ? fmt(worst) : '-',
+        worst === null ? 'nothing to compare yet'
+          : worst >= 0 ? 'no losing day this month'
+          : 'largest single loss') +
     '</div>' +
     accountBreakdown(rows) +
     (t.dollarsKnown || metric === 'r' ? '' :

@@ -59,6 +59,13 @@
 
   <div id="tool-rail"></div>
 
+  <div class="cal-toggle">
+    <label class="check-line">
+      <input type="checkbox" id="hide-accounts">
+      <span>Hide account numbers, for a screenshot</span>
+    </label>
+  </div>
+
   <div class="cal-head">
     <button type="button" class="link-button" id="prev">&larr; previous</button>
     <h2 id="month-label">—</h2>
@@ -149,7 +156,8 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         tradeValue, money, localDay, hasResult, toNumber, dbError } from './app.js';
+         tradeValue, money, localDay, hasResult, toNumber, dbError,
+         accountsHidden, setAccountsHidden, aliasMap } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -185,11 +193,17 @@ if (error) {
 const closed = (data || []).filter(hasResult);
 
 const accounts = [...new Set(closed.map((r) => r.account).filter(Boolean))].sort();
+
+/* Aliases, not blurring. See app.js: the names are replaced before they are
+   drawn, so a screenshot cannot leak what was never rendered. */
+let hidden = accountsHidden();
+let alias = aliasMap(accounts);
+const label = (n) => (n && hidden ? (alias.get(n) || 'Account') : n);
 let account = 'all';
 
 $('account-filter').innerHTML =
   '<option value="all">All accounts</option>' +
-  accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>').join('');
+  accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(label(a)) + '</option>').join('');
 $('account-filter').hidden = accounts.length === 0;
 $('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
 
@@ -363,7 +377,7 @@ function accountBreakdown(rows) {
       const v = dayValue(s.t);
       const pct = Math.abs(v ?? 0) / scale * 100;
       return '<div class="bar-row">' +
-        '<span>' + escapeHtml(s.name) + '</span>' +
+        '<span>' + escapeHtml(label(s.name)) + '</span>' +
         '<span class="bar-track"><span class="bar-fill' + ((v ?? 0) < 0 ? ' is-bad' : '') +
           '" style="width:' + pct.toFixed(1) + '%"></span></span>' +
         '<b>' + fmt(v) + '</b>' +
@@ -403,7 +417,7 @@ function tradeRow(r) {
       escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
       (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
     '<td>' + escapeHtml(r.model || '—') +
-      (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
+      (r.account ? '<br><span class="acct-muted">' + escapeHtml(label(r.account)) + '</span>' : '') +
       '</td>' +
     '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
     '<td>' + (Number.isFinite(rm)
@@ -500,6 +514,20 @@ for (const radio of document.querySelectorAll('input[name="metric"]')) {
   radio.addEventListener('change', (e) => {
     metric = e.target.value;
     render();
+  });
+}
+
+{
+  const box = document.getElementById('hide-accounts');
+  box.checked = hidden;
+  box.addEventListener('change', () => {
+    hidden = box.checked;
+    setAccountsHidden(hidden);
+    render();
+    $('account-filter').innerHTML =
+      '<option value="all">All accounts</option>' +
+      accounts.map((a) => '<option value="' + escapeHtml(a) + '"' +
+        (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
   });
 }
 

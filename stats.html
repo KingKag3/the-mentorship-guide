@@ -70,6 +70,13 @@
       <span>R multiple</span>
     </label>
   </div>
+  <div class="cal-toggle">
+    <label class="check-line">
+      <input type="checkbox" id="hide-accounts">
+      <span>Hide account numbers, for a screenshot</span>
+    </label>
+  </div>
+
   <div class="cal-toggle" id="account-toggle" hidden>
     <label for="account-filter">Account</label>
     <select id="account-filter" class="role-select cal-account" aria-label="Filter by account"></select>
@@ -183,6 +190,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
+         accountsHidden, setAccountsHidden, aliasMap,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
 
@@ -245,11 +253,17 @@ let rangeDays = 0;
 
 const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
 
+/* Aliases, not blurring. See app.js: names are replaced before they are drawn,
+   so a screenshot cannot leak what was never rendered. */
+let hidden = accountsHidden();
+let alias = aliasMap(accounts);
+const label = (n) => (n && hidden ? (alias.get(n) || 'Account') : n);
+
 // Only worth offering when there is a choice to make.
 {
   const sel = document.getElementById('account-filter');
   sel.innerHTML = '<option value="all">All accounts</option>' +
-    accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>').join('');
+    accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(label(a)) + '</option>').join('');
   sel.addEventListener('change', (e) => { account = e.target.value; render(); });
 }
 
@@ -474,10 +488,10 @@ function renderRiskRows() {
     const v = stated.has(a) ? stated.get(a) : '';
     const n = rows.filter((r) => r.account === a).length;
     return '<label class="check-line risk-row">' +
-      '<span>' + escapeHtml(a) + ' <span class="acct-muted">' + n + ' trades</span></span>' +
+      '<span>' + escapeHtml(label(a)) + ' <span class="acct-muted">' + n + ' trades</span></span>' +
       '<input type="number" min="1" step="1" inputmode="decimal" ' +
         'data-risk="' + escapeHtml(a) + '" value="' + escapeHtml(String(v)) + '" ' +
-        'placeholder="e.g. 200" aria-label="Risk per trade for ' + escapeHtml(a) + '">' +
+        'placeholder="e.g. 200" aria-label="Risk per trade for ' + escapeHtml(label(a)) + '">' +
       '</label>';
   }).join('');
 }
@@ -1069,6 +1083,20 @@ function renderFindings(list) {
 }
 
 document.querySelector('input[name="unit"][value="' + unit + '"]').checked = true;
+{
+  const box = document.getElementById('hide-accounts');
+  box.checked = hidden;
+  box.addEventListener('change', () => {
+    hidden = box.checked;
+    setAccountsHidden(hidden);
+    document.getElementById('account-filter').innerHTML =
+      '<option value="all">All accounts</option>' +
+      accounts.map((a) => '<option value="' + escapeHtml(a) + '"' +
+        (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+    render();
+  });
+}
+
 render();
 
 // --- maths -----------------------------------------------------------------
@@ -1119,7 +1147,7 @@ function statCard(label, value, note) {
 
 function renderSlices(list) {
   const sections = [
-    ['By account', 'Which account is carrying you, and which is bleeding.', (r) => r.account],
+    ['By account', 'Which account is carrying you, and which is bleeding.', (r) => label(r.account)],
     ['By model', 'Which of the things you were taught actually pays.', (r) => r.model],
     ['By session', 'When you trade well, and when you are just present.', (r) => r.session_kz],
     ['By what you entered from', 'Fair value gap, order block, breaker.', (r) => r.pd_array],

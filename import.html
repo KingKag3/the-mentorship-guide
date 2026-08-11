@@ -584,9 +584,20 @@ function numeric(row, key) {
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
 
-  const s = String(v).trim();
-  const negative = /^\(.*\)$/.test(s) || s.startsWith('-');
-  const n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  // THE SIGN IS READ AFTER THE CURRENCY COMES OFF, and that order is the whole
+  // point of this function.
+  //
+  // It used to test the raw string, so "$(335.00)" failed the parenthesis test
+  // - it starts with a dollar sign, not a bracket - and failed the minus test
+  // too. Every non-digit was then stripped anyway and the row was stored as a
+  // WIN of $335. Accounting negatives are how a great many platforms write a
+  // loss, so a whole export could import with its losing trades inverted,
+  // producing a journal with no red days in it and no error anywhere.
+  //
+  // "$-335.00" had the same problem from the other direction.
+  const bare = String(v).trim().replace(/[\s, $€£¥]/g, '');
+  const negative = /^\(.*\)$/.test(bare) || bare.startsWith('-');
+  const n = parseFloat(bare.replace(/[^0-9.]/g, ''));
   if (!Number.isFinite(n)) return null;
   return negative ? -n : n;
 }

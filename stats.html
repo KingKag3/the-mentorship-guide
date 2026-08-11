@@ -70,6 +70,21 @@
       <span>R multiple</span>
     </label>
   </div>
+  <div class="cal-toggle" id="range-toggle">
+    <label class="check-line">
+      <input type="radio" name="range" value="30">
+      <span>Last 30 days</span>
+    </label>
+    <label class="check-line">
+      <input type="radio" name="range" value="90">
+      <span>Last 90 days</span>
+    </label>
+    <label class="check-line">
+      <input type="radio" name="range" value="0" checked>
+      <span>Everything</span>
+    </label>
+  </div>
+
   <p class="stat-note" id="unit-note"></p>
 
   <details id="risk-panel" hidden>
@@ -213,6 +228,16 @@ if (error) {
 const capped = (data || []).length > 2000;
 const rows = (data || []).slice(0, 2000);
 
+/* Declared here, at the top, and not next to the function that reads it.
+ *
+ * inRange() is called from the counts below, which run at module level to pick
+ * the default unit. A `let` further down the file is still in its temporal dead
+ * zone at that moment and throws, taking the whole page with it - a blank body
+ * and a console message nobody sees. This file has produced that failure three
+ * times now; the rule that avoids it is that anything read during setup is
+ * declared before setup, not beside its reader. */
+let rangeDays = 0;
+
 const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
 
 /* Which lessons actually exist, so a finding never offers a link to a page that
@@ -250,11 +275,18 @@ const statedFor = (r) => stated.get(r.account) || null;
 const hasR  = (r) => realR(r) || (hasMoney(r) && statedFor(r) !== null);
 const valueR = (r) => realR(r) ? Number(r.r_multiple) : Number(r.net_pnl) / statedFor(r);
 
-const rCount = () => rows.filter(hasR).length;
-const measuredCount = rows.filter(realR).length;
-const moneyCount = rows.filter(hasMoney).length;
+/* All three count inside the current window, so the sentence above the
+ * breakdowns describes the same trades the breakdowns do. Counting all-time
+ * while showing thirty days is the sort of mismatch nobody checks and everybody
+ * half-notices. */
+const rCount        = () => rows.filter((r) => hasR(r) && inRange(r)).length;
+const measuredCount = () => rows.filter((r) => realR(r) && inRange(r)).length;
+const moneyCount    = () => rows.filter((r) => hasMoney(r) && inRange(r)).length;
+const shownCount    = () => rows.filter(inRange).length;
 
-let unit = rCount() >= moneyCount && rCount() > 0 ? 'r' : 'money';
+// Chosen once, all-time, before any window is applied: the default should
+// reflect what the journal holds rather than what the current filter shows.
+let unit = rCount() >= moneyCount() && rCount() > 0 ? 'r' : 'money';
 
 const UNIT = {
   r:     { has: hasR,     value: valueR,
@@ -263,7 +295,23 @@ const UNIT = {
            fmt: (v) => money(v),    label: 'dollars' }
 };
 
-function closedNow() { return rows.filter(UNIT[unit].has); }
+/* The window under examination.
+ *
+ * All-time is the honest default and a poor answer to the only question a
+ * member asks after three months: am I getting better. A quarter that includes
+ * the fortnight they were learning to place a stop is not the quarter they are
+ * asking about.
+ *
+ * Split rather than smoothed, because a rolling average of a trading account
+ * flatters the recent past - the older trades keep voting long after they stop
+ * being relevant. */
+function inRange(r) {
+  if (!rangeDays) return true;
+  const cutoff = Date.now() - rangeDays * 86400000;
+  return new Date(r.opened_at).getTime() >= cutoff;
+}
+
+function closedNow() { return rows.filter((r) => UNIT[unit].has(r) && inRange(r)); }
 
 // The unit is a runtime choice, so it is bound at the call rather than baked
 // into the module. Everything downstream just asks for a number.
@@ -279,12 +327,15 @@ function summariseNow(list) { return summariseWith(list, UNIT[unit].value); }
 function render() {
   const list = closedNow();
   const other = unit === 'r' ? 'money' : 'r';
-  const otherCount = rows.filter(UNIT[other].has).length;
+  const otherCount = rows.filter((r) => UNIT[other].has(r) && inRange(r)).length;
 
+  document.getElementById('range-toggle').hidden = rows.length < MIN_SAMPLE;
   const rNow = rCount();
-  const derived = rNow - measuredCount;
+  const measured = measuredCount();
+  const derived = rNow - measured;
+  const shown = shownCount();
 
-  document.getElementById('unit-toggle').hidden = !(rNow && moneyCount);
+  document.getElementById('unit-toggle').hidden = !(rNow && moneyCount());
   document.getElementById('risk-panel').hidden = !accounts.length;
 
   // Says where each R came from. "18 of 171 measured, 153 from a figure you
@@ -297,9 +348,9 @@ function render() {
   document.getElementById('unit-note').textContent =
     unit !== 'r' ? cappedNote.trim()
       : derived > 0
-        ? 'In R. ' + measuredCount + ' from a recorded stop, ' + derived +
+        ? 'In R. ' + measured + ' from a recorded stop, ' + derived +
           ' from the risk you stated below.' + cappedNote
-        : measuredCount + ' of ' + rows.length + ' trades carry a stop, so only those have an R. ' +
+        : measured + ' of ' + shown + ' trades carry a stop, so only those have an R. ' +
           'State your risk per account below to include the rest.' + cappedNote;
 
   if (list.length) {
@@ -316,7 +367,7 @@ function render() {
     document.getElementById(id).innerHTML = '';
   }
 
-  if (!rows.length) {
+  if (!shown) {
     document.getElementById('summary').innerHTML =
       '<div class="callout"><span class="callout-label">No trades yet</span>' +
       '<p>Nothing has been logged. Record a trade with an entry, a stop and an exit and this ' +
@@ -328,7 +379,7 @@ function render() {
     document.getElementById('summary').innerHTML =
       '<div class="callout warn"><span class="callout-label">Nothing to measure in ' +
       escapeHtml(UNIT[unit].label) + '</span>' +
-      '<p>' + rows.length + ' trades are logged and ' + otherCount + ' of them can be measured ' +
+      '<p>' + shown + ' trades are in view and ' + otherCount + ' of them can be measured ' +
       'in ' + escapeHtml(UNIT[other].label) + ' — but none carry what this unit needs. R is ' +
       'worked out from entry, stop and exit, and a broker export rarely carries a stop.</p>' +
       '<p>Switch the unit above, or add stops in the journal to unlock R.</p></div>';
@@ -337,7 +388,7 @@ function render() {
 
   document.getElementById('summary').innerHTML =
     '<div class="callout warn"><span class="callout-label">Nothing closed yet</span>' +
-    '<p>' + rows.length + (rows.length === 1 ? ' trade is' : ' trades are') + ' logged, but ' +
+    '<p>' + shown + (shown === 1 ? ' trade is' : ' trades are') + ' in view, but ' +
     'none has a result recorded — no exit price and no reported figure. A trade with no result ' +
     'is left out of these numbers rather than counted as a zero.</p>' +
     '<p><a href="journal.html">Add the exits in the journal</a></p></div>';
@@ -346,6 +397,12 @@ function render() {
 document.getElementById('unit-toggle').addEventListener('change', (e) => {
   if (e.target.name !== 'unit') return;
   unit = e.target.value;
+  render();
+});
+
+document.getElementById('range-toggle').addEventListener('change', (e) => {
+  if (e.target.name !== 'range') return;
+  rangeDays = Number(e.target.value);
   render();
 });
 
@@ -398,7 +455,9 @@ document.getElementById('risk-save').addEventListener('click', async () => {
 
   stated = new Map(keep.map((k) => [k.account, k.risk_per_trade]));
   btn.disabled = false;
-  setRiskStatus('Saved. R now covers ' + rCount() + ' of ' + rows.length + ' trades.', 'ok');
+  // Both halves inside the current window. "covers 40 of 171" while showing
+  // thirty days is two different denominators in one sentence.
+  setRiskStatus('Saved. R now covers ' + rCount() + ' of ' + shownCount() + ' trades in view.', 'ok');
   render();
 });
 
@@ -554,7 +613,13 @@ function renderLuck(list) {
    knows what you made. It does not know that your fourth trade of the day is
    where the money goes. */
 
-const chron = [...rows].sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+const chronAll = [...rows].sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+
+// Sequence and "the trade before" are computed over EVERY trade, then filtered.
+// Computing them inside the window would make the first trade of the window
+// look like the first trade of its day, and invent a tilt pair across the
+// boundary that never happened.
+const chron = chronAll;
 
 const hourOf  = (r) => new Date(r.opened_at).getHours();
 const dayOf   = (r) => localDay(r.opened_at);

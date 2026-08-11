@@ -201,6 +201,36 @@ covers the members area only.</p>
 import { supabase, requireConfig, getUser, renderAccountStrip, setStatus,
          stashInvite, formatCode, autoRedeemStashed } from './app.js';
 
+/**
+ * A recovery link that landed here instead of on account.html.
+ *
+ * resetPasswordForEmail is told to send people to account.html, and Supabase
+ * only honours that when the URL is in its Redirect URLs allow-list under
+ * Authentication -> URL Configuration. When it is not, it does not complain -
+ * it quietly substitutes the Site URL, which is this page. The reset then looks
+ * like it worked and drops the user somewhere with no password field.
+ *
+ * So this does not rely on that setting. Two ways in, because supabase-js may
+ * consume the hash before any of this runs: the hash itself if it is still
+ * there, and the PASSWORD_RECOVERY event if it is not.
+ *
+ * The query flag is how account.html knows to show the recovery message, since
+ * whichever route got us there, the hash is gone by the time it loads.
+ */
+// The hash is carried across rather than dropped. supabase-js consumes it
+// asynchronously, so at this point it may not have been read yet - replacing
+// the URL with a flag instead of the token would throw the recovery away and
+// land the user on a page that cannot sign them in at all.
+//
+// If the event fired instead, the session already exists and the hash is spent,
+// so a flag is all that is left to pass and all that is needed.
+if (location.hash.includes('type=recovery')) {
+  location.replace('account.html' + location.hash);
+}
+supabase?.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') location.replace('account.html?recovery=1');
+});
+
 const card       = document.getElementById('auth-card');
 const tabSignin  = document.getElementById('tab-signin');
 const tabSignup  = document.getElementById('tab-signup');

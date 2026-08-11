@@ -21,13 +21,20 @@ Last updated: 6 August 2026, fifth session.
   `where` matches nothing, and it reports success having attempted nothing. It has to be run from a
   signed-in browser.
 
-- **The member side of the account work is verified end to end**, as an ordinary member: saving a
-  display name persists, and the reset email round trip completes — request the link, follow it, land
-  on `account.html` with the recovery callout, set a new password, sign in with it.
+- **Verified as an ordinary member:** saving a display name persists, and changing a password from
+  `account.html` while already signed in works.
 
-  That flow had **never** worked before. `login.html` sent the email and pointed it back at itself,
-  and there was no `updateUser` call anywhere in the project, so every reset link that had ever been
-  followed arrived at a page with no way to finish.
+- **NOT verified, and known broken at first attempt: the reset email round trip.** The link in the
+  email lands on the **sign-in page**, not on `account.html`, despite `redirectTo` naming
+  `account.html` explicitly.
+
+  Supabase only honours `redirectTo` when the URL matches its **Redirect URLs** allow-list, under
+  Authentication → URL Configuration. When it does not match, it does not error — it silently falls
+  back to the Site URL. Add `https://kingkag3.github.io/the-mentorship-guide/**` there.
+
+  `login.html` now forwards a recovery landing to `account.html?recovery=1` rather than depending on
+  that setting, so the flow works either way. The dashboard entry is still worth adding: without it
+  every reset takes an extra redirect, and the same allow-list governs sign-up confirmation links.
 
 - **Still untested:** the admin side — editing another member's display name in the accounts table,
   and the per-row send-reset button. Both use paths the member side has now exercised (the same

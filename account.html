@@ -209,7 +209,11 @@ if (profile) {
   // Not load-bearing: supabase-js consumes the hash when it starts, so this can
   // miss. If it does, the password form still works exactly the same way - the
   // only thing lost is the explanation.
-  if (location.hash.includes('type=recovery')) showRecovery();
+  // Three ways to arrive on a reset: straight here with the hash intact, here
+  // with it already consumed by supabase-js, or bounced off login.html when
+  // Supabase ignored redirectTo and used the Site URL instead.
+  if (location.hash.includes('type=recovery') ||
+      new URLSearchParams(location.search).has('recovery')) showRecovery();
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') showRecovery();
   });

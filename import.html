@@ -1072,13 +1072,19 @@ function renderPreview(dayFirst) {
         (parsed.length - collapsed === 1 ? '' : 's') + '</button>' +
       '<button class="link-button" type="button" id="cancel">Cancel</button>' +
     '</div>' +
-    '<p class="form-status" id="import-status"></p>';
+    '<p class="form-status" id="import-status"></p>' +
+    '<p class="stat-note"><a href="#import-form">Back to the top</a></p>';
 
-  $('do-import').addEventListener('click', runImport);
-  $('cancel').addEventListener('click', () => {
+  const cancel = () => {
     $('file').value = '';
     reset();
-  });
+  };
+  for (const id of ['do-import', 'do-import-top']) {
+    $(id).addEventListener('click', runImport);
+  }
+  for (const id of ['cancel', 'cancel-top']) {
+    $(id).addEventListener('click', cancel);
+  }
 }
 
 function pnlNote(priced, count, wins) {

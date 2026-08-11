@@ -2986,6 +2986,20 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   .admin-tab { flex: 1 1 auto; padding: 9px 10px; text-align: center; }
 }
 
+/* The import action row, repeated above the preview table. Gets a rule under
+   it so it reads as a decision point rather than as part of the summary. */
+.row-actions--lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding-bottom: var(--s-3);
+  margin-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.row-actions--lead .stat-note { margin: 0; }
+
 /* ---------- import column mapping ----------
 
    One row per field the journal stores, against a select of the columns the

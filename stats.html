@@ -70,6 +70,11 @@
       <span>R multiple</span>
     </label>
   </div>
+  <div class="cal-toggle" id="account-toggle" hidden>
+    <label for="account-filter">Account</label>
+    <select id="account-filter" class="role-select cal-account" aria-label="Filter by account"></select>
+  </div>
+
   <div class="cal-toggle" id="range-toggle">
     <label class="check-line">
       <input type="radio" name="range" value="30">
@@ -240,6 +245,14 @@ let rangeDays = 0;
 
 const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
 
+// Only worth offering when there is a choice to make.
+{
+  const sel = document.getElementById('account-filter');
+  sel.innerHTML = '<option value="all">All accounts</option>' +
+    accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>').join('');
+  sel.addEventListener('change', (e) => { account = e.target.value; render(); });
+}
+
 /* Which lessons actually exist, so a finding never offers a link to a page that
  * would 404. Published only - an unpublished lesson is not readable, and
  * pointing a member at one is worse than saying nothing.
@@ -311,7 +324,54 @@ function inRange(r) {
   return new Date(r.opened_at).getTime() >= cutoff;
 }
 
-function closedNow() { return rows.filter((r) => UNIT[unit].has(r) && inRange(r)); }
+let account = 'all';
+
+function closedNow() {
+  return rows.filter((r) => UNIT[unit].has(r) && inRange(r) &&
+    (account === 'all' || (r.account || '') === account));
+}
+
+/* ---------------------- one decision, many accounts ----------------------
+
+   A member running copied prop accounts places one trade and it lands in
+   every account at once. Eighteen copies of a decision are eighteen rows, and
+   pooling them tells the page it has eighteen times as much evidence as it
+   really does.
+
+   Money is unaffected and must not be collapsed - eighteen accounts really did
+   make eighteen lots of money, and that is what the totals are for. What has
+   to be collapsed is everything that counts or sequences: a losing run of
+   three read as fifty-four, and a standard error computed on 450 rows when
+   there were 25 decisions is understated by the square root of eighteen, which
+   makes a result four times more significant than it is.
+
+   So: money aggregates, behaviour deduplicates.
+
+   Two rows are the same decision when every fact about the trade matches. Two
+   genuinely separate trades at the same instant, same instrument, same
+   direction and the same prices to the tick are indistinguishable from copies
+   and are collapsed too. That is the right way round - treating copies as
+   independent inflates confidence, and this errs toward less.
+------------------------------------------------------------------------- */
+
+function decisions(list) {
+  const seen = new Map();
+  for (const r of list) {
+    const key = [r.opened_at, r.symbol, r.direction, r.entry, r.exit_price,
+                 r.contracts].join('|');
+    if (!seen.has(key)) seen.set(key, r);
+  }
+  return [...seen.values()];
+}
+
+/** How the collapse is described wherever it applies. Empty when it does not. */
+function collapseNote(list) {
+  const d = decisions(list).length;
+  if (d >= list.length) return '';
+  return '<p class="stat-note">Counted over <strong>' + d + '</strong> decisions rather than ' +
+    list.length + ' rows: the same trade is held in several accounts, and a copy is not ' +
+    'extra evidence. Money below is still the total across all of them.</p>';
+}
 
 // The unit is a runtime choice, so it is bound at the call rather than baked
 // into the module. Everything downstream just asks for a number.
@@ -337,6 +397,7 @@ function render() {
 
   document.getElementById('unit-toggle').hidden = !(rNow && moneyCount());
   document.getElementById('risk-panel').hidden = !accounts.length;
+  document.getElementById('account-toggle').hidden = accounts.length < 2;
 
   // Says where each R came from. "18 of 171 measured, 153 from a figure you
   // gave us" is a different claim from "171 trades measured in R", and the page
@@ -508,7 +569,11 @@ renderRiskRows();
  *
  * This is not blanket reassurance. When a run genuinely is out of the ordinary
  * the same number says so, and that is the more useful half. */
-function streakBlock(list) {
+function streakBlock(all) {
+  // Runs are about the order of your decisions. Eighteen copies of one losing
+  // trade are one loss, not a run of eighteen.
+  const list = decisions(all);
+  const collapsed = collapseNote(all);
   const vs = list.map(UNIT[unit].value);
   const s = summariseNow(list);
   if (s.n < 30 || !s.wins || !s.losses) return '';
@@ -534,6 +599,7 @@ function streakBlock(list) {
   }
 
   return '<h3>Your worst run</h3>' +
+    collapseNote(all) +
     '<div class="card-grid">' +
       statCard('Longest losing run', lossRun + ' trades',
         'Typical for your win rate: ' + odds.typical.toFixed(1)) +
@@ -545,11 +611,15 @@ function streakBlock(list) {
     'is assumed.</p>';
 }
 
-function renderLuck(list) {
+function renderLuck(all) {
+  // Every figure in this panel scales with sample size, so it has to be the
+  // number of decisions. See decisions() for why.
+  const list = decisions(all);
   const values = list.map(UNIT[unit].value);
   const s = summariseNow(list);
   const ci = wilson(s.wins, s.n);
   const t = tStat(values);
+  const collapsed = collapseNote(all);
   const boot = bootstrap(values);
   const pct = (x) => (x * 100).toFixed(0) + '%';
 

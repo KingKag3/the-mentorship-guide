@@ -141,13 +141,7 @@
 
     <label for="session_kz">Session</label>
     <input id="session_kz" type="text" list="dl-session" placeholder="silver bullet 10:00-11:00">
-    <datalist id="dl-session">
-      <option>Asian 20:00-00:00</option><option>London 02:00-05:00</option>
-      <option>New York 07:00-10:00</option><option>Opening range 09:30-10:00</option>
-      <option>Silver bullet 10:00-11:00</option><option>Late morning 11:00-12:00</option>
-      <option>Lunch 12:00-13:30</option><option>Afternoon 13:30-15:00</option>
-      <option>Into the close 15:00-16:00</option>
-    </datalist>
+    <datalist id="dl-session"></datalist>
 
     <label for="pd_array">Entered from</label>
     <input id="pd_array" type="text" list="dl-array" placeholder="fair value gap">
@@ -358,9 +352,16 @@ import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
-  toCsv, downloadText, stampedName } from './app.js';
+  toCsv, downloadText, stampedName, SESSIONS } from './app.js';
 
 renderAccountStrip();
+// The session list is rendered rather than written out, so the journal, the
+// importer and the statistics page cannot come to disagree about what a session
+// is called. They slice on this string.
+document.getElementById('dl-session').innerHTML =
+  SESSIONS.map((s) => '<option>' + escapeHtml(s.label) + '</option>').join('');
+
+
 renderToolRail('#tool-rail', 'journal.html');
 
 const profile = await requireRole(['member', 'admin']);

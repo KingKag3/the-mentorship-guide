@@ -397,6 +397,72 @@ export const CONTRACTS = {
 };
 
 /** The spec for a symbol, or null when it is one we do not know. */
+/**
+ * The journal's session vocabulary, and the windows that produce it.
+ *
+ * These are the exact strings the journal's datalist offers and the statistics
+ * page slices on, so anything deriving a session has to emit one of them
+ * character for character - a trade tagged "London killzone" and one tagged
+ * "London 02:00-05:00" are two rows in a table that should have been one.
+ *
+ * Deliberately NOT the same list as the killzone clock's. That one answers
+ * "what is running now" and its windows overlap on purpose - CBDR sits inside
+ * the afternoon, London close inside the Silver Bullet hour. A trade carries
+ * one tag, so this list has to tile instead. The two are different questions
+ * and merging them would break one of them.
+ *
+ * Listed in the order a trading day runs, because this is also what the journal
+ * shows in its dropdown. Order does not affect matching: where two windows
+ * cover the same minute the NARROWER one wins, so a 09:45 trade is tagged
+ * Opening range rather than New York without either being listed first.
+ *
+ * Minutes past New York midnight. 00:00-02:00, 05:00-07:00 and 16:00-20:00 are
+ * deliberately unnamed - a trade there gets no tag rather than a wrong one.
+ */
+const hm = (h, m = 0) => h * 60 + m;
+
+export const SESSIONS = [
+  { label: 'Asian 20:00-00:00',          from: hm(20),     to: hm(24) },
+  { label: 'London 02:00-05:00',         from: hm(2),      to: hm(5) },
+  { label: 'New York 07:00-10:00',       from: hm(7),      to: hm(10) },
+  { label: 'Opening range 09:30-10:00',  from: hm(9, 30),  to: hm(10) },
+  { label: 'Silver bullet 10:00-11:00',  from: hm(10),     to: hm(11) },
+  { label: 'Late morning 11:00-12:00',   from: hm(11),     to: hm(12) },
+  { label: 'Lunch 12:00-13:30',          from: hm(12),     to: hm(13, 30) },
+  { label: 'Afternoon 13:30-15:00',      from: hm(13, 30), to: hm(15) },
+  { label: 'Into the close 15:00-16:00', from: hm(15),     to: hm(16) }
+];
+
+/**
+ * Which session a moment falls in, or null outside all of them.
+ *
+ * Computed in America/New_York whatever the reader's own clock says, because
+ * every window in this methodology is New York local and a member in London
+ * must not get a different answer for the same trade.
+ */
+export function sessionAt(when) {
+  const d = when instanceof Date ? when : new Date(when);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(d);
+
+  const hour = Number(parts.find((p) => p.type === 'hour').value) % 24;
+  const mins = hour * 60 + Number(parts.find((p) => p.type === 'minute').value);
+
+  // Narrowest wins. Opening range sits inside New York, and the specific
+  // answer is the useful one; anything else would depend on list order, which
+  // is a fragile thing to hang a statistic on.
+  let best = null;
+  for (const s of SESSIONS) {
+    if (mins >= s.from && mins < s.to) {
+      if (!best || (s.to - s.from) < (best.to - best.from)) best = s;
+    }
+  }
+  return best ? best.label : null;
+}
+
 export function contractFor(symbol) {
   const key = String(symbol ?? '').trim().toUpperCase();
   return CONTRACTS[key] || null;

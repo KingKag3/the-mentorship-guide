@@ -202,7 +202,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
-         money, migrationHint, contractFor } from './app.js';
+         money, migrationHint, contractFor, sessionAt } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'import.html');
@@ -874,6 +874,14 @@ function mapRow(row, fallbackAccount, dayFirst) {
     net_pnl: pnl,
     fees: numeric(row, 'fees'),
     outcome: result === null ? null : result > 0 ? 'win' : result < 0 ? 'loss' : 'breakeven',
+    // Derived, not asked for. Session is the one journal tag that is a fact
+    // about the clock rather than a judgement - model, array, liquidity and
+    // bias are all readings of a chart and stay empty on an import, because
+    // guessing them would put invented data into the slices that decide what
+    // is working. A trade at 10:15 New York was in the Silver Bullet hour
+    // whatever anybody thinks about it. A file that carries its own session
+    // column still wins.
+    session_kz: text(row, 'session_kz') || sessionAt(stamp),
     notes: text(row, 'notes'),
     imported_at: new Date().toISOString(),
     checklist_done: false

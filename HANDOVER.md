@@ -7,6 +7,23 @@ Last updated: 6 August 2026, fifth session.
 
 ## Sixth session — 10 August 2026
 
+- **`supabase/profiles-self-service.sql` is run, and the guard is verified by attack.** Signed in as
+  an ordinary member, in the browser, through the real client:
+  `supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)` returns **403** with
+  *"Only an admin can change a role"*.
+
+  That single result confirms both halves. The message is the trigger's own, not a row-level-security
+  rejection — so the `update own profile` policy is live (the request reached a trigger at all) and
+  the column guard is what stopped it. A member cannot promote themselves, and the refusal happens in
+  Postgres rather than in JavaScript.
+
+  **The SQL editor cannot run this test.** It has no user session, so `auth.uid()` is null, the
+  `where` matches nothing, and it reports success having attempted nothing. It has to be run from a
+  signed-in browser.
+
+- **Still untested on the account work:** saving a display name (the positive case), the reset email
+  round trip, and the admin-side name edit and send-reset button.
+
 - **`supabase/curriculum-prerequisites.sql` is written and NOT RUN.** It moves the seven arrays
   lessons out of `phase-2` into a new `prerequisites` section between Phase 1 and Phase 2, renumbers
   the phases in tens so there is room to insert again, leaves `phase-2` empty and **unpublished** for

@@ -445,9 +445,106 @@ function guessHeaderRow(all) {
   return 0;
 }
 
+/* ------------------------- two rows into one trade -------------------------
+
+   WealthCharts exports a FILL per row, not a trade: an opening leg and a
+   closing leg, so a hundred and twenty-six round turns arrive as two hundred
+   and fifty-two rows. Every column mapping downstream assumes one row is one
+   trade, and rather than teach the whole importer a second shape, this folds
+   the pairs first and hands on something ordinary.
+
+   mov_type carries both the side and which end of the trade it is. Confirmed
+   against WealthCharts' own labels in its Trades window, and against the
+   arithmetic on all 126 pairs in the sample:
+
+     1  BUY    opens a long     qty positive, no points, no profit
+     2  SELL   closes a long    qty negative, points and profit filled
+     3  SHORT  opens a short    qty negative, no points, no profit
+     4  COVER  closes a short   qty positive, points and profit filled
+
+   So odd opens and even closes, and the sign of exec_qty is the direction of
+   the fill rather than of the trade. Points and profit only ever appear on the
+   closing leg, which is what makes the pairing unambiguous.
+
+   The two legs of a round turn share `created_on` exactly - it is stamped per
+   trade, not per fill - so account plus that timestamp is the pairing key.
+   `mov_time` is NOT usable for this: it is a batch stamp shared across
+   unrelated rows, and in the sample 252 rows carried only 14 distinct values.
+
+   Verified on the sample: points always equals sell price minus buy price,
+   which is the same convention this importer already uses, and profit is that
+   figure times the contract multiplier LESS commission - $3.10 a round turn on
+   every one of the 126. So profit is net and points is gross. profit is mapped
+   to net_pnl for that reason, and fees are left empty rather than guessed at.
+--------------------------------------------------------------------------- */
+
+const WC_OPEN = { '1': 'long', '3': 'short' };
+
+function looksLikeFills(headerCells) {
+  const h = headerCells.map(norm);
+  return ['movtype', 'execqty', 'pricedone', 'createdon'].every((k) => h.includes(k));
+}
+
+// Returns [grid, note]. The grid is unchanged unless this is a fills export.
+function foldFills(grid) {
+  const at = guessHeaderRow(grid);
+  const head = (grid[at] || []).map((h) => String(h ?? '').trim());
+  if (!looksLikeFills(head)) return [grid, ''];
+
+  const col = {};
+  head.forEach((h, i) => { col[norm(h)] = i; });
+  const cell = (r, k) => String(r[col[k]] ?? '').trim();
+
+  const pairs = new Map();
+  for (const r of grid.slice(at + 1)) {
+    const key = cell(r, 'name') + '|' + cell(r, 'createdon');
+    if (!pairs.has(key)) pairs.set(key, []);
+    pairs.get(key).push(r);
+  }
+
+  const out = [['when', 'closed', 'symbol', 'side', 'quantity', 'entry', 'exit',
+                'net p&l', 'account', 'id']];
+  let dropped = 0;
+
+  for (const [, legs] of pairs) {
+    const open  = legs.find((r) => WC_OPEN[cell(r, 'movtype')]);
+    const close = legs.find((r) => !WC_OPEN[cell(r, 'movtype')]);
+
+    // A trade still open at export time has no closing leg, and one closing
+    // leg with no opener means the range started mid-trade. Neither is a round
+    // turn, and inventing the missing half would be worse than saying so.
+    if (!open || !close) { dropped += legs.length; continue; }
+
+    out.push([
+      cell(open, 'createdon'),
+      cell(close, 'createdon'),
+      // CM.NQU6 - the venue prefix is theirs, the month code is handled later.
+      cell(open, 'symbol').replace(/^[A-Z]{1,4}\./, ''),
+      WC_OPEN[cell(open, 'movtype')],
+      Math.abs(parseFloat(cell(open, 'execqty')) || 0),
+      cell(open, 'pricedone'),
+      cell(close, 'pricedone'),
+      cell(close, 'profit'),
+      cell(open, 'name'),
+      cell(open, 'orderid') + '-' + cell(close, 'orderid')
+    ]);
+  }
+
+  const made = out.length - 1;
+  let note = made + (made === 1 ? ' round turn' : ' round turns') +
+    ' folded from ' + (grid.length - at - 1) + ' fills.';
+  if (dropped) {
+    note += ' ' + dropped + (dropped === 1 ? ' leg had no pair and was left out'
+      : ' legs had no pair and were left out') + ' - a position still open, or one' +
+      ' opened before the date range started.';
+  }
+  return [out, note];
+}
+
 /* -------------------------------- mapping -------------------------------- */
 
 const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 
 // Exact matches first across every field, then loose ones. Done in two passes
 // so a column called "id" cannot be claimed as a loose match for "fillid"
@@ -796,8 +893,12 @@ $('file').addEventListener('change', async () => {
     return;
   }
 
+  // A fills export becomes a trades export before anything else looks at it.
+  const [folded, foldNote] = foldFills(rows);
+  rows = folded;
+
   headerAt = guessHeaderRow(rows);
-  setStatus('#status', '', 'info');
+  setStatus('#status', foldNote, foldNote ? 'ok' : 'info');
   afterRows();
 });
 

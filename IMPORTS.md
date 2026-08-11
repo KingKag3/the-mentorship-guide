@@ -149,6 +149,49 @@ member.
 
 ---
 
+## WealthCharts — a fills export, folded on import
+
+**Verified against a real export**, 11 August 2026: 252 rows, 18 copied Apex accounts, 126 round
+turns.
+
+Broker Portfolio, the **Trades** tab, a date range, **Export to CSV**. Columns are `name, order_id,
+symbol, mov_time, mov_type, exec_qty, price_done, points, profit, created_on`.
+
+**One row is a fill, not a trade.** `mov_type` carries the side and which end of the trade it is, and
+its meaning is confirmed twice over — by WealthCharts' own labels in the Trades window, and by the
+arithmetic on all 126 pairs:
+
+| `mov_type` | Their label | `exec_qty` | Points and profit | Means |
+| --- | --- | --- | --- | --- |
+| 1 | BUY | positive | empty | Opens a long |
+| 2 | SELL | negative | filled | Closes a long |
+| 3 | SHORT | negative | empty | Opens a short |
+| 4 | COVER | positive | filled | Closes a short |
+
+Odd opens, even closes. The sign of `exec_qty` is the direction of that **fill**, not of the trade —
+a short opens on a negative quantity and closes on a positive one. Points and profit appear only on
+the closing leg, which is what makes the pairing unambiguous.
+
+**Pair on `name` plus `created_on`.** Both legs of a round turn carry an identical `created_on`; it
+is stamped per trade rather than per fill.
+
+**Do not pair on `mov_time`.** It is a batch stamp shared across unrelated rows — 252 rows in the
+sample carried 14 distinct values, and it also disagrees with `created_on` by a couple of minutes on
+every row.
+
+**`points` is gross, `profit` is net.** On all 126 pairs, `points` equals sell price minus buy price
+— the same convention this project already uses — and `profit` equals points times the multiplier
+less commission, at exactly $3.10 a round turn per contract. So `profit` maps to `net_pnl`, and fees
+are left empty rather than reverse-engineered from a figure that already has them removed.
+
+**The symbol carries a venue prefix.** `CM.NQU6` — the prefix is stripped on import and the month
+code is handled by the existing root-symbol rule.
+
+**Eighteen accounts, identical trades.** Exactly the copied-account case this file already argues
+about below: import them all, do not collapse them.
+
+---
+
 ## What this means for the importer
 
 **Build against the Tradovate Performance CSV.** One row per round turn with the P&L already

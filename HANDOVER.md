@@ -47,6 +47,23 @@ verified at all. The bootstrap is seeded on both sides with MINSTD rather than t
 constants: `1103515245 * 2^31` is past `2^53`, so JavaScript rounds it and the two languages then
 disagree for reasons unrelated to the code under test.
 
+### Quality of life, added the same night
+
+- **Export.** The journal exports every trade as CSV — all of them, not the five hundred on screen.
+  It reads back into the importer with no manual mapping. Import had existed since the beginning and
+  export never had, which is the wrong way round for something a member puts three months of work
+  into.
+- **Honest row limits.** Three pages silently capped at 500, 2,000 and 5,000. Each now fetches one
+  over the cap purely to detect truncation and says so. Statistics computed on a silently truncated
+  set are worse than none — they look authoritative while describing a period nobody asked about.
+- **Last 30 / last 90 / everything** on the statistics page, with every count respecting the window.
+  All-time was the only view and is a poor answer to the one question a member has after three
+  months.
+- **`tools/check-tdz.py`.** Finds a `const` read during setup before it is declared — the failure
+  that has killed `stats.html` three times. Its first version reported all eighteen pages clean while
+  one was broken, so it self-tests on every run and refuses to report anything if the self-test
+  fails. `tools/prove-tdz-rules.py` pins the rules that stop it crying wolf.
+
 ### Unverified
 
 **None of the new statistics panels has been seen rendered.** The page needs a Supabase session, the

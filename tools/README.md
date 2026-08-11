@@ -50,3 +50,20 @@ that is not there.
 
 It found a real one on its first run: every loss was importing as a win, because the sign was read
 before the currency symbol came off and `$(335.00)` does not start with a bracket.
+
+
+## _rail-check.html
+
+A page in the repo root that exercises `contents.js` — the "on this page" rail — against both shapes
+it has to handle: sections written into the HTML, and sections written by JavaScript after load.
+Open it in a browser; it reports pass or fail per check.
+
+**It has never been run.** The browser pane became unavailable before it could be opened, and it is
+committed in that state deliberately: an unrun test that says so is worth having, and one that
+implies it passed is worse than none.
+
+What *was* verified, by parsing every page that loads `contents.js` and counting: the deeper-h2
+fallback cannot change any existing page. Six concept pages have three or more direct-child `h2`s so
+the strict query still wins, `glossary.html` has one and gets no rail either way, and `stats.html`
+has none in the file at all because it writes its sections at runtime — which is the case the
+fallback exists for.

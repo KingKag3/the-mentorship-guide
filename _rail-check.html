@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>contents.js rail check</title>
+<link rel="stylesheet" href="style.css">
+<script src="contents.js" defer></script>
+<style>
+  .result{font:14px/1.6 ui-monospace,Consolas,monospace;background:#0d1117;color:#d6d8db;
+          padding:16px;margin:16px 0;border-radius:6px}
+  .ok{color:#35a86e} .bad{color:#e2515a;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="wrap wrap--wide">
+<div class="layout">
+<main>
+<h1>Rail check</h1>
+
+<div id="result" class="result">running...</div>
+
+<!-- Static, direct children of main: the concept-page shape. -->
+<h2>Static one</h2>
+<p>Body.</p>
+<h2>Static two</h2>
+<p>Body.</p>
+<div class="callout"><h2>Nested, and should be ignored while three direct children exist</h2></div>
+<h2>Static three</h2>
+<p>Body.</p>
+
+<!-- Written later, inside a mount: the statistics-page shape. -->
+<div id="late"></div>
+</main>
+<aside class="page-nav" aria-label="On this page"></aside>
+</div>
+</div>
+
+<script>
+window.addEventListener('load', function () {
+  var out = [];
+  var check = function (name, got, want) {
+    out.push([name, got, want, JSON.stringify(got) === JSON.stringify(want)]);
+  };
+
+  var railLinks = function () {
+    return Array.prototype.map.call(
+      document.querySelectorAll('.page-nav ol li a span'), function (s) { return s.textContent; });
+  };
+
+  // Pass one: three direct-child h2s, so the strict query wins and the nested
+  // heading inside the callout stays out.
+  check('static rail', railLinks(),
+        ['Static one', 'Static two', 'Static three']);
+
+  // Now the dynamic shape: sections written into a mount after load.
+  document.getElementById('late').innerHTML =
+    '<h2>Written later A</h2><p>x</p><h2>Written later B</h2><p>x</p>';
+  window.TKContents.rebuild();
+
+  // Five direct-child h2s still satisfy the strict query, so the nested one
+  // stays out and the two new ones are picked up in document order.
+  check('after rebuild', railLinks(),
+        ['Static one', 'Static two', 'Static three', 'Written later A', 'Written later B']);
+
+  // The hard case: no direct children at all, everything in a mount. This is
+  // exactly the statistics page, and the strict query returns nothing.
+  var main = document.querySelector('.layout > main');
+  Array.prototype.forEach.call(main.querySelectorAll(':scope > h2'), function (h) { h.remove(); });
+  document.querySelector('.callout').remove();
+  window.TKContents.rebuild();
+  check('mount only', railLinks(), ['Written later A', 'Written later B']);
+
+  // And a rail that was deleted for having nothing to show must come back when
+  // something appears, with the grid column restored.
+  document.getElementById('late').innerHTML = '';
+  window.TKContents.rebuild();
+  check('emptied removes rail', document.querySelectorAll('.page-nav').length, 0);
+  document.getElementById('late').innerHTML =
+    '<h2>Back A</h2><h2>Back B</h2><h2>Back C</h2>';
+  window.TKContents.rebuild();
+  check('rail returns', railLinks(), ['Back A', 'Back B', 'Back C']);
+  check('grid restored',
+        document.querySelector('.layout').style.gridTemplateColumns === '', true);
+
+  var failed = out.filter(function (r) { return !r[3]; }).length;
+  document.getElementById('result').innerHTML =
+    '<p class="' + (failed ? 'bad' : 'ok') + '">' +
+    (failed ? failed + ' FAILED of ' + out.length : 'all ' + out.length + ' checks passed') +
+    '</p>' + out.map(function (r) {
+      return '<div>' + (r[3] ? '<span class="ok">ok</span>' : '<span class="bad">FAIL</span>') +
+        ' ' + r[0] + ' &rarr; ' + JSON.stringify(r[1]) +
+        (r[3] ? '' : ' <em>want ' + JSON.stringify(r[2]) + '</em>') + '</div>';
+    }).join('');
+});
+</script>
+
+</body>
+</html>

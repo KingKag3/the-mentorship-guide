@@ -35,7 +35,21 @@
     var main = document.querySelector('.layout > main');
     if (!main) return;
 
+    /* Direct children first, and only then anything deeper.
+     *
+     * The concept pages want the strict version: they carry h2s inside
+     * callouts and asides that are not sections and have no business in a
+     * table of contents.
+     *
+     * A page that renders its sections from JavaScript cannot satisfy that -
+     * everything it writes lands inside a mount div, so the strict query
+     * returns nothing and the rail deletes itself. Falling back only when the
+     * strict query came up short keeps the concept pages exactly as they were.
+     */
     var headings = Array.prototype.slice.call(main.querySelectorAll(':scope > h2'));
+    if (headings.length < MIN_SECTIONS) {
+      headings = Array.prototype.slice.call(main.querySelectorAll('h2'));
+    }
     if (headings.length < MIN_SECTIONS) {
       rail.remove();
       // Nothing to navigate: give the column back to the article.
@@ -128,6 +142,33 @@
     window.addEventListener('resize', update, { passive: true });
     update();
   }
+
+  /* Pages that write their own headings need to ask for a rebuild.
+   *
+   * The concept pages have their sections in the HTML, so building once on DOM
+   * ready is enough. The statistics page does not: every h2 on it is written by
+   * JavaScript after a database round trip, so at DOM ready there is nothing to
+   * index and the rail deletes itself.
+   *
+   * Rebuilding means undoing what the first pass did - the rail may have been
+   * removed and the grid collapsed to one column - so the caller gets a
+   * function that restores both before indexing again.
+   */
+  window.TKContents = {
+    rebuild: function () {
+      var layout = document.querySelector('.layout');
+      if (layout && !layout.querySelector('.page-nav')) {
+        var rail = document.createElement('aside');
+        rail.className = 'page-nav';
+        rail.setAttribute('aria-label', 'On this page');
+        layout.appendChild(rail);
+        layout.style.gridTemplateColumns = '';
+      }
+      var existing = document.querySelector('.page-nav');
+      if (existing) existing.innerHTML = '';
+      build();
+    }
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', build);

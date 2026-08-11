@@ -1886,6 +1886,26 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 
 .row-actions { white-space: nowrap; display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 
+/* The bulk action bar, shown only while something is ticked. Tinted rather
+   than plain so it reads as a mode the table is in, not as more furniture. */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin: var(--s-3) 0;
+  padding: 10px 14px;
+  border: 1px solid var(--brand-600);
+  border-radius: var(--radius);
+  background: var(--brand-050);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--ink-900);
+}
+
+.pick-cell { width: 1%; padding-right: 0 !important; }
+.pick-cell input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand-500); }
+
 .field-note {
   font-family: var(--sans);
   font-size: 0.8rem;

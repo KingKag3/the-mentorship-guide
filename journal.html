@@ -267,7 +267,23 @@
 
   <h2>Your trades</h2>
   <p class="stat-note" id="count-note"></p>
+
+  <!-- Hidden until something is ticked. A destructive control sitting on screen
+       permanently is a destructive control that eventually gets clicked. -->
+  <div class="bulk-bar" id="bulk-bar" hidden>
+    <span id="bulk-count"></span>
+    <button type="button" class="btn-danger" id="bulk-delete">Delete selected</button>
+    <button type="button" class="link-button" id="bulk-clear">Clear selection</button>
+  </div>
+
   <div id="list"></div>
+
+  <div class="row-actions" id="empty-row" hidden>
+    <button type="button" class="link-button" id="empty-journal">Empty the journal</button>
+  </div>
+  <p class="stat-note">Emptying removes every trade on this account and cannot be undone. A bad
+  import is the usual reason to want it — re-importing the same file corrects those rows in place,
+  so try that first.</p>
 
 </div>
 
@@ -722,6 +738,11 @@ async function load() {
       '<div class="callout"><span class="callout-label">Empty</span>' +
       '<p>Nothing logged yet. The tags are the point &mdash; a trade recorded without them ' +
       'tells you what happened, but not why it happened.</p></div>';
+    // Both controls are about rows that exist. After emptying, neither should
+    // be left on screen offering to do it again.
+    $('empty-row').hidden = true;
+    picked.clear();
+    syncBulk();
     return;
   }
 
@@ -729,11 +750,63 @@ async function load() {
 
   mount.innerHTML =
     '<div class="table-scroll"><table><thead><tr>' +
+    '<th class="pick-cell"><input type="checkbox" id="pick-all" ' +
+      'aria-label="Select every trade shown"></th>' +
     '<th>When</th><th>Trade</th><th>Model</th><th>Session</th><th>From</th>' +
     '<th>Result</th><th></th>' +
     '</tr></thead><tbody>' +
     rows.map((r) => renderRow(r, shots.get(r.screenshot_path))).join('') +
     '</tbody></table></div>';
+
+  $('empty-row').hidden = false;
+  syncBulk();
+}
+
+/* ----------------------------- bulk selection -----------------------------
+ *
+ * Selection lives in a Set of ids rather than being read off the checkboxes,
+ * so it survives a re-render and so the confirmation can describe what is
+ * about to go: how many, over what dates, worth what. "Are you sure?" on its
+ * own is a question nobody can answer.
+ */
+
+const picked = new Set();
+
+function syncBulk() {
+  const bar = $('bulk-bar');
+  // Anything selected but no longer on screen is gone; drop it rather than
+  // deleting a row the user can no longer see.
+  for (const id of [...picked]) {
+    if (!rows.some((r) => String(r.id) === id)) picked.delete(id);
+  }
+
+  bar.hidden = picked.size === 0;
+  $('bulk-count').textContent = picked.size
+    ? picked.size + ' trade' + (picked.size === 1 ? '' : 's') + ' selected'
+    : '';
+
+  const all = document.getElementById('pick-all');
+  if (all) {
+    all.checked = rows.length > 0 && picked.size === rows.length;
+    all.indeterminate = picked.size > 0 && picked.size < rows.length;
+  }
+  document.querySelectorAll('input[data-pick]').forEach((box) => {
+    box.checked = picked.has(box.getAttribute('data-pick'));
+  });
+}
+
+/** What the confirmation says instead of "are you sure". */
+function describe(ids) {
+  const chosen = rows.filter((r) => ids.has(String(r.id)));
+  const stamps = chosen.map((r) => new Date(r.opened_at)).sort((a, b) => a - b);
+  const net = chosen.reduce((a, r) => a + (Number(r.net_pnl) || 0), 0);
+  const span = stamps.length
+    ? stamps[0].toLocaleDateString() +
+      (stamps.length > 1 ? ' to ' + stamps[stamps.length - 1].toLocaleDateString() : '')
+    : '';
+  return chosen.length + ' trade' + (chosen.length === 1 ? '' : 's') +
+    (span ? ', ' + span : '') +
+    (net ? ', worth ' + (net < 0 ? '-$' : '$') + Math.abs(net).toFixed(2) + ' between them' : '');
 }
 
 function tone(r) {
@@ -780,6 +853,8 @@ function renderRow(r, shotUrl) {
       (r.r_multiple > 0 ? '+' : '') + Number(r.r_multiple).toFixed(2) + 'R</span>';
 
   return '<tr>' +
+    '<td class="pick-cell"><input type="checkbox" data-pick="' + r.id + '" ' +
+      'aria-label="Select this trade"></td>' +
     '<td>' + escapeHtml(when.toLocaleDateString()) + '<br>' +
       '<span class="acct-muted">' +
       escapeHtml(when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) +
@@ -805,6 +880,76 @@ function renderRow(r, shotUrl) {
       '</td>' +
   '</tr>';
 }
+
+$('list').addEventListener('change', (e) => {
+  if (e.target.id === 'pick-all') {
+    if (e.target.checked) rows.forEach((r) => picked.add(String(r.id)));
+    else picked.clear();
+    syncBulk();
+    return;
+  }
+  const pick = e.target.getAttribute && e.target.getAttribute('data-pick');
+  if (pick) {
+    if (e.target.checked) picked.add(pick); else picked.delete(pick);
+    syncBulk();
+  }
+});
+
+$('bulk-clear').addEventListener('click', () => { picked.clear(); syncBulk(); });
+
+$('bulk-delete').addEventListener('click', async () => {
+  if (!picked.size) return;
+  if (!confirm('Delete ' + describe(picked) + '?\n\nThis cannot be undone.')) return;
+
+  const btn = $('bulk-delete');
+  btn.disabled = true;
+  setStatus('#status', 'Deleting ' + picked.size + '...', 'info');
+
+  const { error } = await supabase.from('trades').delete().in('id', [...picked]);
+
+  btn.disabled = false;
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+
+  const n = picked.size;
+  picked.clear();
+  setStatus('#status', n + ' trade' + (n === 1 ? '' : 's') + ' deleted.', 'ok');
+  await load();
+});
+
+/**
+ * Emptying the whole journal asks for a word rather than a click.
+ *
+ * A confirm box is dismissed by reflex - it is the same gesture as accepting a
+ * cookie banner, and this is months of records. Typing EMPTY is three seconds
+ * and cannot be done by accident, which is the entire distinction between this
+ * and deleting one trade.
+ */
+$('empty-journal').addEventListener('click', async () => {
+  if (!rows.length) return;
+
+  const answer = prompt(
+    'This deletes every trade in your journal - ' + rows.length + ' of them - and cannot be ' +
+    'undone.\n\nIf a bad import is the reason, re-importing the same file corrects those rows ' +
+    'in place and keeps everything else.\n\nType EMPTY to confirm.');
+
+  if (answer === null) return;
+  if (answer.trim().toUpperCase() !== 'EMPTY') {
+    setStatus('#status', 'Not emptied - the confirmation did not match.', 'info');
+    return;
+  }
+
+  setStatus('#status', 'Emptying...', 'info');
+
+  // Filtered on the owner rather than unfiltered: PostgREST refuses a delete
+  // with no filter, and row-level security would scope it anyway. Saying it
+  // twice costs nothing and makes the intent readable.
+  const { error } = await supabase.from('trades').delete().eq('user_id', profile.id);
+
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+  picked.clear();
+  setStatus('#status', 'Journal emptied.', 'ok');
+  await load();
+});
 
 $('list').addEventListener('click', async (e) => {
   const editId = e.target.getAttribute && e.target.getAttribute('data-edit');

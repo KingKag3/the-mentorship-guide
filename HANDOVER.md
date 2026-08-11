@@ -21,8 +21,18 @@ Last updated: 6 August 2026, fifth session.
   `where` matches nothing, and it reports success having attempted nothing. It has to be run from a
   signed-in browser.
 
-- **Still untested on the account work:** saving a display name (the positive case), the reset email
-  round trip, and the admin-side name edit and send-reset button.
+- **The member side of the account work is verified end to end**, as an ordinary member: saving a
+  display name persists, and the reset email round trip completes — request the link, follow it, land
+  on `account.html` with the recovery callout, set a new password, sign in with it.
+
+  That flow had **never** worked before. `login.html` sent the email and pointed it back at itself,
+  and there was no `updateUser` call anywhere in the project, so every reset link that had ever been
+  followed arrived at a page with no way to finish.
+
+- **Still untested:** the admin side — editing another member's display name in the accounts table,
+  and the per-row send-reset button. Both use paths the member side has now exercised (the same
+  `profiles` update, the same `resetPasswordForEmail`), which is a reason to expect them to work and
+  not a reason to call them tested.
 
 - **`supabase/curriculum-prerequisites.sql` is written and NOT RUN.** It moves the seven arrays
   lessons out of `phase-2` into a new `prerequisites` section between Phase 1 and Phase 2, renumbers

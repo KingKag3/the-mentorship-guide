@@ -5,6 +5,55 @@ with no memory of how any of it got here.
 
 Last updated: 6 August 2026, fifth session.
 
+## Seventh session — 11 August 2026, overnight
+
+### Run these three, in any order
+
+| File | What it does | Consequence of not running it |
+| --- | --- | --- |
+| `supabase/trade-closed-at.sql` | Adds `closed_at` to `trades` | Hold-time panels say "not enough trades carry a closing time". Nothing breaks |
+| `supabase/risk-settings.sql` | Per-account stated risk, so R works without a stop | The R toggle stays unavailable for imported trades. Nothing breaks |
+| `supabase/profiles-self-service.sql` | **Already run** on 10 Aug | — |
+
+Then **re-import the mock CSV**. The upsert matches on `external_id`, so it corrects the existing
+rows in place and fills in `closed_at` rather than duplicating anything. Regenerate the file first
+with `python tools/make-mock-trades.py` if it has been overwritten — the current one carries a
+disposition effect and tilt that the older one did not.
+
+### What the statistics page does now
+
+Four things that did not exist, all working on imported trades with **no tagging**, which is the
+whole point: seven of the eight original breakdowns key off model, session and PD array, and those
+exist only when a trade is hand-logged. Nobody hand-tags a hundred and seventy imported rows.
+
+- **What your journal says** — findings in sentences rather than charts, ranked by money involved
+  rather than by how neat they are, each carrying the number it came from and a link to the lesson
+  that covers it.
+- **Behaviour** — hour of day, position within the day, the trade taken straight after a loss
+  (same-day only, since a fresh morning is not a reaction), and how long winners are held against
+  losers.
+- **Is any of this real** — a Wilson interval on the win rate, the average trade's distance from
+  zero in standard errors, a 3,000-run bootstrap, and a losing run compared against chance.
+- **Dollars or R** — chosen by the member, defaulting to whichever the journal covers.
+
+### The maths is tested, which is new for this repo
+
+`analytics.js` holds every calculation as a pure function. `tools/check-analytics.py` builds a page
+that runs all of them against values computed independently in Python — different language, different
+route to the same numbers, so agreement means something. **29 checks, all passing.**
+
+There is no JavaScript runtime on either machine, so this is the only way any of it could be
+verified at all. The bootstrap is seeded on both sides with MINSTD rather than the obvious glibc
+constants: `1103515245 * 2^31` is past `2^53`, so JavaScript rounds it and the two languages then
+disagree for reasons unrelated to the code under test.
+
+### Unverified
+
+**None of the new statistics panels has been seen rendered.** The page needs a Supabase session, the
+preview pane will not carry one, and the browser could only be used for the test harness. The
+markup parses, the script is balance-checked, the maths is tested, and the page has never been
+looked at. Treat the first load as the real test.
+
 ## Sixth session — 10 August 2026
 
 ### Custom SMTP is a launch blocker, and nothing in the code will tell you

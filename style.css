@@ -1772,6 +1772,7 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 .auth-form input,
 .auth-form textarea,
 .auth-form select,
+input.name-input,
 select.role-select {
   width: 100%;
   font-family: var(--sans);
@@ -1802,6 +1803,7 @@ select.role-select {
 .auth-form textarea:focus,
 .auth-form select:focus,
 .search-bar input:focus,
+input.name-input:focus,
 select.role-select:focus {
   outline: none;
   background: var(--paper);
@@ -1818,6 +1820,21 @@ select.role-select {
 }
 
 select.role-select:disabled { color: var(--ink-400); cursor: not-allowed; }
+
+/* An editable cell in the accounts table. Same metrics as the role select
+   beside it, so a row does not change height when one is focused. It saves on
+   blur, which is why it does not look like a form field until you are in it. */
+input.name-input {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  min-width: 140px;
+  width: 100%;
+  background: transparent;
+  border-color: transparent;
+}
+
+input.name-input:hover { border-color: var(--line); }
 select.select-wide { width: 100%; margin-bottom: var(--s-4); padding: 10px 12px; font-size: 0.92rem; }
 
 input[type="file"] {

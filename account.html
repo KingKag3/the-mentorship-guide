@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your account — Trade Karma</title>
+<meta name="description" content="Your profile and password.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+
+<div class="utility-bar utility-bar--wide">
+  <div class="utility-inner">
+    <span class="utility-note"><span class="utility-dot" aria-hidden="true"></span>
+    <span><strong>Educational content only.</strong> Not investment advice. Trading involves substantial risk of loss.</span></span>
+    <span class="utility-links"><a href="glossary.html">Jargon decoder</a> &nbsp;&middot;&nbsp; <a href="members.html" aria-current="page">Members</a></span>
+  </div>
+</div>
+<header class="masthead masthead--wide">
+  <div class="masthead-inner">
+    <div class="masthead-top">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <nav class="site">
+        <a href="index.html">Start</a>
+        <a href="liquidity.html">Liquidity</a>
+        <a href="pd-arrays.html">PD arrays</a>
+        <a href="structure.html">Structure</a>
+        <a href="time.html">Time</a>
+        <a href="models.html">Models</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="members.html" aria-current="page">Members</a>
+      </nav>
+      <div class="account-strip" id="account-strip"></div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.2 12h2.3M19.5 12h2.3M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.9A9 9 0 1 1 11.1 3a7 7 0 0 0 9.9 9.9z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap wrap--wide">
+<main>
+
+<h1>Your account</h1>
+
+<div id="auth-root"></div>
+
+<div id="body" hidden>
+
+  <p class="lede">Your name, your password, and what your account can currently reach. Everything
+  here is yours alone - an admin can change your role and send you a reset link, and cannot read or
+  set your password.</p>
+
+  <div id="recovery-note"></div>
+
+  <h2>Profile</h2>
+
+  <form id="form-profile" class="auth-form auth-form-wide">
+    <label for="p-email">Email</label>
+    <input id="p-email" type="email" disabled autocomplete="off">
+    <p class="field-note">The address you sign in with. Ask an admin if this needs to change - it is
+    the one field on this page you cannot edit yourself, because it is what the account is.</p>
+
+    <label for="p-role">Access</label>
+    <input id="p-role" type="text" disabled autocomplete="off">
+    <p class="field-note" id="p-role-note"></p>
+
+    <label for="p-name">Display name <span class="opt">(optional)</span></label>
+    <input id="p-name" type="text" maxlength="80" autocomplete="name"
+           placeholder="How you would like to be addressed">
+    <p class="field-note">Shown to admins on the accounts list. Nothing on the public site uses
+    it.</p>
+
+    <div class="row-actions">
+      <button class="btn-primary" type="submit">Save profile</button>
+    </div>
+    <p class="form-status" id="status-profile"></p>
+  </form>
+
+  <h2>Password</h2>
+
+  <form id="form-password" class="auth-form auth-form-wide">
+    <label for="p-pass">New password</label>
+    <input id="p-pass" type="password" minlength="8" required autocomplete="new-password">
+    <p class="field-note">Eight characters at minimum. Length beats punctuation - a short password
+    with a symbol in it is easier to guess than a long ordinary one.</p>
+
+    <label for="p-pass2">Type it again</label>
+    <input id="p-pass2" type="password" minlength="8" required autocomplete="new-password">
+
+    <div class="row-actions">
+      <button class="btn-primary" type="submit">Update password</button>
+    </div>
+    <p class="form-status" id="status-password"></p>
+  </form>
+
+  <div class="callout">
+    <span class="callout-label">If you are locked out</span>
+    <p>Use <strong>Reset password</strong> on the <a href="login.html">sign-in page</a>, or ask an
+    admin to send you a link. Either way the email goes to your address and you choose the new
+    password.</p>
+    <p>Nobody here can set a password on your behalf, including an admin. That is deliberate: the
+    key that would allow it bypasses every access rule on the database, and a static site has
+    nowhere safe to keep one.</p>
+  </div>
+
+  <div class="row-actions">
+    <button type="button" class="link-button" id="btn-signout">Sign out</button>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="site">
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">TK</span>Trade&nbsp;<b>Karma</b></a>
+      <p>Smart Money trading concepts in ordinary language, with the tools to
+      test them against your own results.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Curriculum</h5>
+      <ul>
+        <li><a href="liquidity.html">Liquidity</a></li>
+        <li><a href="pd-arrays.html">PD arrays</a></li>
+        <li><a href="structure.html">Market structure</a></li>
+        <li><a href="time.html">Time</a></li>
+        <li><a href="models.html">Models</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Tools</h5>
+      <ul>
+        <li><a href="sizer.html">Position sizer</a></li>
+        <li><a href="clock.html">Killzone clock</a></li>
+        <li><a href="smt.html">SMT checker</a></li>
+        <li><a href="journal.html">Trade journal</a></li>
+        <li><a href="stats.html">Statistics</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Reference</h5>
+      <ul>
+        <li><a href="glossary.html">Jargon decoder</a></li>
+        <li><a href="members.html">Members area</a></li>
+        <li><a href="scripts.html">Indicators</a></li>
+        <li><a href="login.html">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-legal">
+    <h6>Important disclosures</h6>
+    <p><strong>This site is educational material, not investment advice.</strong> Nothing on it is
+    a recommendation, solicitation or offer to buy or sell any security, future, or other financial
+    instrument, and nothing on it is tailored to the circumstances of any individual reader. No
+    content here should be relied upon as the basis for a trading decision.</p>
+    <p><strong>Trading futures involves substantial risk of loss and is not suitable for every
+    investor.</strong> Leverage works against you as readily as it works for you. You can lose more
+    than your initial deposit. The majority of retail traders who trade actively lose money. Past
+    performance, whether hypothetical or actual, is not indicative of future results, and no
+    performance record on this site has been audited or independently verified.</p>
+    <p>The concepts described originate with Michael J. Huddleston and are usually labelled Smart
+    Money Concepts. Trade Karma is not affiliated with, endorsed by, or sponsored by him or any
+    related entity. All wording, diagrams and examples on this site were written from scratch; no
+    text from any book or course is reproduced.</p>
+    <p class="footer-copy">&copy; 2026 Trade Karma &middot; Educational content only &middot;
+    <a href="design.html">Design system</a></p>
+  </div>
+</footer>
+</div>
+
+<script type="module">
+import { supabase, requireRole, renderAccountStrip, setStatus, signOut } from './app.js';
+
+renderAccountStrip();
+
+// Every signed-in role, including pending. A pending account still needs to be
+// able to change its password - and a recovery link lands here, so locking the
+// page to members would strand exactly the person who most needs it.
+const profile = await requireRole(['pending', 'member', 'admin']);
+
+if (profile) {
+  document.getElementById('body').hidden = false;
+
+  document.getElementById('p-email').value = profile.email || '';
+  document.getElementById('p-role').value = profile.role || '';
+  document.getElementById('p-name').value = profile.full_name || '';
+
+  const roleNote = {
+    pending: 'Your account exists but has not been approved yet. Lessons and tools stay locked ' +
+             'until an admin changes this.',
+    member:  'Full access to the lessons, the tools and the indicators.',
+    admin:   'Everything a member has, plus the admin page.'
+  };
+  document.getElementById('p-role-note').textContent = roleNote[profile.role] || '';
+
+  // A recovery link signs you in and drops you here. Say so, rather than
+  // showing a page that looks like it did nothing.
+  //
+  // Not load-bearing: supabase-js consumes the hash when it starts, so this can
+  // miss. If it does, the password form still works exactly the same way - the
+  // only thing lost is the explanation.
+  if (location.hash.includes('type=recovery')) showRecovery();
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') showRecovery();
+  });
+
+  function showRecovery() {
+    document.getElementById('recovery-note').innerHTML =
+      '<div class="callout"><span class="callout-label">Set a new password</span>' +
+      '<p>You followed a reset link, so you are signed in for now. Choose a new password below - ' +
+      'the link itself expires, and until you set one the old password is still the live one.</p></div>';
+    document.getElementById('p-pass').focus();
+  }
+
+  document.getElementById('form-profile').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    setStatus('#status-profile', 'Saving...', 'info');
+
+    const full_name = document.getElementById('p-name').value.trim();
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: full_name || null })
+      .eq('id', profile.id);
+
+    btn.disabled = false;
+    setStatus('#status-profile',
+      error ? error.message : 'Saved.',
+      error ? 'error' : 'ok');
+  });
+
+  document.getElementById('form-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pass = document.getElementById('p-pass').value;
+    const again = document.getElementById('p-pass2').value;
+
+    // Checked here as well as by minlength, because a browser that autofills
+    // can satisfy the attribute without the field ever being validated.
+    if (pass.length < 8) {
+      setStatus('#status-password', 'Eight characters at minimum.', 'error');
+      return;
+    }
+    if (pass !== again) {
+      setStatus('#status-password', 'The two do not match.', 'error');
+      return;
+    }
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    setStatus('#status-password', 'Updating...', 'info');
+
+    const { error } = await supabase.auth.updateUser({ password: pass });
+
+    btn.disabled = false;
+    if (error) {
+      setStatus('#status-password', error.message, 'error');
+      return;
+    }
+
+    document.getElementById('form-password').reset();
+    setStatus('#status-password',
+      'Password updated. It applies to your next sign-in - this session stays open.', 'ok');
+  });
+
+  document.getElementById('btn-signout').addEventListener('click', signOut);
+}
+</script>
+
+</body>
+</html>

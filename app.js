@@ -271,8 +271,11 @@ export async function renderAccountStrip(selector = '#account-strip') {
     ? '<a class="acct-link" href="admin.html">Admin</a>'
     : '';
 
+  // The email is the link to the account page rather than a separate item: the
+  // strip is already four things wide on a phone, and "my email address" is
+  // where everyone looks for their own settings anyway.
   el.innerHTML =
-    '<span class="acct-muted">' + escapeHtml(profile.email) + '</span>' +
+    '<a class="acct-link acct-muted" href="account.html">' + escapeHtml(profile.email) + '</a>' +
     '<span class="role-badge role-' + escapeHtml(profile.role) + '">' + escapeHtml(profile.role) + '</span>' +
     adminLink +
     '<button type="button" class="acct-link" id="sign-out">Sign out</button>';

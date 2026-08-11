@@ -508,7 +508,8 @@ function renderUsers() {
     const isMe = u.id === me.id;
     return '<tr data-id="' + escapeHtml(u.id) + '">' +
       '<td>' + escapeHtml(u.email) + (isMe ? ' <span class="tag">you</span>' : '') + '</td>' +
-      '<td>' + escapeHtml(u.full_name || '—') + '</td>' +
+      '<td><input type="text" class="name-input" maxlength="80" ' +
+        'value="' + escapeHtml(u.full_name || '') + '" placeholder="no name set"></td>' +
       '<td>' + new Date(u.created_at).toISOString().slice(0, 10) + '</td>' +
       '<td>' +
         '<select class="role-select"' + (isMe ? ' disabled title="You cannot change your own role"' : '') + '>' +
@@ -518,6 +519,7 @@ function renderUsers() {
         '</select>' +
       '</td>' +
       '<td class="row-actions">' +
+        '<button type="button" class="link-button" data-act="reset">send reset</button>' +
         (isMe ? '' : '<button type="button" class="btn-danger" data-act="remove">remove</button>') +
       '</td>' +
     '</tr>';
@@ -525,6 +527,28 @@ function renderUsers() {
 }
 
 document.getElementById('user-filter').addEventListener('input', renderUsers);
+
+// Saved on blur rather than on every keystroke: a write per character would be
+// a write per character, and there is no Save button on a table row.
+document.getElementById('users-body').addEventListener('focusout', async (e) => {
+  if (!e.target.classList.contains('name-input')) return;
+  const id = e.target.closest('tr').dataset.id;
+  const row = allUsers.find((u) => u.id === id);
+  const next = e.target.value.trim();
+  if (!row || next === (row.full_name || '')) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ full_name: next || null })
+    .eq('id', id);
+
+  if (error) {
+    alert('Could not save that name: ' + error.message);
+    e.target.value = row.full_name || '';
+    return;
+  }
+  row.full_name = next || null;
+});
 
 document.getElementById('users-body').addEventListener('change', async (e) => {
   if (!e.target.classList.contains('role-select')) return;
@@ -542,7 +566,45 @@ document.getElementById('users-body').addEventListener('change', async (e) => {
   renderUsers();
 });
 
+/**
+ * Send a member a password reset link.
+ *
+ * This is deliberately a reset EMAIL and not an admin-set password. Setting
+ * someone else's password needs auth.admin.updateUserById, which needs the
+ * service_role key - a key that bypasses every row-level policy in the project.
+ * A static site has nowhere to keep one, so it does not have one, so this is
+ * the strongest thing that can honestly be offered from here.
+ *
+ * It is also the better outcome: the new password ends up known to the member
+ * and to nobody else. The one case it cannot rescue is someone who has lost
+ * access to their email, which would need an Edge Function holding the service
+ * key server-side. See supabase/profiles-self-service.sql.
+ */
 document.getElementById('users-body').addEventListener('click', async (e) => {
+  if (e.target.dataset.act === 'reset') {
+    const id = e.target.closest('tr').dataset.id;
+    const user = allUsers.find((u) => u.id === id);
+    if (!user) return;
+
+    if (!confirm('Email a password reset link to ' + user.email + '?\n\nThey choose the new ' +
+                 'password. You will not see it, and this does not change their current one ' +
+                 'until they follow the link.')) return;
+
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'sending...';
+
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: location.href.replace(/[^/]*$/, '') + 'account.html'
+    });
+
+    btn.disabled = false;
+    btn.textContent = error ? 'failed' : 'sent';
+    if (error) alert('Could not send: ' + error.message);
+    setTimeout(() => { btn.textContent = 'send reset'; }, 4000);
+    return;
+  }
+
   if (e.target.dataset.act !== 'remove') return;
   const tr = e.target.closest('tr');
   const id = tr.dataset.id;

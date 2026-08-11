@@ -346,8 +346,11 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     return;
   }
 
+  // NOT confirmUrl(). That points at this page, which has no way to set a
+  // password - the reset email has always arrived, and the link has always
+  // landed somewhere that could not finish the job. account.html can.
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: confirmUrl()
+    redirectTo: confirmUrl().replace(/login\.html$/, 'account.html')
   });
 
   setStatus(

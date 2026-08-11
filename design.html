@@ -513,6 +513,59 @@ rather than being hidden, so a thin sample teaches instead of disappearing.</p>
   time in running text.</p>
 </div>
 
+<h3>Findings</h3>
+
+<p>Sentences the journal wrote about itself, on <code>stats.html</code>. Conclusions rather than
+data, so they sit on their own cards with a coloured edge instead of reading as another row in
+another table.</p>
+
+<p class="field-note">Each one carries the number it came from, so it can be checked rather than
+believed. None of them recommends a trade &mdash; a finding may say what a habit cost, and may not
+say what to do next. That line is the difference between a journal and a signal service.</p>
+
+<div class="demo">
+  <div class="findings">
+    <div class="finding"><p><strong>13:00 is costing you.</strong> 35 trades in that hour,
+    &minus;$7,830 between them. Leave the hour alone and the period reads +$6,405 instead of
+    &minus;$1,425.</p></div>
+    <div class="finding"><p><strong>You hold losers 3.6 times as long as winners.</strong> Median
+    winner 7 min, median loser 26 min. That is the disposition effect: closing a winner proves you
+    were right, and closing a loser admits you were not.</p></div>
+  </div>
+</div>
+
+<h3>Bulk selection bar</h3>
+
+<p>Shown only while something is ticked, in the journal. A destructive control that sits on screen
+permanently is one that eventually gets clicked. The confirmation it leads to names the count, the
+date range and the combined figure &mdash; &ldquo;are you sure?&rdquo; is a question nobody can
+answer.</p>
+
+<div class="demo">
+  <div class="bulk-bar">
+    <span>3 trades selected</span>
+    <button type="button" class="btn-danger">Delete selected</button>
+    <button type="button" class="link-button">Clear selection</button>
+  </div>
+</div>
+
+<h3>Stated risk rows</h3>
+
+<p>One account, one number, on <code>stats.html</code>. R is normally entry minus stop and a broker
+export carries no stop, so this is the member telling the tool what they risk. The label carries the
+account and its trade count, so the figure is being set against something recognisable.</p>
+
+<div class="demo">
+  <label class="check-line risk-row">
+    <span>Apex 50k <span class="acct-muted">171 trades</span></span>
+    <input type="number" value="200" aria-label="Risk per trade, Apex 50k">
+  </label>
+  <label class="check-line risk-row">
+    <span>Tradovate sim <span class="acct-muted">42 trades</span></span>
+    <input type="number" placeholder="e.g. 200" aria-label="Risk per trade, Tradovate sim">
+  </label>
+</div>
+
 <h3>Calendar grid</h3>
 
 <p>A month of trading days in <code>calendar.html</code>. The swatch carries the sign and is

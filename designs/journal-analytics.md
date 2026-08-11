@@ -109,23 +109,63 @@ about totals.
 
 ## Build order
 
-1. **The unit fix.** Dollars or R, chosen by the member, defaulting to whichever the journal actually
-   covers. Until this is done every other panel is decoration on top of an empty page. *Done — see
-   `stats.html`.*
-2. **Hour of day, with the counterfactual.** The single most valuable panel, and it works on
-   imported data with no effort from the member.
-3. **Tier 2 behaviour panels**, in the order listed. Sequence-within-day first; it is the cheapest
-   and the fixture shows it clearly.
-4. **Intervals and the luck test**, once there is something to qualify.
+1. **The unit fix.** ✅ Dollars or R, chosen by the member, defaulting to whichever the journal
+   actually covers. Plus `risk_settings`, so a member can state what one R costs and unlock R for
+   imported trades — a declaration, never an inference. See `supabase/risk-settings.sql` for why
+   inferring it from their own average loss is circular.
+2. **Hour of day, with the counterfactual.** ✅
+3. **Tier 2 behaviour panels.** ✅ Sequence within the day, the trade after a loss, and hold time on
+   winners against losers. The last needed `closed_at`, which the importer had been reading and
+   throwing away — see `supabase/trade-closed-at.sql`.
+4. **Intervals and the luck test.** ✅ Wilson on the win rate, a t-statistic on the average trade,
+   and a bootstrap.
+5. **Findings.** ✅ Not in the original plan, and the most valuable thing on the page. The tool does
+   the analysis and writes sentences instead of handing over panels and hoping.
+
+### Still open
+
+6. **Per-account defaulting**, so seventeen copies do not inflate every aggregate. `J-02`.
+7. **A warning on the counterfactual**, because removing your worst hour in hindsight flatters a
+   random trader too. `J-03` — currently a sentence under each one; it may deserve arithmetic.
+8. **Streaks against chance.** A seven-loss run feels like a collapse and is unremarkable at a 40%
+   win rate. The comparison is cheap and the reassurance is real.
 
 ---
 
 ## Open questions
 
-- `J-01` Is hold time reliable on imported data? The fixture has it; a real Tradovate export gives
-  bought and sold timestamps, so yes — but partial exits arrive as separate rows and may distort it.
+- `J-01` Is hold time reliable on imported data? Answered in part: `closed_at` now imports from the
+  later fill, and the fixture shows a 3.6× disposition ratio cleanly. **Partial exits are still
+  open** — they arrive as separate rows, so one position scaled out of in three lots reads as three
+  trades with three hold times, and the median moves for a reason that is not behaviour.
 - `J-02` What is the right default account when a member has seventeen? First alphabetically is
   arbitrary. Most trades? Most recent? Asked once and remembered?
 - `J-03` Does the counterfactual need to warn about its own selection bias? Removing your worst hour
   in hindsight always improves the curve, including for a random trader. It probably needs the same
   honesty treatment as everything else — the number is real, the implied promise is not.
+
+
+---
+
+## What the numbers looked like on the fixture
+
+Recorded because it is the only end-to-end evidence any of this works, and because the shape of it
+is the argument for building the page this way at all.
+
+Three months, 163 trades, deliberately seeded with a good 10:00 hour, a bad afternoon, a slump, an
+overtrading penalty, tilt after losses and a disposition effect:
+
+| | |
+| --- | --- |
+| Result | −$8,605 |
+| Win rate | 39.3% — Wilson interval 32.1% to 46.9% |
+| Average trade, in standard errors from zero | −1.16 |
+| Bootstrap redeals finishing down | 90% |
+| Median hold, winner against loser | 432s against 1,571s — 3.6× |
+| The trade after a loss | 62 of them, −$188 average, back in after 25 minutes, size 2.0 |
+| The trade after a win | 41 of them, −$4 average, back in after 71 minutes, size 1.0 |
+
+**The t-statistic is the interesting one.** A member down eight and a half thousand dollars will
+conclude something about themselves. At −1.16 the honest reading is that this quarter cannot
+distinguish their trading from chance in either direction — the losing is not proven either. That is
+a harder thing to say than "you are losing", and it is the thing a mentor would say.

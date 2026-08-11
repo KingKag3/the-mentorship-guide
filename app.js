@@ -465,6 +465,52 @@ export function sessionAt(when) {
   return best ? best.label : null;
 }
 
+/* ------------------------------ sharing safely ----------------------------
+
+   A screenshot of your accounts is a good thing to post and a bad thing to
+   post carelessly: the account number is the account.
+
+   Blurring is the obvious answer and the wrong one. A blur, a pixelation or a
+   black bar over live text is a filter applied to something still present -
+   the characters remain in the DOM, in the page source, and often recoverable
+   from the image itself. People have been unmasked by pixelated screenshots
+   more than once.
+
+   So nothing is obscured. The names are REPLACED before they are drawn, with
+   stable aliases numbered in the order the accounts sort. A screenshot cannot
+   leak what was never rendered, and you can still tell which account is which,
+   because the numbering does not move between refreshes.
+
+   **The exact guarantee, stated rather than implied:** no real account name is
+   rendered as text. They do remain in attributes - a form has to know which
+   account it saves to - so this protects a screenshot, a screen share and a
+   recording. It is not a defence against somebody handed the page source, and
+   nothing in a browser could be.
+--------------------------------------------------------------------------- */
+
+const PRIVACY_KEY = 'tk_hide_accounts';
+
+export function accountsHidden() {
+  try { return localStorage.getItem(PRIVACY_KEY) === '1'; } catch (e) { return false; }
+}
+
+export function setAccountsHidden(on) {
+  try { localStorage.setItem(PRIVACY_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+}
+
+/**
+ * A stable alias map for a set of account names.
+ *
+ * Sorted first so the numbering is the same on every page and every reload -
+ * an alias that moved would be worse than none, because you would read the
+ * wrong row and not know it.
+ */
+export function aliasMap(names) {
+  const out = new Map();
+  [...new Set(names)].sort().forEach((n, i) => out.set(n, 'Account ' + (i + 1)));
+  return out;
+}
+
 export function contractFor(symbol) {
   const key = String(symbol ?? '').trim().toUpperCase();
   return CONTRACTS[key] || null;

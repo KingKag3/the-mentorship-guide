@@ -11,7 +11,9 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing. Everything written is applied — see Done.
+| File | What it does | Why |
+| --- | --- | --- |
+| `account-kind.sql` | Adds `kind` to `prop_accounts`: prop, live or demo | Without it every account is treated as an evaluation, and a live account gets a target it can never have |
 
 
 

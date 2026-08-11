@@ -72,6 +72,13 @@
     the only thing that can answer that.</p>
   </div>
 
+  <div class="cal-toggle">
+    <label class="check-line">
+      <input type="checkbox" id="hide-accounts">
+      <span>Hide account numbers, for a screenshot</span>
+    </label>
+  </div>
+
   <div id="bulk"></div>
 
   <div id="accounts"></div>
@@ -139,7 +146,8 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
-         money, tradeValue, hasResult, localDay, dbError, migrationHint } from './app.js';
+         money, tradeValue, hasResult, localDay, dbError, migrationHint,
+         accountsHidden, setAccountsHidden, aliasMap } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -160,7 +168,7 @@ const [tradesRes, propsRes, presetRes] = await Promise.all([
     .order('opened_at', { ascending: true })
     .limit(5000),
   supabase.from('prop_accounts')
-    .select('id, account, firm, size, profit_target, drawdown, drawdown_type, min_days, status, started_on, settled_on'),
+    .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, min_days, status, started_on, settled_on'),
   supabase.from('prop_presets').select('firm, size, profit_target').order('size')
 ]);
 
@@ -182,6 +190,20 @@ const names = [...new Set([
   ...trades.map((t) => t.account).filter(Boolean),
   ...saved.keys()
 ])].sort();
+
+/* --------------------------- names, or aliases ---------------------------
+
+   `label` is the only thing that reaches the page. Every heading, every option
+   and every checkbox goes through it, so switching the toggle changes what is
+   rendered rather than what is visible - there is nothing underneath a blur to
+   recover, because nothing was drawn.
+
+   The real name is still what gets saved: the alias is a display, not a rename.
+------------------------------------------------------------------------- */
+
+let hidden = accountsHidden();
+let alias = aliasMap(names);
+const label = (n) => (hidden ? (alias.get(n) || 'Account') : n);
 
 /* ----------------------------- the arithmetic ---------------------------- */
 
@@ -231,8 +253,20 @@ function statusTag(status) {
   return '<span class="tag ' + (map[status] || '') + '">' + escapeHtml(status) + '</span>';
 }
 
+/* A prop account is measured against somebody else's numbers. A live account is
+   your own money: no target to reach, no drawdown set by a firm, and no such
+   thing as passing or failing it. The card shows what is true of each rather
+   than greying out half of one shape. */
+const KINDS = [
+  ['prop', 'Prop - has a target and a drawdown set by a firm'],
+  ['live', 'Live - your own money, nothing to pass'],
+  ['demo', 'Demo - practice, kept out of real totals']
+];
+
 function card(name) {
   const cfg = saved.get(name) || {};
+  const kind = cfg.kind || 'prop';
+  const isProp = kind === 'prop';
   const p = progress(name, cfg);
   const target = Number(cfg.profit_target) || 0;
   const dd = Number(cfg.drawdown) || 0;
@@ -242,7 +276,7 @@ function card(name) {
   // Only a target that has actually been reached earns the celebration, and
   // only while the account is still open - a passed account keeps its badge
   // without re-firing the animation on every page load.
-  const cheer = done && cfg.status !== 'passed' && cfg.status !== 'retired';
+  const cheer = isProp && done && cfg.status !== 'passed' && cfg.status !== 'retired';
 
   const bar = (label, value, of, tone) =>
     '<div class="bar-row">' +
@@ -254,7 +288,8 @@ function card(name) {
 
   return '<section class="prop-card' + (cheer ? ' is-celebrating' : '') + '" data-account="' +
       escapeHtml(name) + '">' +
-    '<h3>' + escapeHtml(name) + ' ' + statusTag(cfg.status || 'active') +
+    '<h3>' + escapeHtml(label(name)) + ' ' +
+      (isProp ? statusTag(cfg.status || 'active') : '<span class="tag">' + escapeHtml(kind) + '</span>') +
       (cfg.firm ? ' <span class="acct-muted">' + escapeHtml(cfg.firm) +
         (cfg.size ? ' · ' + money(cfg.size) : '') + '</span>' : '') + '</h3>' +
 
@@ -268,11 +303,15 @@ function card(name) {
         '</p></div>'
       : '') +
 
-    (target
-      ? bar('Toward target', p.total, target, p.total < 0 ? 'is-bad' : '')
-      : '<p class="stat-note">No target set, so there is nothing to measure against.</p>') +
+    (!isProp
+      ? '<p class="stat-note">Your own money. Nothing to reach and nothing to breach, so this ' +
+        'account is reported rather than scored.</p>'
+      : target
+        ? bar('Toward target', p.total, target, p.total < 0 ? 'is-bad' : '')
+        : '<p class="stat-note">No target set yet, so there is nothing to measure against. ' +
+          'If this account has no target at all, mark it live below.</p>') +
 
-    (dd
+    (isProp && dd
       ? bar('Worst dip so far', p.worstDip, dd, 'is-bad')
       : '') +
 
@@ -280,13 +319,19 @@ function card(name) {
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +
         '</div><p>' + p.trades + ' closed trade' + (p.trades === 1 ? '' : 's') + '</p></div>' +
       '<div class="card"><h3>Days traded</h3><div class="readout-big">' + p.days +
-        '</div><p>' + (cfg.min_days ? 'Minimum ' + cfg.min_days : 'No minimum set') + '</p></div>' +
+        '</div><p>' + (!isProp ? 'No minimum applies'
+        : cfg.min_days ? 'Minimum ' + cfg.min_days : 'No minimum set') + '</p></div>' +
       '<div class="card"><h3>Worst dip</h3><div class="readout-big">' + money(p.worstDip) +
         '</div><p>From closed trades. A floor, not the figure the firm holds</p></div>' +
     '</div>' +
 
     '<details><summary>What this account has to do</summary>' +
       '<form class="auth-form auth-form-wide" data-form="' + escapeHtml(name) + '">' +
+        '<label>What kind of account</label>' +
+        '<select name="kind">' +
+          KINDS.map((k) => '<option value="' + k[0] + '"' +
+            (kind === k[0] ? ' selected' : '') + '>' + escapeHtml(k[1]) + '</option>').join('') +
+        '</select>' +
         '<div class="field-pair">' +
           '<div><label>Firm</label>' +
             '<input name="firm" type="text" list="dl-firm" value="' + escapeHtml(cfg.firm || '') + '"></div>' +
@@ -314,7 +359,7 @@ function card(name) {
         '</div>' +
         '<label>Status</label>' +
         '<select name="status">' +
-          ['active', 'passed', 'failed', 'retired'].map((v) =>
+          (isProp ? ['active', 'passed', 'failed', 'retired'] : ['active', 'retired']).map((v) =>
             '<option value="' + v + '"' + ((cfg.status || 'active') === v ? ' selected' : '') +
             '>' + v + '</option>').join('') +
         '</select>' +
@@ -358,6 +403,10 @@ function renderBulk() {
       'apply it to whichever accounts it describes. Anything left blank is left alone on the ' +
       'accounts you apply to, so this can also set a single field across the lot.</p>' +
       '<form class="auth-form auth-form-wide" id="bulk-form">' +
+        '<label>What kind of account</label>' +
+        '<select name="kind"><option value="">Leave as they are</option>' +
+          KINDS.map((k) => '<option value="' + k[0] + '">' + escapeHtml(k[1]) + '</option>').join('') +
+        '</select>' +
         '<div class="field-pair">' +
           '<div><label>Firm</label><input name="firm" type="text" list="dl-firm" value="Apex"></div>' +
           '<div><label>Account size</label><select name="size"><option value="">-</option>' +
@@ -383,13 +432,14 @@ function renderBulk() {
           '<button class="link-button" type="button" data-pick="unset">Only the ones not set up</button>' +
           families.map((f) =>
             '<button class="link-button" type="button" data-pick="stem" data-stem="' +
-            escapeHtml(f[0]) + '">' + escapeHtml(f[0]) + '* (' + f[1] + ')</button>').join('') +
+            escapeHtml(f[0]) + '">' + (hidden ? 'This group' : escapeHtml(f[0]) + '*') +
+            ' (' + f[1] + ')</button>').join('') +
         '</div>' +
 
         '<div class="prop-picklist">' +
           names.map((n) =>
             '<label class="check-line"><input type="checkbox" name="pick" value="' +
-            escapeHtml(n) + '"><span>' + escapeHtml(n) +
+            escapeHtml(n) + '"><span>' + escapeHtml(label(n)) +
             (saved.has(n) ? ' <span class="acct-muted">set up</span>' : '') +
             '</span></label>').join('') +
         '</div>' +
@@ -448,6 +498,7 @@ async function applyBulk(e) {
   // the panel to fix one field would wipe the other five.
   const patch = {};
   const candidate = {
+    kind: txt('kind'),
     firm: txt('firm'), size: num('size'), profit_target: num('profit_target'),
     drawdown: num('drawdown'), min_days: num('min_days'), started_on: txt('started_on')
   };
@@ -531,6 +582,7 @@ async function save(e) {
   const row = {
     user_id: profile.id,
     account: name,
+    kind: txt('kind') || 'prop',
     firm: txt('firm'),
     size: num('size'),
     profit_target: num('profit_target'),
@@ -556,6 +608,18 @@ async function save(e) {
   saved.set(name, { ...(saved.get(name) || {}), ...row });
   setStatus(sel, 'Saved.', 'ok');
   render();
+}
+
+{
+  const box = document.getElementById('hide-accounts');
+  box.checked = hidden;
+  box.addEventListener('change', () => {
+    hidden = box.checked;
+    setAccountsHidden(hidden);
+    alias = aliasMap(names);
+    renderBulk();
+    render();
+  });
 }
 
 renderBulk();

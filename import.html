@@ -730,6 +730,21 @@ function parseStamp(value, dayFirst) {
   const s = String(value ?? '').trim();
   if (!s) return null;
 
+  // A stamp that states its own offset is an instant, not a wall clock, and the
+  // only correct thing to do with it is let the engine convert. ISO 8601 with a
+  // designator is the one format Date() is specified to agree on across
+  // browsers, which is the exception the hand-rolled parsing below was written
+  // around rather than an argument against it.
+  //
+  // This was a real bug: WealthCharts stamps created_on in UTC, so 13:33:50Z is
+  // 09:33 in New York. Taking the digits and building a local Date threw the Z
+  // away and filed every trade four hours late.
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const t = Date.parse(s);
+    return Number.isNaN(t) ? null : new Date(t);
+  }
+
+  // No offset stated, so the digits are a local wall clock and are read as one.
   const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (iso) {
     return build(+iso[1], +iso[2], +iso[3], +(iso[4] || 0), +(iso[5] || 0), +(iso[6] || 0));

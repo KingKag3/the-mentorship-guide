@@ -24,6 +24,26 @@ it — and it records where the source books disagree, which matters more than i
 3. `HANDOVER.md` — current state, what was assumed, and what has never actually been run.
 4. `DECISIONS.md` — why things are the way they are. Append to it; do not rewrite it.
 
+## Two machines, one repo each at a time
+
+Work happens on two PCs against the same two repos. The files that get edited from both sides and
+then disagree are always the same ones — `knowledge/implementation.md` above all, because every
+piece of work wants to update it.
+
+So the split is by **repo, not by feature**:
+
+| Machine | Repo | Current piece |
+| --- | --- | --- |
+| This one | `the-mentorship-guide` (the site) | Backtest logbook, ROADMAP 3.3 |
+| The other | `the-mentorship-pine` (indicators) | `R-03` measured from the bell |
+
+Both repos exist on both machines and both still need pulling. The rule is only about where **edits**
+originate. If a piece genuinely needs both — a new indicator that also needs a page — do the repos in
+sequence and push between them, never in parallel from two machines.
+
+Change the table when the pieces change. A stale row here is worse than no row, because it will be
+believed.
+
 ## Hard rules
 
 - **No build step, no bundler, no framework.** Plain static HTML. Supabase's client loads from a CDN

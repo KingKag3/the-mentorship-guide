@@ -67,3 +67,36 @@ fallback cannot change any existing page. Six concept pages have three or more d
 the strict query still wins, `glossary.html` has one and gets no rail either way, and `stats.html`
 has none in the file at all because it writes its sections at runtime — which is the case the
 fallback exists for.
+
+
+## check-tdz.py
+
+Finds a `const` or `let` that is read during page setup, before the line that declares it.
+
+```
+python tools/check-tdz.py            # every page
+python tools/check-tdz.py stats.html
+```
+
+**`stats.html` produced this exact failure three times in one session.** A statement that runs
+immediately reaches a variable declared further down, that variable is still in its temporal dead
+zone, and the page dies on load with a blank body and a console message nobody sees. A `function`
+declaration would have been hoisted and worked; a `const` is not, and the difference is invisible
+while reading. With no JavaScript runtime on these machines, nothing else catches it before a member
+does.
+
+**The first version of this tool was useless and said it was fine.** It looked for the variable
+being mentioned at the top level on an earlier line, which never happens — in the real bug the read
+is always inside a function and it is the *call* that is at the top level. It reported all eighteen
+pages clean, including one broken at the time. That is why it now runs a self-test on every
+invocation and refuses to report anything if the self-test fails.
+
+**`prove-tdz-rules.py`** is the other half: eight focused cases covering the rules that keep it from
+crying wolf — a dotted property is not the local variable, a name inside a callback does not run at
+setup, a word inside a string is not a reference, and a two-hop call chain is still followed. It
+found three phantom bugs in `calendar.html` before those rules existed, and a checker that reports
+three phantom bugs gets ignored, and then the real one is ignored too.
+
+```
+python tools/prove-tdz-rules.py
+```

@@ -11,20 +11,9 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it unlocks | If you skip it |
-| --- | --- | --- |
-| `trade-closed-at.sql` | `closed_at` on `trades`, so hold times can be measured | Hold-time panels say "not enough trades carry a closing time". Nothing else changes |
-| `risk-settings.sql` | Per-account stated risk, so R works on trades with no stop | The R toggle stays unavailable for imported trades. Dollars still work |
+Nothing. Both overnight migrations went in on 11 August — see Done below.
 
-Neither is urgent and neither breaks anything by being skipped. Both are independent of each other
-and can go in the same paste, in either order.
-
-**After running them, re-import the mock CSV.** The upsert matches on `external_id`, so it corrects
-the existing rows in place and fills in `closed_at` rather than duplicating anything. Regenerate the
-file first with `python tools/make-mock-trades.py` if it has been overwritten — the current version
-carries a disposition effect and tilt that the first one did not.
-
-### How to tell they worked
+### How to tell they worked, if you ever need to check again
 
 ```sql
 -- closed_at: expect no_close to fall to 0 after a re-import, and backwards to
@@ -48,6 +37,8 @@ select account, risk_per_trade, updated_at
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `trade-closed-at.sql` | 11 Aug 2026 | **Confirmed by the result**: the statistics page reports median hold times, and nothing but this column can produce them |
+| `risk-settings.sql` | 11 Aug 2026 | Same paste. **Not independently confirmed** — the table is only touched when the risk panel is saved, so save a figure once to be sure |
 | `profiles-self-service.sql` | 10 Aug 2026 | Verified by attack: a member's own client gets 403 and *"Only an admin can change a role"* |
 | `curriculum-foundations.sql` | 11 Aug 2026 | 13 lessons in Prerequisites, all with figures |
 | `curriculum-prerequisites.sql` | 10 Aug 2026 | Plus the `phase-3` sort order fix |

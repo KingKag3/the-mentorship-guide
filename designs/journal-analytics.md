@@ -165,6 +165,12 @@ overtrading penalty, tilt after losses and a disposition effect:
 | The trade after a loss | 62 of them, −$188 average, back in after 25 minutes, size 2.0 |
 | The trade after a win | 41 of them, −$4 average, back in after 71 minutes, size 1.0 |
 
+**Seen working on 11 August 2026.** Every finding on the page matched the value it was seeded with —
+the 3.6x hold ratio, 62 trades after a loss averaging -$187.82 against -$3.66 after a win, 10:00
+carrying +$4,485, the fourth trade onwards at -$202.14. Importer, `closed_at`, `analytics.js`, the
+findings engine and the lesson links all agreeing, which is the only evidence that matters and the
+reason the fixture was seeded with known answers in the first place.
+
 **The t-statistic is the interesting one.** A member down eight and a half thousand dollars will
 conclude something about themselves. At −1.16 the honest reading is that this quarter cannot
 distinguish their trading from chance in either direction — the losing is not proven either. That is

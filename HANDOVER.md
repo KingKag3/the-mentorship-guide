@@ -3,7 +3,7 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 6 August 2026, fifth session.
+Last updated: 11 August 2026, seventh session.
 
 ## Seventh session — 11 August 2026, overnight
 
@@ -64,12 +64,30 @@ disagree for reasons unrelated to the code under test.
   one was broken, so it self-tests on every run and refuses to report anything if the self-test
   fails. `tools/prove-tdz-rules.py` pins the rules that stop it crying wolf.
 
-### Unverified
+### Verified on 11 August, and it works end to end
 
-**None of the new statistics panels has been seen rendered.** The page needs a Supabase session, the
-preview pane will not carry one, and the browser could only be used for the test harness. The
-markup parses, the script is balance-checked, the maths is tested, and the page has never been
-looked at. Treat the first load as the real test.
+**The statistics page renders and the findings are correct.** Seen signed in, against the re-imported
+mock journal. Every finding matched a pattern deliberately buried in the fixture, at the value it was
+buried at:
+
+| Finding on screen | Seeded as |
+| --- | --- |
+| Holds losers **3.6 times** as long as winners | 3.6x |
+| **62** trades after a loss at **-$187.82**, against -$3.66 after a win | 62, -$188, -$4 |
+| 10:00 carrying **+$4,485** against -$8,605 for the quarter | the good hour |
+| The fourth trade onwards at **-$202.14** across 28 trades | the overtrading tax |
+
+That is the whole chain agreeing: importer, `closed_at`, `analytics.js`, the findings engine and the
+lesson links. Hold times appearing at all is proof `trade-closed-at.sql` ran and the re-import
+landed, since nothing else populates that column.
+
+### Still unverified
+
+- **`risk-settings.sql`** went in the same paste as `trade-closed-at.sql` and has not been
+  independently confirmed. The R toggle showing is not proof; the table is only touched when the risk
+  panel is saved. Save a figure there once and it either works or names the missing table.
+- **The admin side of the account work** — editing another member's name, and the send-reset button.
+- **The four Pine scripts** in the other repo. See `PASTE-THESE.md`.
 
 ## Sixth session — 10 August 2026
 
@@ -129,7 +147,7 @@ retrying is what triggers it.
   `profiles` update, the same `resetPasswordForEmail`), which is a reason to expect them to work and
   not a reason to call them tested.
 
-- **`supabase/curriculum-prerequisites.sql` is written and NOT RUN.** It moves the seven arrays
+- **`supabase/curriculum-prerequisites.sql`** — run 10 August 2026. It moves the seven arrays
   lessons out of `phase-2` into a new `prerequisites` section between Phase 1 and Phase 2, renumbers
   the phases in tens so there is room to insert again, leaves `phase-2` empty and **unpublished** for
   its real content, and prepends a diagram to each of the seven lessons. Safe to re-run; each figure

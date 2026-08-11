@@ -163,8 +163,27 @@ for day in DAYS:
     level = level_for(day)
     windows = pick_windows(n)
 
+    # The day runs forward in time, and each trade knows what the last one did.
+    # Independent draws cannot produce tilt: "back in sooner after a loss" is a
+    # relationship between two trades, so the second has to be able to see the
+    # first.
+    clock = None
+    last_loss = False
+
     for i, window in enumerate(windows):
         hh, mm, ss = start_time(window)
+        opened = dt.datetime(day.year, day.month, day.day, hh, mm, ss)
+
+        if clock is not None:
+            # Revenge trading, in the only two ways a fill file can show it:
+            # straight back in, and bigger. Four minutes after a loss against
+            # about eighteen after a win.
+            wait = random.randint(90, 420) if last_loss else random.randint(600, 2400)
+            earliest = clock + dt.timedelta(seconds=wait)
+            if earliest > opened:
+                opened = earliest
+            if opened.hour >= 16:
+                break
 
         p_win = WIN_RATE[window]
         # The slump. Mid-June to early July goes wrong and stays wrong, which
@@ -191,6 +210,9 @@ for day in DAYS:
         pts = tick_round(pts)
 
         qty = random.choices([1, 2, 3], weights=[58, 30, 12])[0]
+        # And bigger, after a loss. Somebody trying to make it back in one.
+        if last_loss and random.random() < 0.45:
+            qty = min(3, qty + 1)
         direction = "long" if random.random() < 0.54 else "short"
 
         entry = tick_round(level + random.gauss(0, 55))
@@ -206,12 +228,17 @@ for day in DAYS:
         # derived from the fills, not invented beside them.
         pnl = round((sell_px - buy_px) * qty * PER_POINT, 2)
 
-        held = random.choice([
-            random.randint(20, 90), random.randint(90, 600),
-            random.randint(600, 2400), random.randint(2400, 5400)])
+        # Winners get cut, losers get nursed. Taking profit proves you were
+        # right; closing a loser admits you were not, so it waits. Roughly
+        # three to one, which is well within what a real journal shows.
+        if won:
+            held = int(abs(random.gauss(420, 260))) + 25
+        else:
+            held = int(abs(random.gauss(1500, 900))) + 90
 
-        opened = dt.datetime(day.year, day.month, day.day, hh, mm, ss)
         closed = opened + dt.timedelta(seconds=held)
+        clock = closed
+        last_loss = not won
 
         if direction == "long":
             bought_at, sold_at = opened, closed

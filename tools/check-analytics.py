@@ -100,8 +100,33 @@ by_day = {}
 for t in trades:
     by_day.setdefault(t["opened_at"][:10], []).append(t)
 
+def longest_run(vs, test):
+    best = cur = 0
+    for v in vs:
+        cur = cur + 1 if test(v) else 0
+        best = max(best, cur)
+    return best
+
+
+loss_run = longest_run(vals, lambda v: v < 0)
+win_run = longest_run(vals, lambda v: v > 0)
+
+srng = LCG(7)
+STREAK_RUNS = 400
+p_win = wins / n
+longs = []
+for _ in range(STREAK_RUNS):
+    best = cur = 0
+    for _ in range(n):
+        cur = 0 if srng.next() < p_win else cur + 1
+        best = max(best, cur)
+    longs.append(best)
+
 expected = {
     "n": n, "wins": wins, "losses": losses,
+    "lossRun": loss_run, "winRun": win_run,
+    "streakTypical": round(sum(longs) / STREAK_RUNS, 6),
+    "streakAtLeast": round(sum(1 for x in longs if x >= loss_run) / STREAK_RUNS, 6),
     "total": round(total, 2),
     "avg": round(mean, 6),
     "winRate": round(wins / n * 100, 6),
@@ -126,7 +151,8 @@ page = """<!DOCTYPE html>
 <div id="out">running...</div>
 <script type="module">
 import { summarise, drawdown, median, wilson, tStat, bootstrap,
-         sequence, holdSeconds, groupBy, hhmm, humanSeconds } from './analytics.js';
+         sequence, holdSeconds, groupBy, hhmm, humanSeconds,
+         longestRun, streakOdds } from './analytics.js';
 
 const trades = TRADES__;
 const expected = EXPECTED__;
@@ -176,6 +202,13 @@ check('bootstrap negative', Math.round(b.negative * 1e6) / 1e6, expected.boot.ne
 check('bootstrap low', Math.round(b.low * 100) / 100, expected.boot.low, 0.01);
 check('bootstrap median', Math.round(b.median * 100) / 100, expected.boot.median, 0.01);
 check('bootstrap high', Math.round(b.high * 100) / 100, expected.boot.high, 0.01);
+
+check('longest loss run', longestRun(trades.map(value), (v) => v < 0), expected.lossRun);
+check('longest win run', longestRun(trades.map(value), (v) => v > 0), expected.winRun);
+const so = streakOdds(expected.n, expected.wins / expected.n, expected.lossRun, 400, LCG(7));
+check('streak typical', Math.round(so.typical * 1e6) / 1e6, expected.streakTypical, 1e-6);
+check('streak at least', Math.round(so.atLeastObserved * 1e6) / 1e6, expected.streakAtLeast, 1e-6);
+check('longestRun empty', longestRun([], (v) => v < 0), 0);
 
 check('humanSeconds 45', humanSeconds(45), '45 sec');
 check('humanSeconds 600', humanSeconds(600), '10 min');

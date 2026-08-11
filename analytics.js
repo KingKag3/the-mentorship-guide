@@ -145,6 +145,57 @@ export function bootstrap(values, runs = 3000, rng = Math.random) {
   };
 }
 
+/* -------------------------------- streaks --------------------------------
+ *
+ * A run of losses is the most reliably misread thing in a trading journal.
+ * Seven in a row feels like something has broken; at a 40% win rate over 160
+ * trades it is close to the single most likely longest run there is. People
+ * change what they are doing over it, which is how a bad week turns into a bad
+ * quarter.
+ *
+ * The comparison is cheap and the reassurance is real - and when the run
+ * genuinely is unusual, the same number says so instead of soothing.
+ */
+
+/** The longest consecutive run for which `test` holds. Order matters. */
+export function longestRun(values, test) {
+  let best = 0, current = 0;
+  for (const v of values) {
+    current = test(v) ? current + 1 : 0;
+    if (current > best) best = current;
+  }
+  return best;
+}
+
+/**
+ * How a run compares to chance at the same win rate.
+ *
+ * Simulated rather than derived. The closed form for the longest run of
+ * failures in n Bernoulli trials is an approximation with caveats at small n,
+ * and n is always small here. Dealing it out is exact to the precision of the
+ * number of runs, and can be explained to somebody in one sentence, which the
+ * closed form cannot.
+ */
+export function streakOdds(n, winRate, observed, runs = 2000, rng = Math.random) {
+  if (!n || winRate <= 0 || winRate >= 1) return null;
+
+  const longest = new Array(runs);
+  for (let i = 0; i < runs; i++) {
+    let best = 0, current = 0;
+    for (let j = 0; j < n; j++) {
+      current = rng() < winRate ? 0 : current + 1;
+      if (current > best) best = current;
+    }
+    longest[i] = best;
+  }
+
+  const mean = longest.reduce((a, b) => a + b, 0) / runs;
+  return {
+    typical: mean,
+    atLeastObserved: longest.filter((x) => x >= observed).length / runs
+  };
+}
+
 /* ------------------------------ trade shape ------------------------------ */
 
 export function hhmm(hour) { return String(hour).padStart(2, '0') + ':00'; }

@@ -1928,6 +1928,18 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 
 .finding strong { font-family: var(--sans); font-weight: 600; }
 
+/* The link from a number to the lesson that explains it. Set apart from the
+   sentence rather than inline: the finding is evidence, this is what to do
+   about it, and running them together makes the reading look like advice. */
+.finding-lesson {
+  display: inline-block;
+  margin-top: var(--s-2);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* One account, one number. The label carries the account name and its trade
    count so the figure is being set against something recognisable. */
 .risk-row {

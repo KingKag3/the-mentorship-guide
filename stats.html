@@ -159,7 +159,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
-         holdSeconds } from './analytics.js';
+         holdSeconds, longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'stats.html');
@@ -205,6 +205,21 @@ if (error) {
 const rows = data || [];
 
 const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
+
+/* Which lessons actually exist, so a finding never offers a link to a page that
+ * would 404. Published only - an unpublished lesson is not readable, and
+ * pointing a member at one is worse than saying nothing.
+ *
+ * A failure here costs the links and nothing else; the findings themselves do
+ * not depend on the curriculum being reachable. */
+let lessonSlugs = new Set();
+try {
+  const { data: ls } = await supabase
+    .from('lessons').select('slug').eq('published', true);
+  lessonSlugs = new Set((ls || []).map((l) => l.slug));
+} catch (err) {
+  lessonSlugs = new Set();
+}
 
 // Stated risk per account. A declaration, kept apart from measured R on purpose
 // - see supabase/risk-settings.sql for why inferring it from the member's own
@@ -412,6 +427,51 @@ renderRiskRows();
  * draws from one process. They are not quite - a member improves, markets
  * change - so this is a floor on the uncertainty rather than all of it. */
 
+
+/* A losing run is the most reliably misread thing in a journal. Seven in a row
+ * feels like something has broken; at a 40% win rate it is close to the most
+ * likely longest run there is. People change what they are doing over it, which
+ * is how a bad week becomes a bad quarter.
+ *
+ * This is not blanket reassurance. When a run genuinely is out of the ordinary
+ * the same number says so, and that is the more useful half. */
+function streakBlock(list) {
+  const vs = list.map(UNIT[unit].value);
+  const s = summariseNow(list);
+  if (s.n < 30 || !s.wins || !s.losses) return '';
+
+  const lossRun = longestRun(vs, (v) => v < 0);
+  const winRun = longestRun(vs, (v) => v > 0);
+  const odds = streakOdds(s.n, s.wins / s.n, lossRun, 2000);
+  if (!odds) return '';
+
+  const chance = odds.atLeastObserved;
+  let verdict;
+  if (chance >= 0.20) {
+    verdict = 'That is ordinary. A run that length or longer turned up in ' +
+      Math.round(chance * 100) + ' of every 100 random sequences with your win rate, so it is ' +
+      'what your trading looks like rather than evidence that something broke.';
+  } else if (chance >= 0.05) {
+    verdict = 'That is on the long side but not remarkable — ' + Math.round(chance * 100) +
+      ' sequences in 100 with your win rate contain one at least that long.';
+  } else {
+    verdict = 'That is genuinely unusual: only ' + (chance * 100).toFixed(1) + ' sequences in 100 ' +
+      'with your win rate go that badly. Worth looking at what those trades had in common, ' +
+      'because chance is a thin explanation for this one.';
+  }
+
+  return '<h3>Your worst run</h3>' +
+    '<div class="card-grid">' +
+      statCard('Longest losing run', lossRun + ' trades',
+        'Typical for your win rate: ' + odds.typical.toFixed(1)) +
+      statCard('Longest winning run', winRun + ' trades', 'For scale') +
+    '</div>' +
+    '<p class="stat-note"><strong>' + escapeHtml(verdict) + '</strong></p>' +
+    '<p class="stat-note">Worked out by dealing ' + s.n + ' trades at your win rate 2,000 times ' +
+    'and looking at the longest losing run each time. Nothing about the order of your real trades ' +
+    'is assumed.</p>';
+}
+
 function renderLuck(list) {
   const values = list.map(UNIT[unit].value);
   const s = summariseNow(list);
@@ -461,7 +521,8 @@ function renderLuck(list) {
         '<p>It assumes your trades are interchangeable draws from one process. They are not ' +
         'quite: you improve, and markets change. Read it as the least uncertainty you face, not ' +
         'all of it.</p></div>'
-      : '');
+      : '') +
+    streakBlock(list);
 }
 
 /* ==========================================================================
@@ -671,12 +732,40 @@ function holdBlock(list) {
        journal and not a signal service.
 */
 
+/* Which lesson covers the thing the number just found.
+ *
+ * This is the difference between a report and a mentor. A dashboard says "you
+ * lose money after 13:00" and stops. A person says that, and then says where
+ * the reasoning behind it is written down. The curriculum already had the
+ * pages; they were simply never connected to the evidence.
+ *
+ * A slug that does not exist yet renders as nothing rather than a dead link,
+ * so a finding can name a lesson before that lesson is written.
+ */
+const LESSON_FOR = {
+  clock:       ['everything-is-new-york-time', 'Everything here is New York time'],
+  overtrading: ['risk-comes-first', 'Risk comes first'],
+  tilt:        ['risk-comes-first', 'Risk comes first'],
+  disposition: ['risk-comes-first', 'Risk comes first'],
+  shape:       ['what-an-imbalance-is', 'What an imbalance is'],
+  weekday:     ['everything-is-new-york-time', 'Everything here is New York time']
+};
+
+function lessonLink(key) {
+  const entry = LESSON_FOR[key];
+  if (!entry || !lessonSlugs.has(entry[0])) return '';
+  // ?slug=, which is what lesson.html reads. ?lesson= looks right and is not.
+  return ' <a class="finding-lesson" href="lesson.html?slug=' + encodeURIComponent(entry[0]) +
+    '">Read: ' + escapeHtml(entry[1]) + '</a>';
+}
+
 function findings(list) {
   const found = [];
   const val = UNIT[unit].value;
   const fmt = UNIT[unit].fmt;
   const total = list.reduce((a, r) => a + val(r), 0);
-  const add = (impact, html) => found.push({ impact: Math.abs(impact), html });
+  const add = (impact, html, lesson) =>
+    found.push({ impact: Math.abs(impact), html: html + lessonLink(lesson) });
 
   // --- the clock ---------------------------------------------------------
   const hours = [...groupBy(list, (r) => hhmm(hourOf(r))).entries()]
@@ -691,13 +780,13 @@ function findings(list) {
       add(worst[1],
         '<strong>' + escapeHtml(worst[0]) + ' is costing you.</strong> ' + worst[2] +
         ' trades in that hour, ' + fmt(worst[1]) + ' between them. Leave the hour alone and the ' +
-        'period reads ' + fmt(total - worst[1]) + ' instead of ' + fmt(total) + '.');
+        'period reads ' + fmt(total - worst[1]) + ' instead of ' + fmt(total) + '.', 'clock');
     }
     if (best[1] > 0 && best[1] > Math.abs(total) * 0.4) {
       add(best[1],
         '<strong>Your edge is concentrated in ' + escapeHtml(best[0]) + '.</strong> ' +
         best[2] + ' trades there made ' + fmt(best[1]) + ', against ' + fmt(total) +
-        ' for the whole period. Most of what you make, you make in one hour.');
+        ' for the whole period. Most of what you make, you make in one hour.', 'clock');
     }
   }
 
@@ -712,7 +801,7 @@ function findings(list) {
         '<strong>The day gets worse the longer it runs.</strong> Your first three trades of a ' +
         'day average ' + fmt(se.avg) + '. The fourth onwards average ' + fmt(sl.avg) + ' across ' +
         late.length + ' trades, ' + fmt(lateTotal) + ' in total. ' +
-        (lateTotal < 0 ? 'Everything after the third trade is a net cost.' : ''));
+        (lateTotal < 0 ? 'Everything after the third trade is a net cost.' : ''), 'overtrading');
     }
   }
 
@@ -734,7 +823,7 @@ function findings(list) {
           '<strong>The trade straight after a loss is your worst trade.</strong> ' +
           afterLoss.length + ' of them, averaging ' + fmt(al.avg) + ', against ' + fmt(aw.avg) +
           ' for one taken after a win. Same day only, so this is a reaction rather than a new ' +
-          'morning.');
+          'morning.', 'tilt');
       }
     }
   }
@@ -755,7 +844,7 @@ function findings(list) {
           '<strong>You hold losers ' + (ml / mw).toFixed(1) +
           ' times as long as winners.</strong> Median winner ' + humanSeconds(mw) +
           ', median loser ' + humanSeconds(ml) + '. That is the disposition effect: closing a ' +
-          'winner proves you were right, and closing a loser admits you were not.');
+          'winner proves you were right, and closing a loser admits you were not.', 'disposition');
       }
     }
   }
@@ -773,13 +862,13 @@ function findings(list) {
           '<strong>You are wrong more often than you are right, and it does not matter.</strong> ' +
           'A ' + s.winRate.toFixed(0) + '% win rate, but the average winner is ' + fmt(aw) +
           ' against ' + fmt(-alo) + ' for the average loser. The edge is in the size, not the ' +
-          'frequency, which is worth knowing before you go chasing a higher win rate.');
+          'frequency, which is worth knowing before you go chasing a higher win rate.', 'shape');
       }
       if (s.winRate > 55 && aw < alo) {
         add(0,
           '<strong>You win often and lose big.</strong> A ' + s.winRate.toFixed(0) +
           '% win rate, but the average loser (' + fmt(-alo) + ') is larger than the average ' +
-          'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.');
+          'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.', 'shape');
       }
     }
   }
@@ -794,7 +883,7 @@ function findings(list) {
       add(days[0][1],
         '<strong>' + escapeHtml(days[0][0]) + ' undoes the rest of the week.</strong> ' +
         days[0][2] + ' trades, ' + fmt(days[0][1]) + '. Worth knowing whether that is the market, ' +
-        'or whether it is you by then.');
+        'or whether it is you by then.', 'weekday');
     }
   }
 

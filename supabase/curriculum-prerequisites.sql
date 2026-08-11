@@ -37,6 +37,19 @@ on conflict (slug) do nothing;
 update public.phases set sort_order = 10 where slug = 'phase-1';
 update public.phases set sort_order = 20 where slug = 'prerequisites';
 update public.phases set sort_order = 30 where slug = 'phase-2';
+update public.phases set sort_order = 40 where slug = 'phase-3';
+
+-- phase-3 is in that list because the first run of this file did not know it
+-- existed. Everything named got renumbered into tens, phase-3 kept its 3, and a
+-- phase that had been last became first.
+--
+-- EVERY PHASE NEEDS A LINE HERE. Renumbering some rows of a shared ordering and
+-- not others does not leave the rest where they were - it moves them, silently,
+-- relative to everything that changed. Adding a phase without adding it here
+-- will put it at the front of the members list.
+--
+-- Nothing enforces that. The check query at the foot of this file is the only
+-- thing that catches it, which is why it reports sort_order at all.
 
 
 -- 2. Move the seven ----------------------------------------------------------

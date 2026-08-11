@@ -70,6 +70,20 @@
   </div>
   <p class="stat-note" id="unit-note"></p>
 
+  <details id="risk-panel" hidden>
+    <summary>What one R costs you</summary>
+    <p class="stat-note">R is normally the distance from your entry to your stop, and a broker
+    export does not carry a stop. Say what you risk per trade and R can be worked out for imported
+    trades as well.</p>
+    <p class="stat-note"><strong>This is something you tell the tool, not something it measures.</strong>
+    A trade that has a real stop keeps its real R; this only fills the gaps.</p>
+    <div id="risk-rows"></div>
+    <div class="row-actions">
+      <button type="button" class="btn-primary" id="risk-save">Save</button>
+    </div>
+    <p class="form-status" id="risk-status"></p>
+  </details>
+
   <div id="summary"></div>
   <div id="slices"></div>
 
@@ -184,16 +198,36 @@ if (error) {
 
 const rows = data || [];
 
-const hasR     = (r) => Number.isFinite(Number(r.r_multiple)) && r.r_multiple !== null;
+const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
+
+// Stated risk per account. A declaration, kept apart from measured R on purpose
+// - see supabase/risk-settings.sql for why inferring it from the member's own
+// losses is circular and therefore not an option.
+let stated = new Map();
+{
+  const { data: rs } = await supabase
+    .from('risk_settings').select('account, risk_per_trade');
+  for (const row of rs || []) stated.set(row.account, Number(row.risk_per_trade));
+}
+
+const realR   = (r) => Number.isFinite(Number(r.r_multiple)) && r.r_multiple !== null;
 const hasMoney = (r) => Number.isFinite(Number(r.net_pnl)) && r.net_pnl !== null;
 
-const rCount = rows.filter(hasR).length;
+/* A measured R always wins over a stated one. If somebody troubled to record a
+ * stop, that is the real risk on that trade and a blanket figure should not
+ * overwrite it. The stated figure only fills gaps. */
+const statedFor = (r) => stated.get(r.account) || null;
+const hasR  = (r) => realR(r) || (hasMoney(r) && statedFor(r) !== null);
+const valueR = (r) => realR(r) ? Number(r.r_multiple) : Number(r.net_pnl) / statedFor(r);
+
+const rCount = () => rows.filter(hasR).length;
+const measuredCount = rows.filter(realR).length;
 const moneyCount = rows.filter(hasMoney).length;
 
-let unit = rCount >= moneyCount && rCount > 0 ? 'r' : 'money';
+let unit = rCount() >= moneyCount && rCount() > 0 ? 'r' : 'money';
 
 const UNIT = {
-  r:     { has: hasR,     value: (r) => Number(r.r_multiple),
+  r:     { has: hasR,     value: valueR,
            fmt: (v) => r2(v) + 'R', label: 'R' },
   money: { has: hasMoney, value: (r) => Number(r.net_pnl),
            fmt: (v) => money(v),    label: 'dollars' }
@@ -213,12 +247,22 @@ function render() {
   const other = unit === 'r' ? 'money' : 'r';
   const otherCount = rows.filter(UNIT[other].has).length;
 
-  document.getElementById('unit-toggle').hidden = !(rCount && moneyCount);
+  const rNow = rCount();
+  const derived = rNow - measuredCount;
+
+  document.getElementById('unit-toggle').hidden = !(rNow && moneyCount);
+  document.getElementById('risk-panel').hidden = !accounts.length;
+
+  // Says where each R came from. "18 of 171 measured, 153 from a figure you
+  // gave us" is a different claim from "171 trades measured in R", and the page
+  // should not let the two read the same.
   document.getElementById('unit-note').textContent =
-    rCount && moneyCount
-      ? 'Measured in ' + UNIT[unit].label + '. ' + rCount + ' of ' + rows.length +
-        ' trades carry a stop, so only those can be measured in R.'
-      : '';
+    unit !== 'r' ? ''
+      : derived > 0
+        ? 'In R. ' + measuredCount + ' from a recorded stop, ' + derived +
+          ' from the risk you stated below.'
+        : measuredCount + ' of ' + rows.length + ' trades carry a stop, so only those have an R. ' +
+          'State your risk per account below to include the rest.';
 
   if (list.length) {
     renderSummary(list);
@@ -260,6 +304,67 @@ document.getElementById('unit-toggle').addEventListener('change', (e) => {
   unit = e.target.value;
   render();
 });
+
+/* ------------------------------ stated risk ------------------------------ */
+
+function renderRiskRows() {
+  document.getElementById('risk-rows').innerHTML = accounts.map((a) => {
+    const v = stated.has(a) ? stated.get(a) : '';
+    const n = rows.filter((r) => r.account === a).length;
+    return '<label class="check-line risk-row">' +
+      '<span>' + escapeHtml(a) + ' <span class="acct-muted">' + n + ' trades</span></span>' +
+      '<input type="number" min="1" step="1" inputmode="decimal" ' +
+        'data-risk="' + escapeHtml(a) + '" value="' + escapeHtml(String(v)) + '" ' +
+        'placeholder="e.g. 200" aria-label="Risk per trade for ' + escapeHtml(a) + '">' +
+      '</label>';
+  }).join('');
+}
+
+document.getElementById('risk-save').addEventListener('click', async () => {
+  const btn = document.getElementById('risk-save');
+  const inputs = [...document.querySelectorAll('input[data-risk]')];
+
+  const keep = [];
+  const drop = [];
+  for (const el of inputs) {
+    const account = el.getAttribute('data-risk');
+    const n = Number(el.value);
+    if (el.value.trim() === '') { drop.push(account); continue; }
+    if (!Number.isFinite(n) || n <= 0) {
+      setRiskStatus('"' + account + '" needs a number above zero, or nothing at all.', 'error');
+      return;
+    }
+    keep.push({ user_id: profile.id, account, risk_per_trade: n });
+  }
+
+  btn.disabled = true;
+  setRiskStatus('Saving...', 'info');
+
+  if (keep.length) {
+    const { error } = await supabase
+      .from('risk_settings').upsert(keep, { onConflict: 'user_id,account' });
+    if (error) { btn.disabled = false; setRiskStatus(error.message, 'error'); return; }
+  }
+  // Cleared boxes mean "no stated risk", which is a delete rather than a zero.
+  if (drop.length) {
+    const { error } = await supabase
+      .from('risk_settings').delete().eq('user_id', profile.id).in('account', drop);
+    if (error) { btn.disabled = false; setRiskStatus(error.message, 'error'); return; }
+  }
+
+  stated = new Map(keep.map((k) => [k.account, k.risk_per_trade]));
+  btn.disabled = false;
+  setRiskStatus('Saved. R now covers ' + rCount() + ' of ' + rows.length + ' trades.', 'ok');
+  render();
+});
+
+function setRiskStatus(msg, kind) {
+  const el = document.getElementById('risk-status');
+  el.className = 'form-status form-status-' + kind;
+  el.textContent = msg;
+}
+
+renderRiskRows();
 
 document.querySelector('input[name="unit"][value="' + unit + '"]').checked = true;
 render();

@@ -1903,6 +1903,34 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   color: var(--ink-900);
 }
 
+/* One account, one number. The label carries the account name and its trade
+   count so the figure is being set against something recognisable. */
+.risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-lo);
+}
+
+.risk-row input[type="number"] {
+  width: 8rem;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  color: var(--ink-900);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.risk-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: var(--ring);
+}
+
 .pick-cell { width: 1%; padding-right: 0 !important; }
 .pick-cell input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand-500); }
 

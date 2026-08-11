@@ -100,3 +100,23 @@ three phantom bugs gets ignored, and then the real one is ignored too.
 ```
 python tools/prove-tdz-rules.py
 ```
+
+## check-imports.py
+
+Every name a page imports must be exported by the module it names.
+
+Written after `stats.html` went blank on 11 August. Three helpers were added to
+the wrong one of two adjacent import statements — they lived in `app.js` and were
+asked of `analytics.js`. That is valid JavaScript, so `node --check` passes; the
+link fails in the browser and the whole module never runs.
+
+The symptom is the worst one this project has: heading, footer, nothing between.
+Indistinguishable from a broken build, a slow network, or the blank members page
+that cost a session in August. `app.js` carries a deadline and a placeholder for
+that reason, and neither helps here, because nothing executes at all.
+
+Companion to `check-tdz.py`, which catches the other cause of the same symptom.
+
+```
+python tools/check-imports.py
+```

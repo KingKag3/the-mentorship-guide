@@ -188,9 +188,9 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         dbError, money, localDay } from './app.js';
+         dbError, money, localDay,
+         accountsHidden, setAccountsHidden, aliasMap } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
-         accountsHidden, setAccountsHidden, aliasMap,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
 

@@ -7,6 +7,23 @@ Last updated: 6 August 2026, fifth session.
 
 ## Sixth session — 10 August 2026
 
+### Custom SMTP is a launch blocker, and nothing in the code will tell you
+
+Testing resets produced `email rate limit exceeded`. That is Supabase's built-in email service, which
+is throttled to a handful of messages an hour and is documented as **not for production use**. It is
+shared infrastructure with no deliverability guarantee.
+
+Left as it is, real members hit this the moment more than a couple sign up or reset in the same hour.
+The failure is silent from their side: they request a link, no email arrives, and nothing on the site
+is wrong. Every auth email the project sends goes through it — sign-up confirmation, reset, invite.
+
+The fix is a custom SMTP provider under **Project Settings → Authentication → SMTP Settings**
+(Resend, Postmark, SES — any of them). Once that is set, **Auth → Rate Limits** governs the ceiling
+instead, and it can be raised.
+
+Until then, testing an email flow means waiting out the throttle. No amount of retrying helps, and
+retrying is what triggers it.
+
 - **`supabase/profiles-self-service.sql` is run, and the guard is verified by attack.** Signed in as
   an ordinary member, in the browser, through the real client:
   `supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)` returns **403** with

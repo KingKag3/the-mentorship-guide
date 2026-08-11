@@ -503,6 +503,10 @@ export function toNumber(value) {
  * the only thing the reader needs.
  */
 const MIGRATIONS = [
+  // Listed above the looser patterns: "prop_accounts" contains "account",
+  // which would otherwise send the reader to trade-accounts.sql.
+  [/prop_accounts|prop_presets/i,        'supabase/prop-accounts.sql'],
+  [/risk_settings/i,                     'supabase/risk-settings.sql'],
   [/trade_exits/i,                       'supabase/trade-exits.sql'],
   [/(account|net_pnl)/i,                 'supabase/trade-accounts.sql'],
   [/fees/i,                              'supabase/trade-exits.sql'],

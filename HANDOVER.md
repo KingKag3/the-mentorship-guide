@@ -28,13 +28,18 @@ Last updated: 6 August 2026, fifth session.
   email lands on the **sign-in page**, not on `account.html`, despite `redirectTo` naming
   `account.html` explicitly.
 
-  Supabase only honours `redirectTo` when the URL matches its **Redirect URLs** allow-list, under
-  Authentication → URL Configuration. When it does not match, it does not error — it silently falls
-  back to the Site URL. Add `https://kingkag3.github.io/the-mentorship-guide/**` there.
+  **It was not the allow-list.** That was the first guess and it was wrong — the wildcard
+  `https://kingkag3.github.io/the-mentorship-guide/**` was already present, and the code builds
+  `https://kingkag3.github.io/the-mentorship-guide/account.html`, which matches it.
 
-  `login.html` now forwards a recovery landing to `account.html?recovery=1` rather than depending on
-  that setting, so the flow works either way. The dashboard entry is still worth adding: without it
-  every reset takes an extra redirect, and the same allow-list governs sign-up confirmation links.
+  **The redirect is baked into the email at send time.** A link generated before the `account.html`
+  change deployed carries `redirect_to=.../login.html` and always will, however many times it is
+  followed and whatever the code says now. The same is true of a reset requested from a cached copy
+  of `login.html`. Testing a reset flow therefore means requesting a *fresh* link after a hard
+  refresh; an old email in the inbox is testing an old build.
+
+  `login.html` forwards a recovery landing to `account.html` regardless, so stale links work too —
+  but only once the new `login.html` is the one the browser has.
 
 - **Still untested:** the admin side — editing another member's display name in the accounts table,
   and the per-row send-reset button. Both use paths the member side has now exercised (the same

@@ -58,6 +58,18 @@
   quietly drains it.</p>
   <div id="tool-rail"></div>
 
+  <div class="cal-toggle" id="unit-toggle" hidden>
+    <label class="check-line">
+      <input type="radio" name="unit" value="money">
+      <span>Dollars</span>
+    </label>
+    <label class="check-line">
+      <input type="radio" name="unit" value="r">
+      <span>R multiple</span>
+    </label>
+  </div>
+  <p class="stat-note" id="unit-note"></p>
+
   <div id="summary"></div>
   <div id="slices"></div>
 
@@ -127,7 +139,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         dbError } from './app.js';
+         dbError, money } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'stats.html');
@@ -154,45 +166,109 @@ if (error) {
   throw error;
 }
 
-// Only closed trades count. An open position has no result to average, and
-// counting it as a zero would drag every number toward nothing.
-const closed = (data || []).filter(
-  (r) => r.r_multiple !== null && r.r_multiple !== undefined && Number.isFinite(Number(r.r_multiple))
-);
+/* --------------------------- which unit, and why ---------------------------
+ *
+ * This page used to measure in R and nothing else, and R needs a stop. A broker
+ * export does not carry one - Tradovate's has entry, exit, size and result, and
+ * no stop anywhere - so every imported trade came back with a null r_multiple,
+ * failed the "closed" test, and the page announced that nothing had an exit
+ * price. Those trades all had exit prices. They had no stop, which is a
+ * different sentence with a different fix, and the reader was sent to add
+ * something that was already there.
+ *
+ * So the unit is a choice, as it already is on the calendar. Dollars need only
+ * a result; R needs a stop as well. The default is whichever actually covers
+ * the journal, because a page defaulting to the unit a member has no data for
+ * is a page that opens empty for the people with the most trades.
+ */
 
-if (!closed.length) {
-  // Two very different situations used to render the same message, which made a
-  // working journal look like a broken one: "nothing to measure" reads as "your
-  // trade did not save". Say which it is.
-  const total = (data || []).length;
-  const open = total - closed.length;
+const rows = data || [];
 
-  document.getElementById('summary').innerHTML = total === 0
-    ? '<div class="callout"><span class="callout-label">No trades yet</span>' +
+const hasR     = (r) => Number.isFinite(Number(r.r_multiple)) && r.r_multiple !== null;
+const hasMoney = (r) => Number.isFinite(Number(r.net_pnl)) && r.net_pnl !== null;
+
+const rCount = rows.filter(hasR).length;
+const moneyCount = rows.filter(hasMoney).length;
+
+let unit = rCount >= moneyCount && rCount > 0 ? 'r' : 'money';
+
+const UNIT = {
+  r:     { has: hasR,     value: (r) => Number(r.r_multiple),
+           fmt: (v) => r2(v) + 'R', label: 'R' },
+  money: { has: hasMoney, value: (r) => Number(r.net_pnl),
+           fmt: (v) => money(v),    label: 'dollars' }
+};
+
+function closedNow() { return rows.filter(UNIT[unit].has); }
+
+/* Three states, and they used to share one message.
+ *
+ * Nothing logged at all; something logged but nothing measurable in EITHER
+ * unit; and - the one that caught us - plenty measurable in dollars while the
+ * current unit is R. That last is not an empty journal, it is the wrong lens on
+ * a full one, and telling someone to add an exit price they already entered
+ * sends them to fix the wrong thing. */
+function render() {
+  const list = closedNow();
+  const other = unit === 'r' ? 'money' : 'r';
+  const otherCount = rows.filter(UNIT[other].has).length;
+
+  document.getElementById('unit-toggle').hidden = !(rCount && moneyCount);
+  document.getElementById('unit-note').textContent =
+    rCount && moneyCount
+      ? 'Measured in ' + UNIT[unit].label + '. ' + rCount + ' of ' + rows.length +
+        ' trades carry a stop, so only those can be measured in R.'
+      : '';
+
+  if (list.length) {
+    renderSummary(list);
+    renderSlices(list);
+    return;
+  }
+
+  document.getElementById('slices').innerHTML = '';
+
+  if (!rows.length) {
+    document.getElementById('summary').innerHTML =
+      '<div class="callout"><span class="callout-label">No trades yet</span>' +
       '<p>Nothing has been logged. Record a trade with an entry, a stop and an exit and this ' +
-      'page fills in.</p>' +
-      '<p><a href="journal.html">Go to the journal</a></p></div>'
+      'page fills in.</p><p><a href="journal.html">Go to the journal</a></p></div>';
+    return;
+  }
 
-    : '<div class="callout warn"><span class="callout-label">' +
-      'Nothing closed yet</span>' +
-      '<p>' + open + (open === 1 ? ' trade is' : ' trades are') + ' logged, but ' +
-      (open === 1 ? 'it has no' : 'none have an') + ' exit price recorded — so ' +
-      (open === 1 ? 'it has' : 'they have') + ' no result to measure yet. ' +
-      'Points and R are worked out from entry, stop and exit; without an exit there is no R, ' +
-      'and a trade with no R is deliberately left out of these numbers rather than counted as ' +
-      'a zero.</p>' +
-      '<p><a href="journal.html">Add the exit ' +
-      (open === 1 ? 'price' : 'prices') + ' in the journal</a></p></div>';
-} else {
-  renderSummary(closed);
-  renderSlices(closed);
+  if (otherCount) {
+    document.getElementById('summary').innerHTML =
+      '<div class="callout warn"><span class="callout-label">Nothing to measure in ' +
+      escapeHtml(UNIT[unit].label) + '</span>' +
+      '<p>' + rows.length + ' trades are logged and ' + otherCount + ' of them can be measured ' +
+      'in ' + escapeHtml(UNIT[other].label) + ' — but none carry what this unit needs. R is ' +
+      'worked out from entry, stop and exit, and a broker export rarely carries a stop.</p>' +
+      '<p>Switch the unit above, or add stops in the journal to unlock R.</p></div>';
+    return;
+  }
+
+  document.getElementById('summary').innerHTML =
+    '<div class="callout warn"><span class="callout-label">Nothing closed yet</span>' +
+    '<p>' + rows.length + (rows.length === 1 ? ' trade is' : ' trades are') + ' logged, but ' +
+    'none has a result recorded — no exit price and no reported figure. A trade with no result ' +
+    'is left out of these numbers rather than counted as a zero.</p>' +
+    '<p><a href="journal.html">Add the exits in the journal</a></p></div>';
 }
+
+document.getElementById('unit-toggle').addEventListener('change', (e) => {
+  if (e.target.name !== 'unit') return;
+  unit = e.target.value;
+  render();
+});
+
+document.querySelector('input[name="unit"][value="' + unit + '"]').checked = true;
+render();
 
 // --- maths -----------------------------------------------------------------
 
 function summarise(list) {
   const n = list.length;
-  const rs = list.map((r) => Number(r.r_multiple));
+  const rs = list.map(UNIT[unit].value);
   const wins = rs.filter((r) => r > 0).length;
   const losses = rs.filter((r) => r < 0).length;
   const total = rs.reduce((a, b) => a + b, 0);
@@ -209,7 +285,7 @@ function summarise(list) {
 function drawdown(list) {
   let curve = 0, peak = 0, worst = 0;
   for (const r of list) {
-    curve += Number(r.r_multiple);
+    curve += UNIT[unit].value(r);
     peak = Math.max(peak, curve);
     worst = Math.max(worst, peak - curve);
   }
@@ -229,7 +305,10 @@ function groupBy(list, keyFn) {
 
 // --- rendering -------------------------------------------------------------
 
-const r2 = (n) => (n > 0 ? '+' : '') + n.toFixed(2);
+// A declaration, not a const arrow. UNIT is built near the top of this script
+// and its formatter calls this; render() runs before execution reaches here, so
+// a const would still be in its temporal dead zone and throw on the first draw.
+function r2(n) { return (n > 0 ? '+' : '') + n.toFixed(2); }
 
 function renderSummary(list) {
   const s = summarise(list);
@@ -242,10 +321,10 @@ function renderSummary(list) {
         s.n < 50 ? 'Fifty is roughly where this starts meaning something.' : 'A usable sample.') +
       statCard('Win rate', s.winRate.toFixed(0) + '%',
         s.wins + ' won, ' + s.losses + ' lost') +
-      statCard('Total', r2(s.total) + 'R', 'Sum of every closed trade') +
-      statCard('Expectancy', r2(s.avg) + 'R',
+      statCard('Total', UNIT[unit].fmt(s.total), 'Sum of every closed trade') +
+      statCard('Expectancy', UNIT[unit].fmt(s.avg),
         s.avg > 0 ? 'What an average trade is worth' : 'An average trade currently costs you') +
-      statCard('Worst drawdown', dd.toFixed(2) + 'R', 'Peak to trough, in order taken') +
+      statCard('Worst drawdown', UNIT[unit].fmt(-Math.abs(dd)), 'Peak to trough, in order taken') +
     '</div>' +
     (s.n < MIN_SAMPLE
       ? '<div class="callout warn"><span class="callout-label">Too few</span><p>Under ' +
@@ -306,7 +385,7 @@ function renderSlice(title, note, map) {
         '<span class="bar-fill' + (bad ? ' is-bad' : '') + '" style="width:' + pct.toFixed(1) + '%">' +
         '</span>' +
       '</span>' +
-      '<b>' + r2(s.total) + 'R</b>' +
+      '<b>' + UNIT[unit].fmt(s.total) + '</b>' +
     '</div>';
   }).join('');
 
@@ -318,8 +397,8 @@ function renderSlice(title, note, map) {
         '<td>' + escapeHtml(key) + '</td>' +
         '<td>' + s.n + (s.n < MIN_SAMPLE ? ' <span class="tag">thin</span>' : '') + '</td>' +
         '<td>' + s.winRate.toFixed(0) + '%</td>' +
-        '<td>' + r2(s.total) + 'R</td>' +
-        '<td>' + r2(s.avg) + 'R</td>' +
+        '<td>' + UNIT[unit].fmt(s.total) + '</td>' +
+        '<td>' + UNIT[unit].fmt(s.avg) + '</td>' +
       '</tr>').join('') +
     '</tbody></table></div>';
 

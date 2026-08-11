@@ -84,8 +84,10 @@ update public.trades
 -- What it did. Run this after, on its own.
 --
 -- Expect `blank` to be the count of trades outside every named window plus any
--- with no timestamp — not zero. Zero would mean a window was widened to cover
--- hours the methodology does not name, which would be worse than the gap.
+-- with no timestamp. **Zero blanks is not a fault**: it means every trade fell
+-- inside a named session, which is ordinary for anyone who only trades the New
+-- York day. What would be a fault is a window's earliest or latest straying
+-- past its own boundary, which is why this reports both.
 -- ---------------------------------------------------------------------------
 
 -- select coalesce(nullif(session_kz, ''), '(blank)') as session,

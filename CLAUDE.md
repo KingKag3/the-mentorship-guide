@@ -34,8 +34,16 @@ So the split is by **repo, not by feature**:
 
 | Machine | Repo | Current piece |
 | --- | --- | --- |
-| This one | `the-mentorship-guide` (the site) | Backtest logbook, ROADMAP 3.3 |
-| The other | `the-mentorship-pine` (indicators) | `R-03` measured from the bell |
+| This one | both, for now | Journal analytics, then indicators |
+| The other | idle | — |
+
+**The split is suspended, not abandoned.** An overnight session was asked for indicator work while
+the site work was still open, so one machine currently holds both. That is fine while only one
+machine is running. Put the split back the moment two are.
+
+There is also a running list of migrations waiting to be applied in
+[supabase/RUN-THESE.md](supabase/RUN-THESE.md). Add to it rather than burying a new one in a commit
+message.
 
 Both repos exist on both machines and both still need pulling. The rule is only about where **edits**
 originate. If a piece genuinely needs both — a new indicator that also needs a page — do the repos in

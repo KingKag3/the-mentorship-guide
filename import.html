@@ -232,6 +232,11 @@ const FIELDS = [
           'opentime', 'opendate', 'entrytime', 'entrydate', 'tradedate', 'timestamp', 'filledat',
           'executiontime', 'entrydatetime', 'openingtime'] },
 
+  { key: 'closed_at', label: 'closed',
+    hint: 'When the position went flat. Worked out from the fills when absent',
+    syn: ['closed', 'closedat', 'closetime', 'closedate', 'exittime', 'exitdate',
+          'exitdatetime', 'closingtime', 'timeclosed'] },
+
   { key: 'symbol', label: 'symbol', req: true,
     hint: 'NQ, ES, MNQ and so on',
     syn: ['symbol', 'instrument', 'ticker', 'contract', 'market', 'product', 'asset', 'pair',
@@ -697,6 +702,15 @@ function mapRow(row, fallbackAccount, dayFirst) {
     (paired ? (direction === 'short' ? sold : bought) : null);
   if (!stamp) return skip('no date that could be read');
 
+  // The other end of the round turn, which this used to read and throw away.
+  // A long opens on the buy and closes on the sell; a short is the mirror. It
+  // is only kept when it is genuinely after the open - a file with the two
+  // columns swapped would otherwise record negative durations, and a negative
+  // hold time is the sort of thing that quietly poisons a median.
+  const closedRaw = parseStamp(raw(row, 'closed_at'), dayFirst) ||
+    (paired ? (direction === 'short' ? bought : sold) : null);
+  const closed = closedRaw && closedRaw >= stamp ? closedRaw : null;
+
   const symbol = text(row, 'symbol');
   if (!symbol) return skip('no symbol');
 
@@ -735,6 +749,7 @@ function mapRow(row, fallbackAccount, dayFirst) {
     external_id: external,
     account,
     opened_at: stamp.toISOString(),
+    closed_at: closed ? closed.toISOString() : null,
     symbol: rootSymbol(symbol) || symbol,
     direction,
     contracts: numeric(row, 'contracts'),
@@ -1000,8 +1015,9 @@ async function runImport() {
 
 // Built from the same field list the importer reads, so it cannot drift out of
 // step with what the page recognises.
-const TEMPLATE_FIELDS = ['opened_at', 'symbol', 'direction', 'contracts', 'entry', 'exit_price',
-                         'stop', 'target', 'fees', 'net_pnl', 'account', 'external_id', 'notes'];
+const TEMPLATE_FIELDS = ['opened_at', 'closed_at', 'symbol', 'direction', 'contracts', 'entry',
+                         'exit_price', 'stop', 'target', 'fees', 'net_pnl', 'account',
+                         'external_id', 'notes'];
 
 function templateGrid() {
   const header = TEMPLATE_FIELDS.map((k) => FIELDS.find((f) => f.key === k).label);

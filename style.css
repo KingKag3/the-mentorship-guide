@@ -3000,6 +3000,33 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .row-actions--lead .stat-note { margin: 0; }
 
+/* The bulk setup panel, and its list of accounts to apply to. The list is a
+   grid rather than a column because eighteen copied accounts down the page is
+   a scroll, and the whole point of the panel is not scrolling. */
+
+.prop-bulk {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset);
+  padding: var(--s-4);
+  margin: var(--s-4) 0 var(--s-5);
+}
+
+.prop-bulk > h2 { margin-top: 0; }
+
+.prop-picklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-1) var(--s-3);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--s-3);
+  margin: var(--s-2) 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
 /* ---------- prop accounts ----------
 
    One block per funded account. The celebration is a brief pulse on the border

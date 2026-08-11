@@ -72,6 +72,8 @@
     the only thing that can answer that.</p>
   </div>
 
+  <div id="bulk"></div>
+
   <div id="accounts"></div>
 
   <h2>Adding an account</h2>
@@ -325,6 +327,165 @@ function card(name) {
   '</section>';
 }
 
+/* ------------------------------ set many at once --------------------------
+
+   Copied prop accounts are identical by design - same firm, same size, same
+   target, opened the same day. Filling that in eighteen times is not data
+   entry, it is a chore the page invented.
+
+   The per-account forms below still exist, because the one account that
+   differs from its copies is the one worth knowing about, and that is exactly
+   what this panel would flatten if it were the only way in.
+------------------------------------------------------------------------- */
+
+function renderBulk() {
+  if (names.length < 2) { $('bulk').innerHTML = ''; return; }
+
+  // Copied accounts almost always share a stem - APEX-26922-1672 and its
+  // seventeen siblings. Offered as a group so "everything from this purchase"
+  // is one click rather than seventeen.
+  const groups = new Map();
+  for (const n of names) {
+    const stem = n.replace(/[-_ ]?[A-Za-z0-9]{1,6}$/, '');
+    if (stem && stem !== n) groups.set(stem, (groups.get(stem) || 0) + 1);
+  }
+  const families = [...groups.entries()].filter((e) => e[1] > 1).sort((a, b) => b[1] - a[1]);
+
+  $('bulk').innerHTML =
+    '<section class="prop-bulk">' +
+      '<h2>Set several at once</h2>' +
+      '<p class="stat-note">Copied accounts share a firm, a size and a target. Fill it in once and ' +
+      'apply it to whichever accounts it describes. Anything left blank is left alone on the ' +
+      'accounts you apply to, so this can also set a single field across the lot.</p>' +
+      '<form class="auth-form auth-form-wide" id="bulk-form">' +
+        '<div class="field-pair">' +
+          '<div><label>Firm</label><input name="firm" type="text" list="dl-firm" value="Apex"></div>' +
+          '<div><label>Account size</label><select name="size"><option value="">-</option>' +
+            presets.map((x) => '<option value="' + x.size + '">' + money(x.size) + '</option>').join('') +
+            '</select></div>' +
+        '</div>' +
+        '<div class="field-pair">' +
+          '<div><label>Profit target</label>' +
+            '<input name="profit_target" type="number" step="0.01" min="0"></div>' +
+          '<div><label>Drawdown <span class="opt">- from the firm</span></label>' +
+            '<input name="drawdown" type="number" step="0.01" min="0"></div>' +
+        '</div>' +
+        '<div class="field-pair">' +
+          '<div><label>Minimum trading days</label>' +
+            '<input name="min_days" type="number" step="1" min="0"></div>' +
+          '<div><label>Counting from</label><input name="started_on" type="date"></div>' +
+        '</div>' +
+
+        '<label>Apply to</label>' +
+        '<div class="row-actions">' +
+          '<button class="link-button" type="button" data-pick="all">All ' + names.length + '</button>' +
+          '<button class="link-button" type="button" data-pick="none">None</button>' +
+          '<button class="link-button" type="button" data-pick="unset">Only the ones not set up</button>' +
+          families.map((f) =>
+            '<button class="link-button" type="button" data-pick="stem" data-stem="' +
+            escapeHtml(f[0]) + '">' + escapeHtml(f[0]) + '* (' + f[1] + ')</button>').join('') +
+        '</div>' +
+
+        '<div class="prop-picklist">' +
+          names.map((n) =>
+            '<label class="check-line"><input type="checkbox" name="pick" value="' +
+            escapeHtml(n) + '"><span>' + escapeHtml(n) +
+            (saved.has(n) ? ' <span class="acct-muted">set up</span>' : '') +
+            '</span></label>').join('') +
+        '</div>' +
+
+        '<div class="row-actions">' +
+          '<button class="btn-primary" type="submit">Apply to the ticked accounts</button>' +
+          '<span class="form-status" id="bulk-status"></span>' +
+        '</div>' +
+      '</form>' +
+    '</section>';
+
+  const form = $('bulk-form');
+  const boxes = () => [...form.querySelectorAll('input[name="pick"]')];
+
+  for (const b of form.querySelectorAll('[data-pick]')) {
+    b.addEventListener('click', () => {
+      const how = b.dataset.pick;
+      for (const box of boxes()) {
+        box.checked = how === 'all' ? true
+          : how === 'none' ? false
+          : how === 'unset' ? !saved.has(box.value)
+          : box.value.startsWith(b.dataset.stem);
+      }
+    });
+  }
+
+  const size = form.querySelector('[name="size"]');
+  size.addEventListener('change', () => {
+    const t = form.querySelector('[name="profit_target"]');
+    if (t.value) return;
+    const firm = form.querySelector('[name="firm"]').value.trim() || 'Apex';
+    const hit = presets.find((x) => x.firm === firm && Number(x.size) === Number(size.value));
+    if (hit) t.value = hit.profit_target;
+  });
+
+  form.addEventListener('submit', applyBulk);
+}
+
+async function applyBulk(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const picked = [...form.querySelectorAll('input[name="pick"]:checked')].map((b) => b.value);
+
+  if (!picked.length) {
+    setStatus('#bulk-status', 'Tick at least one account first.', 'error');
+    return;
+  }
+
+  const num = (k) => {
+    const v = form.querySelector('[name="' + k + '"]').value;
+    return v === '' ? undefined : Number(v);
+  };
+  const txt = (k) => form.querySelector('[name="' + k + '"]').value.trim() || undefined;
+
+  // Blank means "leave this alone", not "set it to nothing". Otherwise using
+  // the panel to fix one field would wipe the other five.
+  const patch = {};
+  const candidate = {
+    firm: txt('firm'), size: num('size'), profit_target: num('profit_target'),
+    drawdown: num('drawdown'), min_days: num('min_days'), started_on: txt('started_on')
+  };
+  for (const k of Object.keys(candidate)) {
+    if (candidate[k] !== undefined) patch[k] = candidate[k];
+  }
+
+  if (!Object.keys(patch).length) {
+    setStatus('#bulk-status', 'Nothing filled in, so there is nothing to apply.', 'error');
+    return;
+  }
+
+  setStatus('#bulk-status', 'Applying to ' + picked.length + ' account' +
+    (picked.length === 1 ? '' : 's') + '...', 'info');
+
+  const rows = picked.map((name) => {
+    const row = Object.assign({ status: 'active' }, saved.get(name) || {}, patch,
+      { user_id: profile.id, account: name });
+    // id is generated. Carrying a cached one into an upsert makes it argue with
+    // itself about which row it is looking at.
+    delete row.id;
+    return row;
+  });
+
+  const res = await supabase.from('prop_accounts')
+    .upsert(rows, { onConflict: 'user_id,account' });
+
+  if (res.error) {
+    setStatus('#bulk-status', res.error.message, 'error');
+    return;
+  }
+
+  for (const r of rows) saved.set(r.account, r);
+  setStatus('#bulk-status', picked.length + ' account' + (picked.length === 1 ? '' : 's') +
+    ' updated.', 'ok');
+  render();
+}
+
 function render() {
   if (!names.length) {
     mount.innerHTML = '<div class="callout"><span class="callout-label">No accounts yet</span>' +
@@ -397,6 +558,7 @@ async function save(e) {
   render();
 }
 
+renderBulk();
 render();
 </script>
 

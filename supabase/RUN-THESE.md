@@ -11,7 +11,18 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing. Both overnight migrations went in on 11 August — see Done below.
+| File | What it does | Why |
+| --- | --- | --- |
+| `session-backfill.sql` | Fills `session_kz` from `opened_at` on trades that have none | The importer derives the session at import time, so anything imported before 11 August carries a blank one |
+
+**It only ever fills a blank.** A session typed by hand is left alone, even where the query would
+have chosen differently — you were there and it was not. That is what makes it safe to run after
+editing trades, which re-importing the file is not.
+
+**Expect blanks to remain afterwards.** 00:00-02:00, 05:00-07:00 and 16:00-20:00 are not named
+windows in this methodology, and a trade in one of them keeps its blank rather than being given a
+session it was not in. Zero blanks would mean a window had been widened to cover hours nobody
+defined, which is worse than the gap.
 
 ### How to tell they worked, if you ever need to check again
 

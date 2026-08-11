@@ -11,11 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `account-kind.sql` | Adds `kind` to `prop_accounts`: prop, live or demo | Without it every account is treated as an evaluation, and a live account gets a target it can never have |
-
-
+Nothing. Every migration written so far has been run.
 
 
 ### How to tell they worked, if you ever need to check again
@@ -42,6 +38,7 @@ select account, risk_per_trade, updated_at
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `account-kind.sql` | 11 Aug 2026 | Adds `kind` to `prop_accounts`: prop, live or demo. Without it every account is treated as an evaluation, and a live account gets a target it can never have. **Not independently confirmed** — `props.html` reads the column, so a card offering the prop/live/demo choice is the proof |
 | `session-backfill.sql` | 11 Aug 2026 | Fills `session_kz` from `opened_at` where it was blank. **Verified 11 Aug**: 636 trades tagged, no blanks, and every window's earliest and latest sit strictly inside its own boundary. No blanks is not a fault here - it means nothing was traded outside 07:00-16:00 New York. The boundary check is the one that matters |
 | `prop-accounts.sql` | 11 Aug 2026 | **Confirmed from outside**: `prop_accounts` and `prop_presets` both answer 200 with `[]` to the anon key, which is a table that exists behind a policy that holds. Whether the seven ladder rows landed needs a signed-in look at `props.html` |
 | `trade-closed-at.sql` | 11 Aug 2026 | **Confirmed by the result**: the statistics page reports median hold times, and nothing but this column can produce them |

@@ -1903,6 +1903,31 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   color: var(--ink-900);
 }
 
+/* ---------- findings ----------
+   Sentences the journal wrote about itself. Each one sits on its own card with
+   a coloured edge, because they are conclusions rather than data and should not
+   read as another row in another table. */
+
+.findings { display: flex; flex-direction: column; gap: var(--s-3); margin: var(--s-4) 0; }
+
+.finding {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand-500);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--s-3) var(--s-4);
+}
+
+.finding p {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  max-width: 74ch;
+}
+
+.finding strong { font-family: var(--sans); font-weight: 600; }
+
 /* One account, one number. The label carries the account name and its trade
    count so the figure is being set against something recognisable. */
 .risk-row {

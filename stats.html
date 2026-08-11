@@ -84,7 +84,10 @@
     <p class="form-status" id="risk-status"></p>
   </details>
 
+  <div id="findings"></div>
   <div id="summary"></div>
+  <div id="behaviour"></div>
+  <div id="luck"></div>
   <div id="slices"></div>
 
 </div>
@@ -153,7 +156,10 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         dbError, money } from './app.js';
+         dbError, money, localDay } from './app.js';
+import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
+         wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
+         holdSeconds } from './analytics.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'stats.html');
@@ -235,6 +241,10 @@ const UNIT = {
 
 function closedNow() { return rows.filter(UNIT[unit].has); }
 
+// The unit is a runtime choice, so it is bound at the call rather than baked
+// into the module. Everything downstream just asks for a number.
+function summariseNow(list) { return summariseWith(list, UNIT[unit].value); }
+
 /* Three states, and they used to share one message.
  *
  * Nothing logged at all; something logged but nothing measurable in EITHER
@@ -265,12 +275,17 @@ function render() {
           'State your risk per account below to include the rest.';
 
   if (list.length) {
+    renderFindings(list);
     renderSummary(list);
+    renderBehaviour(list);
+    renderLuck(list);
     renderSlices(list);
     return;
   }
 
-  document.getElementById('slices').innerHTML = '';
+  for (const id of ['findings', 'behaviour', 'luck', 'slices']) {
+    document.getElementById(id).innerHTML = '';
+  }
 
   if (!rows.length) {
     document.getElementById('summary').innerHTML =
@@ -366,47 +381,464 @@ function setRiskStatus(msg, kind) {
 
 renderRiskRows();
 
+/* ==========================================================================
+   IS ANY OF THIS REAL
+   ==========================================================================
+
+   Three questions a trading journal almost never asks itself, all answerable
+   from the same list of numbers, and all of more use than another decimal
+   place on the win rate.
+
+   None of it predicts anything. It says how much of what already happened
+   could have happened anyway. */
+
+/* Wilson score interval. The textbook "win rate plus or minus" formula falls
+ * apart at small samples and near 0% or 100% - it will happily hand back a
+ * lower bound below zero. Wilson does not, which is why it earns the extra
+ * line: the members with the fewest trades are the ones most likely to read a
+ * win rate as a fact. */
+
+/* How many standard errors the average trade sits from zero. Van Tharp sells
+ * this as the System Quality Number; it is a t-statistic, and calling it what
+ * it is means the caveats come with it. Around 2 is the usual "probably not
+ * chance" line, and it climbs with sample size for a fixed edge - which is the
+ * honest reason a good system with thirty trades cannot prove itself yet. */
+
+/* Deal the same trades again, at random, with replacement, a few thousand
+ * times. It answers the question every trader has and almost none can put a
+ * number on: how much of this was me.
+ *
+ * What it assumes, and the panel says so: that the trades are interchangeable
+ * draws from one process. They are not quite - a member improves, markets
+ * change - so this is a floor on the uncertainty rather than all of it. */
+
+function renderLuck(list) {
+  const values = list.map(UNIT[unit].value);
+  const s = summariseNow(list);
+  const ci = wilson(s.wins, s.n);
+  const t = tStat(values);
+  const boot = bootstrap(values);
+  const pct = (x) => (x * 100).toFixed(0) + '%';
+
+  let realTalk;
+  if (t === null) {
+    realTalk = 'Not enough trades to say whether any of this is chance.';
+  } else if (Math.abs(t) < 1.5) {
+    realTalk = 'Your average trade is ' + t.toFixed(1) + ' standard errors from zero. That is ' +
+      'well inside what a coin would produce over this many trades - this sample cannot tell ' +
+      'your trading apart from luck, in either direction.';
+  } else if (Math.abs(t) < 2) {
+    realTalk = 'Your average trade is ' + t.toFixed(1) + ' standard errors from zero. ' +
+      'Suggestive, and short of the usual line of 2. Another fifty trades would settle it.';
+  } else {
+    realTalk = 'Your average trade is ' + t.toFixed(1) + ' standard errors from zero, past the ' +
+      'usual line of 2. Over this sample, on this evidence, the result is unlikely to be chance ' +
+      'alone.';
+  }
+
+  document.getElementById('luck').innerHTML =
+    '<h2>Is any of this real</h2>' +
+    '<p class="stat-note">The same numbers, asked how much of them could have happened anyway. ' +
+    'Nothing here predicts anything.</p>' +
+    '<div class="card-grid">' +
+      statCard('Win rate, honestly', ci ? pct(s.wins / s.n) : '-',
+        ci ? 'Somewhere between ' + pct(ci[0]) + ' and ' + pct(ci[1]) + ', 19 times out of 20' : '') +
+      statCard('Distance from luck', t === null ? '-' : t.toFixed(1),
+        'Standard errors from zero. 2 is the usual line') +
+      statCard('Redeals that finish down', boot ? pct(boot.negative) : '-',
+        boot ? 'Out of 3,000 reshuffles of your own trades' : 'Needs at least 20 trades') +
+    '</div>' +
+    '<p class="stat-note"><strong>' + escapeHtml(realTalk) + '</strong></p>' +
+    (boot
+      ? '<div class="callout"><span class="callout-label">What the redeal means</span>' +
+        '<p>Your ' + s.n + ' trades were dealt again 3,000 times, drawing at random from your own ' +
+        'results. The middle outcome was ' + UNIT[unit].fmt(boot.median) + ', and nine times in ' +
+        'ten the period landed between ' + UNIT[unit].fmt(boot.low) + ' and ' +
+        UNIT[unit].fmt(boot.high) + '.</p>' +
+        '<p><strong>' + pct(boot.negative) + ' of those redeals finished down.</strong> That is ' +
+        'roughly how often a period like this one ends badly even when nothing about the way you ' +
+        'trade has changed - which is the honest way to think about a losing month.</p>' +
+        '<p>It assumes your trades are interchangeable draws from one process. They are not ' +
+        'quite: you improve, and markets change. Read it as the least uncertainty you face, not ' +
+        'all of it.</p></div>'
+      : '');
+}
+
+/* ==========================================================================
+   BEHAVIOUR
+   ==========================================================================
+
+   Everything below is derived from the trade itself - clock, sequence, size,
+   duration - and needs no tag. That is deliberate. Seven of the eight
+   breakdowns further down key off model, session, PD array and the rest, which
+   exist only when somebody hand-logs a trade. Nobody hand-tags a hundred and
+   seventy imported rows, so a journal full of real trades would otherwise
+   arrive at a page with nothing to say.
+
+   These are also the things a broker statement cannot tell you. Your platform
+   knows what you made. It does not know that your fourth trade of the day is
+   where the money goes. */
+
+const chron = [...rows].sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+
+const hourOf  = (r) => new Date(r.opened_at).getHours();
+const dayOf   = (r) => localDay(r.opened_at);
+const holdSec = holdSeconds;
+
+// Position within its own day, and what the trade before it did. Computed once
+// over the whole journal in time order, then read back per trade by id.
+const { seq: seqOf, prev: prevOf } = sequence(chron, dayOf);
+
+
+
+
+/* The counterfactual. A ranking says which group is worst; this says what
+ * leaving it alone would have been worth, which is the version somebody can
+ * act on. It is also the version that needs a warning - see the note it
+ * renders with, and J-03 in designs/journal-analytics.md. */
+function counterfactual(list, keyFn) {
+  const groups = groupBy(list, keyFn);
+  if (groups.size < 2) return '';
+
+  const scored = [...groups.entries()]
+    .map(([key, rs]) => [key, rs.reduce((a, r) => a + UNIT[unit].value(r), 0), rs.length])
+    .filter(([, , n]) => n >= MIN_SAMPLE)
+    .sort((a, b) => a[1] - b[1]);
+
+  if (!scored.length) return '';
+  const [worstKey, worstTotal, worstN] = scored[0];
+  if (worstTotal >= 0) return '';
+
+  const total = list.reduce((a, r) => a + UNIT[unit].value(r), 0);
+  return '<p class="stat-note"><strong>Without ' + escapeHtml(String(worstKey)) + '</strong> — ' +
+    worstN + ' trades — the period is ' + UNIT[unit].fmt(total - worstTotal) +
+    ' instead of ' + UNIT[unit].fmt(total) + '. ' +
+    'Removing your worst group in hindsight always improves the figure, including for somebody ' +
+    'trading at random, so treat this as the size of the question rather than the answer.</p>';
+}
+
+function renderBehaviour(list) {
+  const out = [];
+
+  out.push(sliceBlock('By hour of day',
+    'The clock, not the session label — so this works on imported trades too.',
+    list, (r) => hhmm(hourOf(r)), true));
+
+  out.push(sliceBlock('By trade number that day',
+    'Whether the fourth trade of a day is as good as the first. This is what overtrading ' +
+    'looks like when it is measured rather than felt.',
+    list, (r) => {
+      const n = seqOf.get(r.id);
+      return n >= 5 ? '5th or later' : ['1st', '2nd', '3rd', '4th'][n - 1];
+    }, true));
+
+  out.push(afterLossBlock(list));
+  out.push(holdBlock(list));
+
+  document.getElementById('behaviour').innerHTML =
+    '<h2>Behaviour</h2>' +
+    '<p class="stat-note">None of this needs a tag, and none of it appears on a broker ' +
+    'statement. Your platform knows what you made; it does not know when you stopped being ' +
+    'careful.</p>' + out.filter(Boolean).join('');
+}
+
+function sliceBlock(title, note, list, keyFn, withCounterfactual) {
+  const body = renderSlice(title, note, groupBy(list, keyFn));
+  if (!body) return '';
+  return body + (withCounterfactual ? counterfactual(list, keyFn) : '');
+}
+
+/* Tilt, measured. The trade after a loss is the one taken while annoyed, and
+ * the two things that give it away are speed and size: back in sooner, and
+ * bigger. Both are in the data already. */
+function afterLossBlock(list) {
+  const ids = new Set(list.map((r) => r.id));
+  const after = { loss: [], win: [] };
+  const gaps = { loss: [], win: [] };
+  const sizes = { loss: [], win: [] };
+
+  for (const r of chron) {
+    if (!ids.has(r.id)) continue;
+    const prev = prevOf.get(r.id);
+    if (!prev || !ids.has(prev.id)) continue;
+    if (dayOf(prev) !== dayOf(r)) continue;      // a fresh day is not a reaction
+
+    const prevValue = UNIT[unit].value(prev);
+    if (prevValue === 0) continue;
+    const bucket = prevValue < 0 ? 'loss' : 'win';
+
+    after[bucket].push(r);
+    const gap = (new Date(r.opened_at) - new Date(prev.closed_at || prev.opened_at)) / 60000;
+    if (Number.isFinite(gap) && gap >= 0) gaps[bucket].push(gap);
+    if (Number.isFinite(Number(r.contracts))) sizes[bucket].push(Number(r.contracts));
+  }
+
+  if (after.loss.length < MIN_SAMPLE) return '';
+
+  const sl = summariseNow(after.loss);
+  const sw = summariseNow(after.win);
+
+  const row = (label, s, gap, size) =>
+    '<tr><td>' + label + '</td><td>' + s.n + '</td><td>' + s.winRate.toFixed(0) + '%</td>' +
+    '<td>' + UNIT[unit].fmt(s.total) + '</td><td>' + UNIT[unit].fmt(s.avg) + '</td>' +
+    '<td>' + (gap === null ? '—' : Math.round(gap) + ' min') + '</td>' +
+    '<td>' + (size === null ? '—' : size.toFixed(1)) + '</td></tr>';
+
+  const gapLoss = median(gaps.loss), gapWin = median(gaps.win);
+  const szLoss = median(sizes.loss), szWin = median(sizes.win);
+
+  let verdict = '';
+  if (gapLoss !== null && gapWin !== null && gapLoss < gapWin * 0.7) {
+    verdict += 'You get back in faster after a loss than after a win. ';
+  }
+  if (szLoss !== null && szWin !== null && szLoss > szWin * 1.15) {
+    verdict += 'And you come back bigger. ';
+  }
+  if (sl.avg < 0 && sw.avg > 0) {
+    verdict += 'The trade after a loss loses on average; the trade after a win does not.';
+  }
+
+  return '<h3>The trade after the last one</h3>' +
+    '<p class="stat-note">Only same-day pairs, because a new morning is not a reaction to ' +
+    'yesterday. Speed and size are the two tells: back in sooner, and bigger.</p>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+    '<th>The one before was a</th><th>Trades</th><th>Win rate</th><th>Total</th>' +
+    '<th>Expectancy</th><th>Median wait</th><th>Median size</th>' +
+    '</tr></thead><tbody>' +
+    row('loss', sl, gapLoss, szLoss) +
+    (sw.n ? row('win', sw, gapWin, szWin) : '') +
+    '</tbody></table></div>' +
+    (verdict ? '<p class="stat-note"><strong>' + escapeHtml(verdict.trim()) + '</strong></p>' : '');
+}
+
+/* The disposition effect: taking profits early to feel right, holding losses to
+ * avoid being wrong. One median against another, and nothing else needed. */
+function holdBlock(list) {
+  const wins = [], losses = [];
+  for (const r of list) {
+    const s = holdSec(r);
+    if (s === null) continue;
+    (UNIT[unit].value(r) > 0 ? wins : losses).push(s);
+  }
+  if (wins.length < MIN_SAMPLE || losses.length < MIN_SAMPLE) {
+    return '<h3>How long you hold</h3>' +
+      '<p class="stat-note">Not enough trades carry a closing time yet. Imported trades get one ' +
+      'automatically; re-import to fill them in.</p>';
+  }
+
+  const mw = median(wins), ml = median(losses);
+  const ratio = mw > 0 ? ml / mw : null;
+
+  let verdict;
+  if (ratio !== null && ratio >= 1.5) {
+    verdict = 'You hold losers ' + ratio.toFixed(1) + ' times as long as winners. That is the ' +
+      'disposition effect — taking profits early to be right, holding losses to avoid being ' +
+      'wrong — and it is the most expensive habit in retail trading.';
+  } else if (ratio !== null && ratio <= 0.75) {
+    verdict = 'You cut losers faster than you cut winners, which is the right way round and ' +
+      'rarer than you would think.';
+  } else {
+    verdict = 'You hold winners and losers for about as long as each other. No disposition ' +
+      'effect visible in this sample.';
+  }
+
+  return '<h3>How long you hold</h3>' +
+    '<div class="card-grid">' +
+      statCard('Median winner', humanSeconds(mw), wins.length + ' trades') +
+      statCard('Median loser', humanSeconds(ml), losses.length + ' trades') +
+    '</div>' +
+    '<p class="stat-note"><strong>' + escapeHtml(verdict) + '</strong></p>';
+}
+
+/* ==========================================================================
+   WHAT YOUR JOURNAL SAYS
+   ==========================================================================
+
+   A dashboard hands somebody eight charts and hopes. This reads the same data
+   and writes sentences, because the useful output of a journal is not a figure
+   - it is "your fourth trade of the day is where the money goes", which is a
+   thing a person can act on tomorrow morning.
+
+   Rules this holds itself to:
+
+     - every finding carries the number it came from, so it can be checked
+     - nothing fires below MIN_SAMPLE; a pattern in six trades is a story
+     - findings are ranked by how much money is involved rather than by how
+       neat they are, because the interesting one and the expensive one are
+       rarely the same
+     - nothing recommends a trade. It may say what a habit cost. It may not say
+       what to do next, and that difference is the whole reason this is a
+       journal and not a signal service.
+*/
+
+function findings(list) {
+  const found = [];
+  const val = UNIT[unit].value;
+  const fmt = UNIT[unit].fmt;
+  const total = list.reduce((a, r) => a + val(r), 0);
+  const add = (impact, html) => found.push({ impact: Math.abs(impact), html });
+
+  // --- the clock ---------------------------------------------------------
+  const hours = [...groupBy(list, (r) => hhmm(hourOf(r))).entries()]
+    .map(([k, rs]) => [k, rs.reduce((a, r) => a + val(r), 0), rs.length])
+    .filter(([, , n]) => n >= MIN_SAMPLE);
+
+  if (hours.length >= 2) {
+    const worst = [...hours].sort((a, b) => a[1] - b[1])[0];
+    const best = [...hours].sort((a, b) => b[1] - a[1])[0];
+
+    if (worst[1] < 0) {
+      add(worst[1],
+        '<strong>' + escapeHtml(worst[0]) + ' is costing you.</strong> ' + worst[2] +
+        ' trades in that hour, ' + fmt(worst[1]) + ' between them. Leave the hour alone and the ' +
+        'period reads ' + fmt(total - worst[1]) + ' instead of ' + fmt(total) + '.');
+    }
+    if (best[1] > 0 && best[1] > Math.abs(total) * 0.4) {
+      add(best[1],
+        '<strong>Your edge is concentrated in ' + escapeHtml(best[0]) + '.</strong> ' +
+        best[2] + ' trades there made ' + fmt(best[1]) + ', against ' + fmt(total) +
+        ' for the whole period. Most of what you make, you make in one hour.');
+    }
+  }
+
+  // --- overtrading -------------------------------------------------------
+  const early = list.filter((r) => seqOf.get(r.id) <= 3);
+  const late = list.filter((r) => seqOf.get(r.id) >= 4);
+  if (late.length >= MIN_SAMPLE && early.length >= MIN_SAMPLE) {
+    const lateTotal = late.reduce((a, r) => a + val(r), 0);
+    const se = summariseNow(early), sl = summariseNow(late);
+    if (lateTotal < 0 || sl.avg < se.avg * 0.5) {
+      add(lateTotal,
+        '<strong>The day gets worse the longer it runs.</strong> Your first three trades of a ' +
+        'day average ' + fmt(se.avg) + '. The fourth onwards average ' + fmt(sl.avg) + ' across ' +
+        late.length + ' trades, ' + fmt(lateTotal) + ' in total. ' +
+        (lateTotal < 0 ? 'Everything after the third trade is a net cost.' : ''));
+    }
+  }
+
+  // --- tilt --------------------------------------------------------------
+  {
+    const ids = new Set(list.map((r) => r.id));
+    const afterLoss = [], afterWin = [];
+    for (const r of chron) {
+      if (!ids.has(r.id)) continue;
+      const prev = prevOf.get(r.id);
+      if (!prev || !ids.has(prev.id) || dayOf(prev) !== dayOf(r)) continue;
+      const pv = val(prev);
+      if (pv < 0) afterLoss.push(r); else if (pv > 0) afterWin.push(r);
+    }
+    if (afterLoss.length >= MIN_SAMPLE && afterWin.length >= MIN_SAMPLE) {
+      const al = summariseNow(afterLoss), aw = summariseNow(afterWin);
+      if (al.avg < 0 && aw.avg > al.avg) {
+        add(al.total,
+          '<strong>The trade straight after a loss is your worst trade.</strong> ' +
+          afterLoss.length + ' of them, averaging ' + fmt(al.avg) + ', against ' + fmt(aw.avg) +
+          ' for one taken after a win. Same day only, so this is a reaction rather than a new ' +
+          'morning.');
+      }
+    }
+  }
+
+  // --- disposition effect ------------------------------------------------
+  {
+    const w = [], l = [];
+    for (const r of list) {
+      const s = holdSec(r);
+      if (s === null) continue;
+      (val(r) > 0 ? w : l).push(s);
+    }
+    if (w.length >= MIN_SAMPLE && l.length >= MIN_SAMPLE) {
+      const mw = median(w), ml = median(l);
+      if (mw > 0 && ml / mw >= 1.5) {
+        const lossTotal = list.filter((r) => val(r) < 0).reduce((a, r) => a + val(r), 0);
+        add(lossTotal,
+          '<strong>You hold losers ' + (ml / mw).toFixed(1) +
+          ' times as long as winners.</strong> Median winner ' + humanSeconds(mw) +
+          ', median loser ' + humanSeconds(ml) + '. That is the disposition effect: closing a ' +
+          'winner proves you were right, and closing a loser admits you were not.');
+      }
+    }
+  }
+
+  // --- the shape of the edge ---------------------------------------------
+  {
+    const s = summariseNow(list);
+    const wins = list.filter((r) => val(r) > 0).map(val);
+    const losses = list.filter((r) => val(r) < 0).map(val);
+    if (wins.length >= MIN_SAMPLE && losses.length >= MIN_SAMPLE) {
+      const aw = wins.reduce((a, b) => a + b, 0) / wins.length;
+      const alo = Math.abs(losses.reduce((a, b) => a + b, 0) / losses.length);
+      if (s.winRate < 50 && aw > alo) {
+        add(0,
+          '<strong>You are wrong more often than you are right, and it does not matter.</strong> ' +
+          'A ' + s.winRate.toFixed(0) + '% win rate, but the average winner is ' + fmt(aw) +
+          ' against ' + fmt(-alo) + ' for the average loser. The edge is in the size, not the ' +
+          'frequency, which is worth knowing before you go chasing a higher win rate.');
+      }
+      if (s.winRate > 55 && aw < alo) {
+        add(0,
+          '<strong>You win often and lose big.</strong> A ' + s.winRate.toFixed(0) +
+          '% win rate, but the average loser (' + fmt(-alo) + ') is larger than the average ' +
+          'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.');
+      }
+    }
+  }
+
+  // --- weekday -----------------------------------------------------------
+  {
+    const days = [...groupBy(list, (r) => DOW[new Date(r.opened_at).getDay()]).entries()]
+      .map(([k, rs]) => [k, rs.reduce((a, r) => a + val(r), 0), rs.length])
+      .filter(([, , n]) => n >= MIN_SAMPLE)
+      .sort((a, b) => a[1] - b[1]);
+    if (days.length >= 3 && days[0][1] < 0 && Math.abs(days[0][1]) > Math.abs(total) * 0.5) {
+      add(days[0][1],
+        '<strong>' + escapeHtml(days[0][0]) + ' undoes the rest of the week.</strong> ' +
+        days[0][2] + ' trades, ' + fmt(days[0][1]) + '. Worth knowing whether that is the market, ' +
+        'or whether it is you by then.');
+    }
+  }
+
+  return found.sort((a, b) => b.impact - a.impact).slice(0, 5);
+}
+
+function renderFindings(list) {
+  const mount = document.getElementById('findings');
+
+  if (list.length < MIN_SAMPLE) { mount.innerHTML = ''; return; }
+
+  const items = findings(list);
+
+  if (!items.length) {
+    mount.innerHTML =
+      '<h2>What your journal says</h2>' +
+      '<div class="callout"><span class="callout-label">Nothing stands out yet</span>' +
+      '<p>No hour, no part of the day and no habit is far enough out of line to be worth naming ' +
+      'on ' + list.length + ' trades. That is a real result rather than a shrug: it means the ' +
+      'damage is spread evenly, and there is no single thing to stop doing.</p></div>';
+    return;
+  }
+
+  mount.innerHTML =
+    '<h2>What your journal says</h2>' +
+    '<p class="stat-note">Ranked by how much money is involved, not by how interesting it is. ' +
+    'Each one names the number it came from so you can go and check it.</p>' +
+    '<div class="findings">' +
+      items.map((f) => '<div class="finding"><p>' + f.html + '</p></div>').join('') +
+    '</div>' +
+    '<p class="stat-note">These describe what already happened. None is a suggestion about what ' +
+    'to trade next, and a pattern in three months of your own trades is a hypothesis rather than ' +
+    'a rule.</p>';
+}
+
 document.querySelector('input[name="unit"][value="' + unit + '"]').checked = true;
 render();
 
 // --- maths -----------------------------------------------------------------
 
-function summarise(list) {
-  const n = list.length;
-  const rs = list.map(UNIT[unit].value);
-  const wins = rs.filter((r) => r > 0).length;
-  const losses = rs.filter((r) => r < 0).length;
-  const total = rs.reduce((a, b) => a + b, 0);
-  return {
-    n, wins, losses,
-    winRate: n ? wins / n * 100 : 0,
-    total,
-    avg: n ? total / n : 0
-  };
-}
 
 // Worst peak-to-trough run through the trades in the order they were taken.
 // Order matters, which is why the query sorts ascending rather than newest first.
-function drawdown(list) {
-  let curve = 0, peak = 0, worst = 0;
-  for (const r of list) {
-    curve += UNIT[unit].value(r);
-    peak = Math.max(peak, curve);
-    worst = Math.max(worst, peak - curve);
-  }
-  return worst;
-}
 
-function groupBy(list, keyFn) {
-  const map = new Map();
-  for (const row of list) {
-    const key = keyFn(row);
-    if (key === null || key === undefined || key === '') continue;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(row);
-  }
-  return map;
-}
 
 // --- rendering -------------------------------------------------------------
 
@@ -416,8 +848,8 @@ function groupBy(list, keyFn) {
 function r2(n) { return (n > 0 ? '+' : '') + n.toFixed(2); }
 
 function renderSummary(list) {
-  const s = summarise(list);
-  const dd = drawdown(list);
+  const s = summariseNow(list);
+  const dd = drawdownWith(list, UNIT[unit].value);
 
   document.getElementById('summary').innerHTML =
     '<h2>Overall</h2>' +
@@ -472,7 +904,7 @@ function renderSlice(title, note, map) {
   if (!map.size) return '';
 
   const entries = [...map.entries()]
-    .map(([key, rows]) => [key, summarise(rows)])
+    .map(([key, rows]) => [key, summariseNow(rows)])
     .sort((a, b) => b[1].total - a[1].total);
 
   // Bars are scaled against the largest absolute total in this slice, so a

@@ -364,6 +364,8 @@ export const TOOLS = [
     blurb: 'A broker export straight into the journal, one account at a time.' },
   { href: 'calendar.html', name: 'Calendar',
     blurb: 'Every trading day as a green or red square, and what each one was worth.' },
+  { href: 'props.html', name: 'Prop accounts',
+    blurb: 'What each funded account has to reach, and how close it is.' },
   { href: 'stats.html', name: 'Statistics',
     blurb: 'Which models, sessions and arrays actually pay, sliced out of your own journal.' },
   { href: 'sizer.html', name: 'Position sizer',

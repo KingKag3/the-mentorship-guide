@@ -14,6 +14,7 @@ see `CLAUDE.md`.
 | File | What it does | Why |
 | --- | --- | --- |
 | `session-backfill.sql` | Fills `session_kz` from `opened_at` on trades that have none | The importer derives the session at import time, so anything imported before 11 August carries a blank one |
+| `prop-accounts.sql` | The prop account table, and the Apex profit ladder as reference | Needed before `props.html` can store anything |
 
 **It only ever fills a blank.** A session typed by hand is left alone, even where the query would
 have chosen differently — you were there and it was not. That is what makes it safe to run after

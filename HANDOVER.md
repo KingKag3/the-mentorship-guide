@@ -435,6 +435,13 @@ For a short session on a machine already set up, this is enough:
 > Pull both mentorship repos, read `HANDOVER.md` and both `DECISIONS.md`, and tell me where we left
 > off before doing anything.
 
+**Kag3 asked to be reminded about the Pine scripts.** Seven of them are written, linted and have
+never been through the editor — the list, the order and what to check on each is in the pine repo's
+`PASTE-THESE.md`. He set them aside on 11 August to work on prop accounts and asked for a nudge, so
+this is the nudge: **start with `trade-karma-my-hours.pine`**, which is 128 lines with no market
+logic and is the cheapest way to find out whether anything in the batch is broken in a way the
+linter cannot see.
+
 **First thing to do:** import the same Tradovate file twice. The first run proves the mapping; the
 second proves the de-duplication, which is the only part of the importer that cannot be checked
 without a live database. If the count doubles, the unique index in `trade-import.sql` did not get

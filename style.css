@@ -3000,6 +3000,40 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .row-actions--lead .stat-note { margin: 0; }
 
+/* ---------- prop accounts ----------
+
+   One block per funded account. The celebration is a brief pulse on the border
+   rather than anything falling down the screen: hitting a target is a real
+   moment and it is also somebody else's decision to confirm, so the page
+   marks it and does not throw a party over it. */
+
+.prop-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.prop-card > h3 { margin-top: 0; }
+.prop-card .card-grid { margin-bottom: 0; }
+
+.prop-card.is-celebrating {
+  border-color: var(--brand-solid);
+  animation: prop-reached 2.4s var(--ease) 3;
+}
+
+@keyframes prop-reached {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%      { box-shadow: var(--ring); }
+}
+
+/* A pulse is decoration. Anyone who has asked for less motion still gets the
+   border, which is the part carrying the meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .prop-card.is-celebrating { animation: none; }
+}
+
 /* ---------- import column mapping ----------
 
    One row per field the journal stores, against a select of the columns the

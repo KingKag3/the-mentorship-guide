@@ -548,6 +548,63 @@ export function weightedExit(exits) {
 }
 
 /** $1,234.50, with the sign kept because a loss reading as a gain is worse than ugly. */
+/* ------------------------------ taking it out -----------------------------
+ *
+ * A journal you cannot get out of is a journal you are renting. Import has
+ * existed since the beginning and export never did, which is the wrong way
+ * round for something a member is asked to put three months of their own work
+ * into.
+ */
+
+/**
+ * Rows to CSV.
+ *
+ * Two things this does that a join with commas does not:
+ *
+ * Quoting. Any field carrying a comma, a quote or a newline is wrapped and its
+ * quotes doubled — a trade note saying `broke out, then failed` would otherwise
+ * silently become two columns and shift every field after it.
+ *
+ * Formula injection. A field beginning =, +, - or @ is a live formula to Excel
+ * and Sheets, and `=cmd|...` in a spreadsheet is a genuine attack rather than a
+ * curiosity. Prefixing with an apostrophe makes it text. Nobody is attacking
+ * their own journal, but a member who imports a broker file and exports it
+ * again should not be handed a weapon by us.
+ */
+export function toCsv(rows, columns) {
+  const cols = columns || (rows.length ? Object.keys(rows[0]) : []);
+  if (!cols.length) return '';
+
+  const cell = (v) => {
+    if (v === null || v === undefined) return '';
+    let s = String(v);
+    if (/^[=+\-@]/.test(s)) s = "'" + s;
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+
+  return [cols.join(',')]
+    .concat(rows.map((r) => cols.map((c) => cell(r[c])).join(',')))
+    .join('\r\n');
+}
+
+/** Hand a string to the browser as a file. Revoked straight after, so a long
+ *  session does not accumulate object URLs nobody can reach. */
+export function downloadText(filename, text, mime = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** `trade-karma-journal-2026-08-11.csv` — sorts correctly in a folder. */
+export function stampedName(stem, ext = 'csv') {
+  return stem + '-' + new Date().toISOString().slice(0, 10) + '.' + ext;
+}
+
 export function money(value) {
   if (!Number.isFinite(value)) return '—';
   const sign = value < 0 ? '-' : '';

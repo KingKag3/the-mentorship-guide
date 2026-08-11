@@ -184,7 +184,10 @@ const { data, error } = await supabase
   .from('trades')
   .select('*')
   .order('opened_at', { ascending: true })
-  .limit(2000);
+  // One over the cap, so truncation can be detected rather than assumed away.
+  // Statistics computed on a silently truncated set are worse than none: they
+  // look authoritative and describe a period the member did not ask about.
+  .limit(2001);
 
 if (error) {
   document.getElementById('summary').innerHTML = dbError(error);
@@ -207,7 +210,8 @@ if (error) {
  * is a page that opens empty for the people with the most trades.
  */
 
-const rows = data || [];
+const capped = (data || []).length > 2000;
+const rows = (data || []).slice(0, 2000);
 
 const accounts = [...new Set(rows.map((r) => r.account).filter(Boolean))].sort();
 
@@ -286,13 +290,17 @@ function render() {
   // Says where each R came from. "18 of 171 measured, 153 from a figure you
   // gave us" is a different claim from "171 trades measured in R", and the page
   // should not let the two read the same.
+  const cappedNote = capped
+    ? ' Only the most recent 2,000 trades are included; there are more.'
+    : '';
+
   document.getElementById('unit-note').textContent =
-    unit !== 'r' ? ''
+    unit !== 'r' ? cappedNote.trim()
       : derived > 0
         ? 'In R. ' + measuredCount + ' from a recorded stop, ' + derived +
-          ' from the risk you stated below.'
+          ' from the risk you stated below.' + cappedNote
         : measuredCount + ' of ' + rows.length + ' trades carry a stop, so only those have an R. ' +
-          'State your risk per account below to include the rest.';
+          'State your risk per account below to include the rest.' + cappedNote;
 
   if (list.length) {
     renderFindings(list);

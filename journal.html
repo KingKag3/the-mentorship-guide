@@ -279,8 +279,12 @@
   <div id="list"></div>
 
   <div class="row-actions" id="empty-row" hidden>
+    <button type="button" class="link-button" id="export-journal">Export everything as CSV</button>
     <button type="button" class="link-button" id="empty-journal">Empty the journal</button>
   </div>
+  <p class="stat-note">The export is every trade on the account, not the page you can see, and it
+  reads straight back into the importer. A journal you cannot get out of is a journal you are
+  renting.</p>
   <p class="stat-note">Emptying removes every trade on this account and cannot be undone. A bad
   import is the usual reason to want it — re-importing the same file corrects those rows in place,
   so try that first.</p>
@@ -353,7 +357,8 @@
 import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
-  tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError } from './app.js';
+  tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
+  toCsv, downloadText, stampedName } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'journal.html');
@@ -708,7 +713,10 @@ async function load() {
     .from('trades')
     .select('*')
     .order('opened_at', { ascending: false })
-    .limit(500);
+    // One more than is shown, purely to find out whether there were more. A
+    // list silently cut at five hundred looks complete, and the trades it
+    // dropped are the oldest ones - the ones somebody goes looking for.
+    .limit(501);
 
   const mount = $('list');
 
@@ -717,7 +725,8 @@ async function load() {
     return;
   }
 
-  rows = data || [];
+  const capped = (data || []).length > 500;
+  rows = (data || []).slice(0, 500);
 
   // Offered back as suggestions so the second trade in an account is a pick
   // rather than a retype. Free text that drifts into "Apex 50k" and "apex 50K"
@@ -726,12 +735,14 @@ async function load() {
   $('dl-account').innerHTML = names
     .map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
 
-  $('count-note').textContent = rows.length
-    ? rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
-      (rows.length < 50
-        ? 'Fifty is roughly where the statistics start meaning something.'
-        : 'Enough for the statistics to be worth reading.')
-    : '';
+  $('count-note').textContent = !rows.length ? ''
+    : capped
+      ? 'Showing the most recent 500. There are more - the statistics and the calendar read all ' +
+        'of them, and the export below takes the lot.'
+      : rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
+        (rows.length < 50
+          ? 'Fifty is roughly where the statistics start meaning something.'
+          : 'Enough for the statistics to be worth reading.');
 
   if (!rows.length) {
     mount.innerHTML =
@@ -924,6 +935,40 @@ $('bulk-delete').addEventListener('click', async () => {
  * and cannot be done by accident, which is the entire distinction between this
  * and deleting one trade.
  */
+/* Everything, not the five hundred on screen.
+ *
+ * The list is capped for rendering; an export capped the same way would hand
+ * somebody a file quietly missing their oldest trades, and they would not find
+ * out until they needed them. */
+$('export-journal').addEventListener('click', async () => {
+  const btn = $('export-journal');
+  btn.disabled = true;
+  setStatus('#status', 'Gathering...', 'info');
+
+  const { data, error } = await supabase
+    .from('trades')
+    .select('*')
+    .order('opened_at', { ascending: true })
+    .limit(20000);
+
+  btn.disabled = false;
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+  if (!data || !data.length) { setStatus('#status', 'Nothing to export.', 'info'); return; }
+
+  // Column order chosen so the file opens readable and re-imports without a
+  // single manual mapping: the importer's synonym list already knows these
+  // names. user_id is left out - it is the same value on every row and it is
+  // not the member's business to carry it around.
+  const cols = ['opened_at', 'closed_at', 'account', 'symbol', 'direction', 'contracts',
+                'entry', 'stop', 'target', 'exit_price', 'points', 'r_multiple',
+                'net_pnl', 'fees', 'outcome', 'model', 'session_kz', 'pd_array',
+                'liquidity', 'bias', 'agreed_with_bias', 'checklist_done',
+                'management', 'notes', 'external_id', 'created_at'];
+
+  downloadText(stampedName('trade-karma-journal'), toCsv(data, cols));
+  setStatus('#status', data.length + ' trades exported.', 'ok');
+});
+
 $('empty-journal').addEventListener('click', async () => {
   if (!rows.length) return;
 

@@ -326,94 +326,24 @@ Be honest about this list before trusting anything below it.
 
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
-- **`supabase/journal-media-privacy.sql`, written 12 August 2026 and never run.** It is the fix for
-  a real hole: until it is applied, any signed-in member can read any other member's trade
-  screenshots, because the "narrow" journal policy in `trades.sql` was permissive and permissive
-  policies are OR'd. Only the uuid in the filename is stopping it today. The file itself has been
-  read for syntax and nothing more — no part of it has touched a database.
-
-  **What proving it takes, and it needs two accounts.** Account A is a member holding at least one
-  trade with a screenshot; account B is a second member — check B's `role` is `member`, because a
-  `pending` account is refused by every policy in the project and would "pass" this test while
-  proving nothing.
-
-  1. **Get a real path**, from the SQL editor rather than from the site, so it is known-good before
-     anything is concluded from a failure:
-
-     ```sql
-     select user_id, screenshot_path
-       from public.trades
-      where screenshot_path is not null
-      limit 5;
-     ```
-
-     Copy a `screenshot_path` cell whole. It is already the complete object key —
-     `journal/<uuid>/<uuid>.jpg` — and nothing needs assembling from the `user_id` column beside it,
-     which is there only to say whose it is.
-
-  2. **As B, in the browser devtools console** — on a signed-in page of the site, *not* in the SQL
-     editor, which speaks only SQL. `supabase` is an ES module export rather than a global, so it
-     has to be imported before it can be reached. One expression, re-runnable, no variable to
-     collide on a second go:
-
-     The path is fetched rather than typed, pasted or prompted for. Every attempt that moved the
-     string by hand got it wrong instead — `<A user id>`, then a literal `…`, then a cancelled
-     prompt leaving `null` — and each one failed in a way that looked like the pass being tested
-     for. Ask the database for it:
-
-     ```js
-     window.P = (await (await import('./app.js')).supabase.from('trades')
-       .select('screenshot_path').eq('shared_with_mentor', true)
-       .not('screenshot_path', 'is', null).limit(1)).data[0].screenshot_path
-     ```
-
-     The console echoes the assignment, so the path is visible before anything is done with it. If
-     that line throws, stop: there is no shared trade with a screenshot to test against, and the
-     rest of the step is meaningless. `window.P` rather than `const` so a second run does not
-     collide with the first.
-
-     **The admin must capture the path while the trade is still shared**, because once it is
-     unticked the admin cannot read the row either — `admins read shared` is the only thing giving
-     them the trade. Capture first, then have the owner untick, then sign.
-
-     ```js
-     await (await import('./app.js')).supabase.storage
-       .from('lesson-media').createSignedUrl(window.P, 60)
-     ```
-
-     **Both** awaits on the second line are load-bearing. Without the outer one the console prints
-     `Promise {<pending>}` and never the answer, which reads as a broken command rather than a
-     result.
-
-     **Read the error, not just the presence of one.** They mean opposite things:
-
-     - `Invalid key: …` — the path was malformed and never reached a policy. **The test did not
-       run.** Fix the string and go again.
-     - `Object not found` — this is the pass. Supabase reports an object hidden by RLS exactly as
-       it reports one that does not exist, which is why step 3 below is not optional.
-
-     **Before** the migration this answers with a `signedUrl`, which is the bug, in B's hands, for
-     somebody else's screenshot. **After** it must answer `{ data: null, error: ... }`.
-
-  3. **As A, run the identical line with the identical path.** It must return a URL. This step is
-     not optional: Supabase reports an object hidden by RLS as *"Object not found"*, which is
-     indistinguishable from a typo. Without A succeeding on the same string, step 2 proves only that
-     something was spelled wrong.
-
-  4. **As B, confirm nothing else broke.** A lesson page with an uploaded image still renders, and
-     B's own journal screenshots still appear. Both go through the same bucket and the same helper.
-
-  5. **As A, tick *share with mentor*** on the trade that has the screenshot. As an admin, open the
-     Review tab: the image must render. Untick it and reload: the image must disappear while the
-     rest of the card stays. This is what proves the mentor's access is the trades table's opt-in
-     and not a bucket-wide grant — the grant being what was removed.
-
-  Steps 2, 3 and 5 are the test. Step 4 is what says the fix did not cost anything.
-- **`admins read shared`, and the whole Review tab with it** — needs a second account with
-  `shared_with_mentor` ticked. The policy has existed since the original schema and has never
-  returned a row. The tab, the card, the levels grid and the copy button were built against it on
-  12 August 2026 and verified only as markup, in `design.html`. Until a second account has shared a
-  trade, "the mentor can see it" is a claim about a policy nobody has exercised.
+- **`supabase/journal-media-privacy.sql` — applied and verified on 12 August 2026, and no longer on
+  this list.** The record of what was actually observed is under **Verified by attack** below. It
+  stays named here because four earlier attempts to test it produced errors that looked like passes,
+  and anybody re-checking it should read that section before trusting a red console line.
+- **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
+  holds every grant a member holds and one more, so the admin being refused an unshared object means
+  a member is too — their grants are a strict subset. Recorded as reasoning rather than as an
+  observation, because that is what it is.
+- **That the owner never lost anything.** `kj` read their own trade row after the migration, which is
+  the table and not the bucket. Nobody has signed a URL for their own screenshot since, and no lesson
+  page with an uploaded image has been opened since either. Both go through the same bucket and the
+  same helper, so both are worth one look. Expected outcome is boring, which is exactly why it has
+  not been done.
+- **`admins read shared`, and the whole Review tab with it** — **exercised on 12 August 2026**, for
+  the first time since the policy was written. `kj@lanline.com` ticked *share with mentor* on trade
+  2950 and the admin's Review tab rendered the card, the levels grid and the screenshot. Before this
+  the policy had never returned a row. What is still only markup: the levels grid and copy button
+  against a trade with a stop and a target filled in, since 2950 has neither.
 - **`chart_url` and everything hanging off it.** `supabase/trade-chart-url.sql` has not been run, so
   the column does not exist yet and saving a trade will fail until it does — the journal names the
   file rather than failing silently, because `migrationHint` now knows it. What *was* verified on
@@ -477,6 +407,67 @@ Note on the surviving test row: its prices are negative (`entry -0.5`, `stop -1.
 price any index future trades at. It came from clicking the number spinners down from empty. The
 price fields now carry `min="0"`. The row is harmless but worth deleting before it reaches a
 statistic.
+
+---
+
+## Verified by attack — journal screenshots, 12 August 2026
+
+The hole was real and is closed. What follows is what was observed, not what was intended, because
+this is the kind of fix that cannot be confirmed by looking at a screen.
+
+**The setup.** `kj@lanline.com`, role `member`, owns trade 2950 with
+`journal/d1b5b810-…/79fa58ef-….png` in `screenshot_path` and `chart_url` null — so the image on the
+Review card is the stored object and not a TradingView link. A separate admin account did the
+reading. The path was never typed: both consoles fetched it from `trades` and printed it, and the two
+printings matched.
+
+**The A/B, and it is the whole proof.** Same admin, same browser tab, same path string, minutes
+apart:
+
+| `shared_with_mentor` | Result of `createSignedUrl` |
+| --- | --- |
+| ticked | a `signedUrl` |
+| unticked | `{ data: null, error: 'Object not found' }` |
+
+The only thing that changed between them was a member ticking a box in their own journal. That is
+what makes it a proof rather than a coincidence: a wrong path would have failed in both states, and
+it succeeded in one.
+
+`select policyname, permissive, cmd from pg_policies` confirmed the shape underneath it — three
+permissive SELECT policies and `journal media is owner only | RESTRICTIVE | SELECT`.
+
+**The trap, which caught four attempts before any of this.** The test looks for an error, and four
+different mistakes produced errors that were not the one being looked for:
+
+| What came back | What it actually meant |
+| --- | --- |
+| `syntax error at or near "await"` | JavaScript pasted into the SQL editor |
+| `supabase is not defined` | it is an ES module export, not a global |
+| `Promise {<pending>}` | the call was never awaited |
+| `Invalid key: journal/…/….jpg` | a placeholder or ellipsis left in the string |
+| `Cannot read properties of null / undefined` | the path variable was empty or the tab had reloaded |
+
+**Only `Object not found` is the pass**, and it is also what a mistyped path returns. Nothing else
+counts. This is why the A/B above uses one string in two states rather than two strings — it removes
+the failure mode that every one of those five errors belongs to.
+
+**Re-checking it later**, as one paste, in an admin console, with the trade unticked:
+
+```js
+(async () => {
+  const s = await import('./app.js');
+  const P = 'journal/<uid>/<uuid>.png';
+  const shared = (await s.supabase.from('trades').select('id')
+    .eq('shared_with_mentor', true).not('screenshot_path', 'is', null)).data;
+  const signed = await s.supabase.storage.from('lesson-media').createSignedUrl(P, 60);
+  console.log({ sharedVisible: shared.length, gotUrl: !!signed.data,
+                error: signed.error && signed.error.message });
+})()
+```
+
+`{ sharedVisible: 0, gotUrl: false, error: 'Object not found' }` is the pass. `gotUrl: true` with
+`sharedVisible: 0` is the bug back. Capture the path while the trade is still shared — unticking
+takes the row away from the admin too, and then there is nothing to sign with.
 
 ---
 

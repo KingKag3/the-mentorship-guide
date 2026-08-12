@@ -13,11 +13,9 @@ see `CLAUDE.md`.
 
 Nothing.
 
-**One outstanding proof, which is not the same as a migration waiting.**
-`journal-media-privacy.sql` has been applied and has not been shown to work. The steps are in the
-**Untested** section of `HANDOVER.md` and they need two member accounts; until somebody runs them,
-"a member cannot read another member's screenshots" is a claim about a policy nobody has exercised.
-It is the kind of claim that fails silently and in the wrong direction.
+The privacy migration that was outstanding here has been applied *and* shown to work — see
+**Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
+pass and are not.
 
 
 ### How to tell they worked, if you ever need to check again
@@ -55,7 +53,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
-| `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Applied, not confirmed** — and the confirmation is the point of the change, so treat the hole as open until two accounts have been through the steps in `HANDOVER.md`. What *is* known as of 12 Aug: no screenshot had ever been uploaded before this ran, so the window it closes was never open on real data |
+| `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Verified by attack the same day**: one admin, one path string, minutes apart — a `signedUrl` while the trade was shared, `Object not found` once the member unticked it. Nothing changed in between but their checkbox. `HANDOVER.md` has the evidence and the five wrong-looking errors that fooled four earlier attempts |
 | `trade-chart-url.sql` | 12 Aug 2026 | Adds `chart_url` to `trades`. **Confirmed by the result**: a chart renders on the Review tab, and nothing but this column can produce one. It also unblocked saving from the journal form at all — `readForm` sends the key on every save, so the form had never once saved successfully before this |
 | `prop-attempts.sql` | 12 Aug 2026 | One account, several lives. **Not independently confirmed** — an Attempts section on each card in `props.html` is the proof, and until one is seen the backfill has not been shown to have run |
 | `account-kind.sql` | 11 Aug 2026 | Adds `kind` to `prop_accounts`: prop, live or demo. Without it every account is treated as an evaluation, and a live account gets a target it can never have. **Not independently confirmed** — `props.html` reads the column, so a card offering the prop/live/demo choice is the proof |

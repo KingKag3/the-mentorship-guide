@@ -452,7 +452,7 @@ function sameWayTwice(name, all) {
  */
 function kindTag(kind) {
   const k = kind || 'prop';
-  const tone = k === 'live' ? ' time' : '';
+  const tone = k === 'live' ? ' time' : k === 'prop' ? ' info' : '';
   const why = {
     prop: 'A firm set the target and the drawdown',
     live: 'Your own money. Nothing to pass, and nothing to reset',
@@ -462,9 +462,28 @@ function kindTag(kind) {
     escapeHtml(k) + '</span>';
 }
 
+/* Alive is green, dead is red, and stopped is neither.
+ *
+ * Green on `active` is a claim worth being careful about: it says the attempt
+ * is RUNNING, not that it is going well. An account can be green here and
+ * fifteen hundred dollars down, which is why the number sits directly beneath
+ * it in the same card. The colour is a state, the figures are the result, and
+ * the two are deliberately not the same thing.
+ *
+ * `retired` stays plain. Nothing failed, nothing passed, somebody just stopped
+ * - and colouring that either way would be an opinion about a decision this
+ * page knows nothing about.
+ */
 function statusTag(status) {
-  const map = { active: '', passed: 'bull', failed: 'bear', retired: '' };
-  return '<span class="tag ' + (map[status] || '') + '">' + escapeHtml(status) + '</span>';
+  const map = { active: 'bull', passed: 'bull', failed: 'bear', retired: '' };
+  const why = {
+    active: 'Running now',
+    passed: 'Reached its target',
+    failed: 'Breached its drawdown',
+    retired: 'Stopped, without passing or failing'
+  }[status] || '';
+  return '<span class="tag ' + (map[status] || '') + '" title="' + escapeHtml(why) + '">' +
+    escapeHtml(status) + '</span>';
 }
 
 /* A prop account is measured against somebody else's numbers. A live account is

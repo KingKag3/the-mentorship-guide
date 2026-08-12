@@ -437,6 +437,31 @@ function sameWayTwice(name, all) {
     '<a href="stats.html">The statistics page</a> will say what the days had in common.</p></div>';
 }
 
+/* What kind of account, said on every card rather than only on the ones that
+ * are not prop.
+ *
+ * The old rule showed the kind for live and demo and the STATUS for prop, so a
+ * prop account said "active" and nothing said it was a prop. Fine while you own
+ * one of each; useless at sixteen, which is the number actually in this journal.
+ *
+ * Live is the only one that gets a colour, and it is amber rather than green.
+ * The distinction being drawn is not good against bad - it is "a mistake here
+ * costs you directly" against "a mistake here costs a reset fee". Demo stays
+ * plain: a quiet tag is the correct amount of attention for money that is not
+ * real.
+ */
+function kindTag(kind) {
+  const k = kind || 'prop';
+  const tone = k === 'live' ? ' time' : '';
+  const why = {
+    prop: 'A firm set the target and the drawdown',
+    live: 'Your own money. Nothing to pass, and nothing to reset',
+    demo: 'Practice. Kept out of anything that claims to be a record'
+  }[k] || '';
+  return '<span class="tag' + tone + '" title="' + escapeHtml(why) + '">' +
+    escapeHtml(k) + '</span>';
+}
+
 function statusTag(status) {
   const map = { active: '', passed: 'bull', failed: 'bear', retired: '' };
   return '<span class="tag ' + (map[status] || '') + '">' + escapeHtml(status) + '</span>';
@@ -483,7 +508,8 @@ function card(name) {
   return '<section class="prop-card' + (cheer ? ' is-celebrating' : '') + '" data-account="' +
       escapeHtml(name) + '">' +
     '<h3>' + escapeHtml(label(name)) + ' ' +
-      (isProp ? statusTag(outcome) : '<span class="tag">' + escapeHtml(kind) + '</span>') +
+      kindTag(kind) +
+      (isProp ? ' ' + statusTag(outcome) : '') +
       (live && live.attempt > 1
         ? ' <span class="tag">attempt ' + live.attempt + '</span>' : '') +
       (cfg.firm ? ' <span class="acct-muted">' + escapeHtml(cfg.firm) +

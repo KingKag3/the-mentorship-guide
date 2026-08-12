@@ -1252,6 +1252,76 @@ export function chartLink(raw) {
   };
 }
 
+/* ------------------------- the journal, on a chart -------------------------
+ *
+ * The wire format read by `trade-karma-my-trades.pine` in the private repo.
+ * Nine comma-separated fields per trade, semicolons between:
+ *
+ *     symbol,openMs,L|S,entry,stop,target,exit,closeMs,R
+ *     NQ,1754994600000,L,18422.25,18410,18460,18432.5,1754995440000,0.84
+ *
+ * TWO REPOSITORIES HAVE TO AGREE ABOUT THIS. Changing the field order here
+ * silently mis-draws every trade on somebody's chart: the indicator has no way
+ * to tell a stop from a target, so a wrong order is not an error, it is a
+ * plausible picture of a trade that never happened. Change the Pine first.
+ *
+ * Timestamps go out as UTC milliseconds rather than as a written date, because
+ * a date needs a timezone to mean anything and the chart's, the exchange's and
+ * the member's are three different answers. An epoch is the same instant
+ * everywhere, which is what is wanted for something being lined up with a bar.
+ *
+ * Oldest first, because the indicator's cap keeps the tail.
+ */
+
+/** Numbers only, and nothing that could pass for a separator. */
+function pineNum(value) {
+  const n = toNumber(value);
+  return Number.isFinite(n) ? String(n) : '';
+}
+
+export function toPineTrades(list) {
+  const rows = (list || [])
+    .map((r) => ({ r, at: Date.parse(r.opened_at) }))
+    .filter((x) => Number.isFinite(x.at))
+    .sort((a, b) => a.at - b.at);
+
+  return rows.map(({ r, at }) => {
+    const closed = Date.parse(r.closed_at);
+    return [
+      // Anything that is not a letter or a digit comes out. A symbol carrying
+      // a comma would shift every field after it by one, and the indicator
+      // would draw the result rather than refuse it.
+      String(r.symbol || 'NQ').replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+      String(at),
+      r.direction === 'short' ? 'S' : 'L',
+      pineNum(r.entry),
+      pineNum(r.stop),
+      pineNum(r.target),
+      pineNum(r.exit_price),
+      Number.isFinite(closed) ? String(closed) : '',
+      pineNum(r.r_multiple)
+    ].join(',');
+  }).join(';\n');
+}
+
+/**
+ * Put text on the clipboard, with somewhere to go when that is not allowed.
+ *
+ * The Clipboard API needs a secure context, which a file:// page is not, and
+ * a prompt box is copyable by hand. Silently failing to copy is the one
+ * outcome worth ruling out: nothing appears to happen, and the paste that
+ * follows is whatever was on the clipboard before.
+ */
+export async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    window.prompt('Copy this:', text);
+    return false;
+  }
+}
+
 /**
  * Lesson bodies store <img data-path="…"> with no src, because a signed URL
  * baked into the database would be dead within the hour. This fills the src in

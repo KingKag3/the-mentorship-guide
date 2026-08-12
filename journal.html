@@ -278,6 +278,7 @@
     <span id="bulk-count"></span>
     <button type="button" class="link-button" id="bulk-share">Ask for review</button>
     <button type="button" class="link-button" id="bulk-unshare">Stop asking</button>
+    <button type="button" class="link-button" id="bulk-tv">Copy for TradingView</button>
     <button type="button" class="btn-danger" id="bulk-delete">Delete selected</button>
     <button type="button" class="link-button" id="bulk-clear">Clear selection</button>
   </div>
@@ -288,8 +289,14 @@
 
   <div class="row-actions" id="empty-row" hidden>
     <button type="button" class="link-button" id="export-journal">Export everything as CSV</button>
+    <button type="button" class="link-button" id="copy-tv">Copy this page for TradingView</button>
     <button type="button" class="link-button" id="empty-journal">Empty the journal</button>
   </div>
+  <p class="stat-note">The TradingView copy goes into the <em>TK Trades</em> indicator, which draws
+  these trades onto your chart where they happened &mdash; entry, the risk you had on, the target,
+  and where it ended. Press <kbd>Alt</kbd>+<kbd>S</kbd> with it running and the screenshot has the
+  trade already marked on it. Trades for other symbols are ignored, so one paste works on every
+  chart.</p>
   <p class="stat-note">The export is every trade on the account, not the page you can see, and it
   reads straight back into the importer. A journal you cannot get out of is a journal you are
   renting.</p>
@@ -366,7 +373,7 @@ import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
-  toCsv, downloadText, stampedName, SESSIONS, chartLink,
+  toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager } from './app.js';
 
 renderAccountStrip();
@@ -1013,6 +1020,42 @@ async function bulkShare(want) {
 
 $('bulk-share').addEventListener('click', () => bulkShare(true));
 $('bulk-unshare').addEventListener('click', () => bulkShare(false));
+
+/* ------------------------- onto the chart itself --------------------------
+ *
+ * The trades in the shape the TK Trades indicator reads. Paste it in and they
+ * are drawn where they happened, which is what makes an Alt+S screenshot worth
+ * sending to anybody: the chart arrives with the trade already on it.
+ *
+ * The whole point is that this needs no typing, so it is deliberately two
+ * clicks from a list that was filled by an import.
+ */
+async function copyForTradingView(list, what) {
+  if (!list.length) { setStatus('#status', 'Nothing selected to copy.', 'info'); return; }
+
+  const text = toPineTrades(list);
+  if (!text) {
+    setStatus('#status', 'None of those have a usable open time, so there is nothing to draw.',
+      'error');
+    return;
+  }
+
+  const n = text.split(';').length;
+  const ok = await copyText(text);
+
+  setStatus('#status',
+    (ok ? 'Copied ' : 'Copy it from the box: ') + n + ' trade' + (n === 1 ? '' : 's') +
+    ' from ' + what + '. Paste into the TK Trades indicator on TradingView.' +
+    // The indicator's own cap. Said here rather than discovered there, where it
+    // looks like trades going missing.
+    (n > 150 ? ' It draws the most recent 150 of them.' : ''), 'ok');
+}
+
+$('copy-tv').addEventListener('click', () =>
+  copyForTradingView(pageSlice(rows, page, per).rows, 'this page'));
+
+$('bulk-tv').addEventListener('click', () =>
+  copyForTradingView(rows.filter((r) => picked.has(String(r.id))), 'your selection'));
 
 $('bulk-delete').addEventListener('click', async () => {
   if (!picked.size) return;

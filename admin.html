@@ -430,6 +430,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          hydrateStorageImages, humanSize, discordToHtml, dataUrlToFile,
          looksLikeDiscordMarkup, getSetting, setSetting,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
+         copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
@@ -672,6 +673,12 @@ function reviewCard(r) {
       '<span class="review-who">' + escapeHtml(sharedBy(r.user_id)) + '</span>' +
       '<span class="review-when">' + escapeHtml(when.toLocaleString()) + '</span>' +
       '<span class="review-spacer"></span>' +
+      // Onto your own chart, not just into a reply. Pasting this into the TK
+      // Trades indicator draws their trade on your screen at the bars where it
+      // happened, which is the difference between reading a critique and
+      // being able to write one.
+      '<button type="button" class="link-button" data-tv-trade="' + escapeHtml(String(r.id)) + '">' +
+        'copy for TradingView</button>' +
       '<button type="button" class="link-button" data-copy-trade="' + escapeHtml(String(r.id)) + '">' +
         'copy for a reply</button>' +
     '</div>' +
@@ -759,7 +766,16 @@ async function renderShared() {
 /* Plain text, because the reply happens somewhere this site does not reach yet.
  * Until a critique table exists, the useful thing is getting the trade out in a
  * shape that can be pasted into Discord and answered line by line. */
-document.getElementById('review-list').addEventListener('click', (e) => {
+document.getElementById('review-list').addEventListener('click', async (e) => {
+  const tv = e.target.closest && e.target.closest('[data-tv-trade]');
+  if (tv) {
+    const one = sharedTrades.find((t) => String(t.id) === tv.getAttribute('data-tv-trade'));
+    if (!one) return;
+    const ok = await copyText(toPineTrades([one]));
+    flash(tv, ok ? 'copied' : 'copy it from the box');
+    return;
+  }
+
   const btn = e.target.closest && e.target.closest('[data-copy-trade]');
   if (!btn) return;
 
@@ -782,15 +798,18 @@ document.getElementById('review-list').addEventListener('click', (e) => {
     r.notes ? 'notes: ' + r.notes : ''
   ].filter(Boolean);
 
-  copyText(lines.join('\n'));
-
-  // Said on the button rather than through setStatus, which rewrites the
-  // className of whatever it is pointed at and would leave #review-count
-  // wearing form-status for the rest of the session.
-  const was = btn.textContent;
-  btn.textContent = 'copied';
-  setTimeout(() => { btn.textContent = was; }, 1500);
+  const ok = await copyText(lines.join('\n'));
+  flash(btn, ok ? 'copied' : 'copy it from the box');
 });
+
+/* Said on the button rather than through setStatus, which rewrites the
+ * className of whatever it is pointed at and would leave the element wearing
+ * form-status for the rest of the session. */
+function flash(btn, message) {
+  const was = btn.textContent;
+  btn.textContent = message;
+  setTimeout(() => { btn.textContent = was; }, 1500);
+}
 
 /* ------------------------------- users ------------------------------- */
 
@@ -1085,14 +1104,9 @@ document.getElementById('invites-body').addEventListener('click', async (e) => {
   }
 });
 
-/** Clipboard API needs a secure context; fall back to a prompt if it is absent. */
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (err) {
-    window.prompt('Copy this:', text);
-  }
-}
+/* copyText moved to app.js when the journal needed the same thing. The local
+ * copy here swallowed its own failure; the shared one says whether it worked,
+ * which matters when the next step is a paste. */
 
 /* -------------------------------- tabs -------------------------------- */
 //

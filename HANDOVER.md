@@ -340,6 +340,17 @@ Be honest about this list before trusting anything below it.
 - **The row-level ask toggle and the bulk share buttons.** Written, parsed, and never clicked against
   a database. Both write `shared_with_mentor` directly and redraw before the round trip returns, so
   the failure worth watching for is a toggle that looks like it worked and did not.
+- **"Copy for TradingView" and the indicator it feeds.** `toPineTrades` in `app.js` emits the wire
+  format that `trade-karma-my-trades.pine` reads in the private repo, and **the two have never been
+  run against each other.** What was verified on 12 August 2026 is a round trip in a browser: the
+  encoder's output parsed by a JavaScript transcription of what the Pine does to the string, written
+  from the `.pine` source rather than from the encoder. That proves the two agree about the format;
+  it does not prove the Pine compiles, and it cannot. `PASTE-THESE.md` in the pine repo lists the
+  four pastes that would find a problem.
+
+  The failure mode to watch for is not an error. The indicator cannot tell a stop from a target, so
+  a field order that has drifted draws a plausible picture of a trade that never happened. Both
+  files say so at the top.
 - **The pre-trade checklist end to end.** The roll-up logic was run in a browser across all five
   states; the module load, the save-time confirmation and the value reaching the database were not.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at

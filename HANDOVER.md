@@ -347,15 +347,25 @@ Be honest about this list before trusting anything below it.
       limit 5;
      ```
 
+     Copy a `screenshot_path` cell whole. It is already the complete object key —
+     `journal/<uuid>/<uuid>.jpg` — and nothing needs assembling from the `user_id` column beside it,
+     which is there only to say whose it is.
+
   2. **As B, in the browser devtools console** — on a signed-in page of the site, *not* in the SQL
      editor, which speaks only SQL. `supabase` is an ES module export rather than a global, so it
      has to be imported before it can be reached. One expression, re-runnable, no variable to
      collide on a second go:
 
      ```js
-     (await import('./app.js')).supabase.storage
-       .from('lesson-media').createSignedUrl('journal/<A user id>/<uuid>.jpg', 60)
+     await (await import('./app.js')).supabase.storage
+       .from('lesson-media').createSignedUrl('PASTE THE PATH HERE', 60)
      ```
+
+     **Both** awaits are load-bearing. Without the outer one the console prints
+     `Promise {<pending>}` and never the answer, which looks like a broken command rather than a
+     result. And the path is a real pasted string: leaving an angle-bracket placeholder in makes an
+     invalid object key, and the 400 that comes back is the API rejecting the key rather than a
+     policy rejecting the caller.
 
      **Before** the migration this answers with a `signedUrl`, which is the bug, in B's hands, for
      somebody else's screenshot. **After** it must answer `{ data: null, error: ... }`.

@@ -521,8 +521,8 @@ the one moment they know they want the next page.</p>
 
 <p class="field-note">Deliberately not infinite scroll. A page number can be returned to, said out
 loud and left; a scroll position cannot, and &ldquo;somewhere near the middle&rdquo; is not a way to
-find a trade. It renders nothing at all when everything already fits &mdash; a pager under a list of
-nine is furniture.</p>
+find a trade. It renders nothing at all when no page size on offer could split the list &mdash; a
+pager that cannot shorten anything is furniture.</p>
 
 <div class="demo">
   <div class="pager">
@@ -540,6 +540,33 @@ nine is furniture.</p>
       <select class="role-select">
         <option>25</option><option selected>50</option><option>100</option>
         <option>150</option><option>200</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<h4>Card steps</h4>
+
+<p>Same component, smaller steps. Rows and cards are not the same problem: twenty-five journal rows
+is a screen and a half, twenty-five prop cards &mdash; each with a progress bar, an attempts list and
+a form &mdash; is a minute of wheel. Seventeen accounts fit inside the smallest ordinary step, so the
+pager could say <em>1&ndash;17 of 17</em> and change nothing. A caller whose rows are tall passes
+<code>CARD_SIZES</code> instead, and the hide rule reads the steps it was given rather than a fixed
+number.</p>
+
+<div class="demo">
+  <div class="pager">
+    <span class="pager-count">1-10 of 17</span>
+    <span class="pager-pages">
+      <button type="button" class="pager-btn" disabled>&larr;</button>
+      <button type="button" class="pager-btn is-current">1</button>
+      <button type="button" class="pager-btn">2</button>
+      <button type="button" class="pager-btn">&rarr;</button>
+    </span>
+    <label class="pager-size">Per page
+      <select class="role-select">
+        <option>5</option><option selected>10</option><option>25</option>
+        <option>50</option><option>100</option><option>150</option><option>200</option>
       </select>
     </label>
   </div>

@@ -705,6 +705,17 @@ export function weightedExit(exits) {
 
 const PAGE_SIZES = [25, 50, 100, 150, 200];
 
+/* A list of rows and a list of cards are not the same problem.
+ *
+ * Twenty-five journal rows is a screen and a half. Twenty-five prop cards is a
+ * minute of scrolling, and there is no page size in the list above that helps,
+ * because seventeen accounts fit inside the smallest one - the pager renders, it
+ * says "1-17 of 17", and the scroll is exactly as long as it was. A page size
+ * has to be smaller than the list before paging means anything.
+ *
+ * So a caller whose rows are tall passes its own steps. */
+export const CARD_SIZES = [5, 10, 25, 50, 100, 150, 200];
+
 /**
  * How many rows a page shows, remembered per list.
  *
@@ -713,9 +724,9 @@ const PAGE_SIZES = [25, 50, 100, 150, 200];
  * has said nothing about what they want on a phone, and syncing it would make
  * that choice follow them somewhere it does not fit.
  */
-export function pageSize(key, fallback = 50) {
+export function pageSize(key, fallback = 50, sizes = PAGE_SIZES) {
   const raw = Number(localStorage.getItem('tk-page-' + key));
-  return PAGE_SIZES.includes(raw) ? raw : fallback;
+  return sizes.includes(raw) ? raw : fallback;
 }
 
 export function setPageSize(key, value) {
@@ -740,24 +751,28 @@ export function pageSlice(items, page, per) {
  * The control strip. Renders nothing at all when everything already fits -
  * a pager under a list of nine is furniture.
  */
-export function renderPager(selector, state, onChange) {
+export function renderPager(selector, state, onChange, sizes = PAGE_SIZES) {
   const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
   if (!el) return;
 
   const { page, pages, from, rows, total } = state;
 
-  /* Hidden only when the list is genuinely short.
+  /* Hidden only when no page size on offer could split this list.
    *
    * The first rule was "hide it when everything fits on one page", which is
-   * defensible and was wrong in practice: seventeen prop accounts fit inside a
-   * page of twenty-five, so the control vanished on the page whose cards are
-   * tallest and whose scroll was the original complaint. Fitting on one page at
-   * the CURRENT size says nothing about whether somebody wants a smaller one.
+   * defensible and was wrong: seventeen prop accounts fit inside a page of
+   * twenty-five, so the control vanished on the page whose cards are tallest
+   * and whose scroll was the original complaint. Fitting on one page at the
+   * CURRENT size says nothing about whether somebody wants a smaller one.
    *
-   * Ten is the point where a list stops being glanceable. Below it a pager is
-   * furniture; above it, the count alone earns its place even when there is
-   * only one page. */
-  if (total <= 10 && pages <= 1) { el.innerHTML = ''; return; }
+   * The replacement was a flat threshold of ten, which was wrong in the other
+   * direction: it showed a pager that could not shorten anything, because the
+   * smallest size on offer was still larger than the list.
+   *
+   * Asking the sizes settles it. Above the smallest step the control does
+   * something, so it earns its place even on one page; at or below it there is
+   * nothing it could do, so it is furniture. */
+  if (pages <= 1 && total <= Math.min(...sizes)) { el.innerHTML = ''; return; }
 
   const btn = (label, to, disabled, current) =>
     '<button type="button" class="pager-btn' + (current ? ' is-current' : '') + '"' +
@@ -785,7 +800,7 @@ export function renderPager(selector, state, onChange) {
     '</span>' +
     '<label class="pager-size">Per page ' +
       '<select class="role-select">' +
-        PAGE_SIZES.map((n) => '<option value="' + n + '"' +
+        sizes.map((n) => '<option value="' + n + '"' +
           (n === state.per ? ' selected' : '') + '>' + n + '</option>').join('') +
       '</select></label>';
 

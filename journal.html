@@ -786,6 +786,9 @@ function drawPage() {
     if (next.per) { per = next.per; setPageSize('journal', per); }
     if (next.page) page = next.page;
     drawPage();
+    // Paging from the bottom control otherwise leaves you at the foot of a list
+    // you have not read a row of.
+    if (next.page) $('pager-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   renderPager('#pager-top', state, onChange);
   renderPager('#pager-bottom', state, onChange);

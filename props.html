@@ -150,7 +150,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
          accountsHidden, setAccountsHidden, aliasMap,
-         pageSize, setPageSize, pageSlice, renderPager } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -162,10 +162,15 @@ document.getElementById('body').hidden = false;
 
 const $ = (id) => document.getElementById(id);
 
-// Sixteen copied evaluations is sixteen tall cards, and the one that
-// diverged is as likely to be last as first.
+/* Sixteen copied evaluations is sixteen tall cards, and the one that diverged
+ * is as likely to be last as first.
+ *
+ * CARD_SIZES rather than the usual steps, and a default of ten rather than
+ * twenty-five: a prop card carries a progress bar, an attempts list and a form,
+ * so twenty-five of them is the scroll this page was meant to end. Twenty-five
+ * is still on the menu for anybody who wants the lot on one page. */
 let propPage = 1;
-let propPer = pageSize('props', 25);
+let propPer = pageSize('props', 10, CARD_SIZES);
 const mount = $('accounts');
 
 /* ------------------------------- the data -------------------------------- */
@@ -905,9 +910,13 @@ function render() {
     if (next.per) { propPer = next.per; setPageSize('props', propPer); }
     if (next.page) propPage = next.page;
     render();
+    // Turning a page from the bottom control leaves you looking at the foot of
+    // a list you have not read. The top of the list is where the new page
+    // starts, so that is where to be.
+    if (next.page) $('pager-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  renderPager('#pager-top', state, onPage);
-  renderPager('#pager-bottom', state, onPage);
+  renderPager('#pager-top', state, onPage, CARD_SIZES);
+  renderPager('#pager-bottom', state, onPage, CARD_SIZES);
 
   mount.innerHTML =
     '<datalist id="dl-firm">' +

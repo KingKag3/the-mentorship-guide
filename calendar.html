@@ -534,6 +534,9 @@ function renderMonthTrades(monthRows) {
     if (next.per) { dayPer = next.per; setPageSize('calendar', dayPer); }
     if (next.page) dayPage = next.page;
     renderMonthTrades();
+    // Paging from the bottom control otherwise leaves you at the foot of a list
+    // you have not read a row of.
+    if (next.page) $('pager-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   $('month-trades').innerHTML =

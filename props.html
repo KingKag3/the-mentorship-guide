@@ -162,14 +162,17 @@ const mount = $('accounts');
 
 /* ------------------------------- the data -------------------------------- */
 
-const [tradesRes, propsRes, presetRes] = await Promise.all([
+const [tradesRes, propsRes, presetRes, attemptRes] = await Promise.all([
   supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
     .order('opened_at', { ascending: true })
     .limit(5000),
   supabase.from('prop_accounts')
     .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, min_days, status, started_on, settled_on'),
-  supabase.from('prop_presets').select('firm, size, profit_target').order('size')
+  supabase.from('prop_presets').select('firm, size, profit_target').order('size'),
+  supabase.from('prop_attempts')
+    .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
+    .order('account').order('attempt')
 ]);
 
 if (tradesRes.error) { mount.innerHTML = dbError(tradesRes.error); throw tradesRes.error; }
@@ -179,6 +182,17 @@ if (propsRes.error) {
     (file ? '' : '<p class="stat-note">Run <code>supabase/prop-accounts.sql</code> in the Supabase SQL editor, then reload.</p>');
   throw propsRes.error;
 }
+
+/* Attempts are optional. An account with none behaves exactly as it did before
+ * this table existed - one life, running from prop_accounts.started_on - so the
+ * page works whether or not the migration has been run. A missing table is a
+ * missing feature here, not a broken page. */
+const attemptsByAccount = new Map();
+for (const a of (attemptRes && attemptRes.data) || []) {
+  if (!attemptsByAccount.has(a.account)) attemptsByAccount.set(a.account, []);
+  attemptsByAccount.get(a.account).push(a);
+}
+const attemptsMissing = !!(attemptRes && attemptRes.error);
 
 const trades = (tradesRes.data || []).filter(hasResult);
 const presets = presetRes.data || [];
@@ -220,10 +234,43 @@ const dollars = (t) => {
  * high-water mark. That is a real number and it is NOT the firm's trailing
  * threshold - see the warning at the top of the page. It is a floor.
  */
-function progress(account, cfg) {
-  const since = cfg && cfg.started_on ? new Date(cfg.started_on + 'T00:00:00') : null;
-  const mine = trades.filter((t) => (t.account || '') === account &&
-    (!since || new Date(t.opened_at) >= since));
+/* The window is the attempt, not the account.
+ *
+ * Without this a reset account carries the dead attempt's losses into the new
+ * one: the progress bar shows a hole that was filled by paying a reset fee, and
+ * the high-water mark starts from a peak that no longer exists. Both numbers
+ * would be wrong in the direction that makes somebody keep trading.
+ *
+ * An ended attempt is also closed at the far end, so looking at attempt 1 after
+ * attempt 2 has begun shows attempt 1. */
+function attemptWindow(account, attemptRow, cfg) {
+  const row = attemptRow || currentAttempt(account);
+  if (row) {
+    return {
+      from: row.started_on ? new Date(row.started_on + 'T00:00:00') : null,
+      to: row.ended_on ? new Date(row.ended_on + 'T23:59:59') : null
+    };
+  }
+  return {
+    from: cfg && cfg.started_on ? new Date(cfg.started_on + 'T00:00:00') : null,
+    to: null
+  };
+}
+
+function currentAttempt(account) {
+  const all = attemptsByAccount.get(account) || [];
+  return all.find((a) => a.outcome === 'active') || all[all.length - 1] || null;
+}
+
+function progress(account, cfg, attemptRow) {
+  const win = attemptWindow(account, attemptRow, cfg);
+  const mine = trades.filter((t) => {
+    if ((t.account || '') !== account) return false;
+    const when = new Date(t.opened_at);
+    if (win.from && when < win.from) return false;
+    if (win.to && when > win.to) return false;
+    return true;
+  });
 
   let total = 0;
   let peak = 0;
@@ -248,6 +295,103 @@ function progress(account, cfg) {
 
 const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
 
+/* ---------------------------- attempts ----------------------------------
+ *
+ * An account is not blown. An attempt is. The account keeps its number, gets
+ * reset, and carries on - so the lifecycle belongs here rather than on the
+ * account, and every dead attempt stays exactly where it is.
+ *
+ * That is the point of the whole table. A blown attempt is the most
+ * instructive record a member owns, and the question worth asking of it -
+ * "did I die the same way twice" - only has an answer while the failures are
+ * still there AND still separated.
+ */
+function attemptsBlock(name, live) {
+  if (attemptsMissing) {
+    return '<p class="stat-note">Attempts are not set up. Run ' +
+      '<code>supabase/prop-attempts.sql</code> to record resets separately ' +
+      'rather than overwriting the one before.</p>';
+  }
+
+  const all = attemptsByAccount.get(name) || [];
+
+  if (!all.length) {
+    return '<div class="row-actions">' +
+      '<button type="button" class="link-button" data-start="' + escapeHtml(name) + '">' +
+      'Start tracking attempts</button></div>' +
+      '<p class="stat-note">Records this account as attempt 1 from its first trade, so a reset ' +
+      'later keeps the attempt that died instead of writing over it.</p>';
+  }
+
+  const rows = all.map((a) => {
+    const ap = progress(name, saved.get(name) || {}, a);
+    const when = a.started_on + (a.ended_on ? ' to ' + a.ended_on : ' - running');
+    return '<div class="bar-row">' +
+      '<span>Attempt ' + a.attempt + ' ' + statusTag(a.outcome) +
+        '<br><span class="acct-muted">' + escapeHtml(when) + ' &middot; ' +
+        ap.trades + ' trades over ' + ap.days + ' days</span></span>' +
+      '<span class="acct-muted">worst dip ' + money(ap.worstDip) + '</span>' +
+      '<b class="' + (ap.total < 0 ? 'field-note-bad' : 'field-note-ok') + '">' +
+        money(ap.total) + '</b>' +
+    '</div>';
+  }).join('');
+
+  // Closing an attempt is a statement the member makes, never one this page
+  // infers. The journal holds closed trades; a trailing floor follows
+  // unrealised equity, so a page like this can confirm you are dead and can
+  // never tell you that you are safe.
+  const controls = live && live.outcome === 'active'
+    ? '<div class="row-actions">' +
+        '<select class="role-select" data-end-outcome="' + escapeHtml(name) + '">' +
+          '<option value="failed">it was blown</option>' +
+          '<option value="passed">it passed</option>' +
+          '<option value="retired">I stopped trading it</option>' +
+        '</select>' +
+        '<button type="button" class="btn-danger" data-end="' + escapeHtml(name) + '">' +
+          'End attempt ' + live.attempt + '</button>' +
+      '</div>' +
+      '<p class="stat-note">Nothing is deleted. The trades stay, the attempt keeps its dates and ' +
+      'its result, and the next one starts from zero.</p>'
+    : '<div class="row-actions">' +
+        '<button type="button" class="btn-primary" data-start="' + escapeHtml(name) + '">' +
+          'Start attempt ' + (all.length + 1) + '</button>' +
+      '</div>' +
+      '<p class="stat-note">Begins today. Everything from here counts toward the new attempt, and ' +
+      'everything before it stays with the old one.</p>';
+
+  return '<details' + (all.length > 1 ? ' open' : '') + '>' +
+    '<summary>Attempts (' + all.length + ')</summary>' +
+    '<div class="bars">' + rows + '</div>' + controls +
+    (all.length > 1 ? sameWayTwice(name, all) : '') +
+    '</details>';
+}
+
+/* The reason any of this exists. Two attempts that died the same way is the
+ * single most useful thing this page can tell somebody, and it is only
+ * sayable because the failures were kept and kept apart. */
+function sameWayTwice(name, all) {
+  const dead = all.filter((a) => a.outcome === 'failed');
+  if (dead.length < 2) return '';
+
+  const cfg = saved.get(name) || {};
+  const lines = dead.map((a) => {
+    const ap = progress(name, cfg, a);
+    return { n: a.attempt, days: ap.days, total: ap.total, dip: ap.worstDip };
+  });
+
+  const avgDays = Math.round(lines.reduce((x, l) => x + l.days, 0) / lines.length);
+  const avgDip = lines.reduce((x, l) => x + l.dip, 0) / lines.length;
+
+  return '<div class="callout warn"><span class="callout-label">' +
+    dead.length + ' attempts have ended the same way</span>' +
+    '<p>' + lines.map((l) => 'Attempt ' + l.n + ' lasted ' + l.days +
+      ' trading day' + (l.days === 1 ? '' : 's') + ' and gave back ' + money(l.dip)).join('. ') +
+    '.</p>' +
+    '<p><strong>Average ' + avgDays + ' days, average worst dip ' + money(avgDip) + '.</strong> ' +
+    'If those numbers look alike, the account did not fail for a different reason each time. ' +
+    '<a href="stats.html">The statistics page</a> will say what the days had in common.</p></div>';
+}
+
 function statusTag(status) {
   const map = { active: '', passed: 'bull', failed: 'bear', retired: '' };
   return '<span class="tag ' + (map[status] || '') + '">' + escapeHtml(status) + '</span>';
@@ -267,16 +411,21 @@ function card(name) {
   const cfg = saved.get(name) || {};
   const kind = cfg.kind || 'prop';
   const isProp = kind === 'prop';
-  const p = progress(name, cfg);
-  const target = Number(cfg.profit_target) || 0;
-  const dd = Number(cfg.drawdown) || 0;
+  const live = currentAttempt(name);
+  const p = progress(name, cfg, live);
+
+  // An attempt may carry its own terms, because firms change them between
+  // resets and an old attempt should keep the ones it was judged against.
+  const target = Number((live && live.profit_target) ?? cfg.profit_target) || 0;
+  const dd = Number((live && live.drawdown) ?? cfg.drawdown) || 0;
   const done = target > 0 && p.total >= target;
   const daysShort = cfg.min_days ? Math.max(0, cfg.min_days - p.days) : 0;
 
   // Only a target that has actually been reached earns the celebration, and
   // only while the account is still open - a passed account keeps its badge
   // without re-firing the animation on every page load.
-  const cheer = isProp && done && cfg.status !== 'passed' && cfg.status !== 'retired';
+  const outcome = live ? live.outcome : (cfg.status || 'active');
+  const cheer = isProp && done && outcome === 'active';
 
   const bar = (label, value, of, tone) =>
     '<div class="bar-row">' +
@@ -289,7 +438,9 @@ function card(name) {
   return '<section class="prop-card' + (cheer ? ' is-celebrating' : '') + '" data-account="' +
       escapeHtml(name) + '">' +
     '<h3>' + escapeHtml(label(name)) + ' ' +
-      (isProp ? statusTag(cfg.status || 'active') : '<span class="tag">' + escapeHtml(kind) + '</span>') +
+      (isProp ? statusTag(outcome) : '<span class="tag">' + escapeHtml(kind) + '</span>') +
+      (live && live.attempt > 1
+        ? ' <span class="tag">attempt ' + live.attempt + '</span>' : '') +
       (cfg.firm ? ' <span class="acct-muted">' + escapeHtml(cfg.firm) +
         (cfg.size ? ' · ' + money(cfg.size) : '') + '</span>' : '') + '</h3>' +
 
@@ -324,6 +475,8 @@ function card(name) {
       '<div class="card"><h3>Worst dip</h3><div class="readout-big">' + money(p.worstDip) +
         '</div><p>From closed trades. A floor, not the figure the firm holds</p></div>' +
     '</div>' +
+
+    (isProp ? attemptsBlock(name, live) : '') +
 
     '<details><summary>What this account has to do</summary>' +
       '<form class="auth-form auth-form-wide" data-form="' + escapeHtml(name) + '">' +
@@ -537,6 +690,64 @@ async function applyBulk(e) {
   render();
 }
 
+/* ----------------------- ending and starting a life ---------------------- */
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function endAttempt(name, btn) {
+  const live = currentAttempt(name);
+  if (!live || live.outcome !== 'active') return;
+
+  const sel = mount.querySelector('[data-end-outcome="' + CSS.escape(name) + '"]');
+  const outcome = sel ? sel.value : 'failed';
+  const word = { failed: 'blown', passed: 'passed', retired: 'retired' }[outcome] || outcome;
+
+  const p = progress(name, saved.get(name) || {}, live);
+  if (!confirm('Mark attempt ' + live.attempt + ' on ' + label(name) + ' as ' + word + '?
+
+' +
+               p.trades + ' trades, ' + money(p.total) + ', worst dip ' + money(p.worstDip) +
+               '.
+
+Nothing is deleted. The trades stay where they are and the attempt keeps ' +
+               'its dates and its result.')) return;
+
+  btn.disabled = true;
+  const { error } = await supabase.from('prop_attempts')
+    .update({ outcome, ended_on: today() })
+    .eq('id', live.id);
+  btn.disabled = false;
+
+  if (error) { alert(error.message); return; }
+  live.outcome = outcome;
+  live.ended_on = today();
+  render();
+}
+
+async function startAttempt(name, btn) {
+  const all = attemptsByAccount.get(name) || [];
+  if (all.some((a) => a.outcome === 'active')) return;
+
+  // The first one is dated from the account's earliest trade, not from today.
+  // Dating it today would put every trade it already has outside the attempt
+  // and show a brand new account with a full history behind it.
+  const first = trades.filter((t) => (t.account || '') === name)
+    .map((t) => localDay(t.opened_at)).filter(Boolean).sort()[0];
+  const started = all.length ? today() : (first || today());
+
+  btn.disabled = true;
+  const { data, error } = await supabase.from('prop_attempts')
+    .insert({ account: name, attempt: all.length + 1, started_on: started, outcome: 'active' })
+    .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
+    .single();
+  btn.disabled = false;
+
+  if (error) { alert(error.message); return; }
+  if (!attemptsByAccount.has(name)) attemptsByAccount.set(name, []);
+  attemptsByAccount.get(name).push(data);
+  render();
+}
+
 function render() {
   if (!names.length) {
     mount.innerHTML = '<div class="callout"><span class="callout-label">No accounts yet</span>' +
@@ -550,6 +761,13 @@ function render() {
         '<option>' + escapeHtml(f) + '</option>').join('') +
     '</datalist>' +
     names.map(card).join('');
+
+  for (const b of mount.querySelectorAll('[data-end]')) {
+    b.addEventListener('click', () => endAttempt(b.getAttribute('data-end'), b));
+  }
+  for (const b of mount.querySelectorAll('[data-start]')) {
+    b.addEventListener('click', () => startAttempt(b.getAttribute('data-start'), b));
+  }
 
   for (const form of mount.querySelectorAll('form[data-form]')) {
     form.addEventListener('submit', save);

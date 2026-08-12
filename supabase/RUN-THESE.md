@@ -11,7 +11,11 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing. Every migration written so far has been run.
+| File | What it unlocks | If you skip it |
+| --- | --- | --- |
+| `prop-attempts.sql` | One account, several lives. A reset keeps the attempt that died instead of overwriting it | `props.html` shows a note where the attempts block would be and behaves exactly as it did before. Nothing breaks |
+
+Existing accounts become attempt 1 automatically, dated from their first trade.
 
 
 ### How to tell they worked, if you ever need to check again

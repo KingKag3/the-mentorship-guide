@@ -125,19 +125,47 @@ read the result back and look at the line before believing it.
 
 ### How to find one
 
-There is no JavaScript runtime on these machines, so the check is a browser:
+There is no JavaScript runtime on these machines, so the check is a browser. It needs the pages over
+`http://`, not `file://` — `fetch` from a `file:` or `data:` page is blocked and fails with nothing
+useful to read. `.claude/launch.json` (gitignored) starts one:
 
-```js
-const html = await (await fetch('props.html')).text();
-const body = html.split('<script type="module">')[1].split('<\/script>')[0];
-const src  = body.replace(/^\s*import[\s\S]*?from\s*'[^']*';/gm, '').replace(/\bawait\b/g, '');
-try { new Function(src); 'PARSES CLEANLY'; } catch (e) { e.message; }
+```bash
+python -m http.server 4173 --bind 127.0.0.1
 ```
 
-Imports and top-level `await` are stripped because `new Function` allows neither, and the only
-question being asked is whether the rest parses. A crude quote-counting scanner was tried first and
-abandoned: it reported thirty-five hits on three healthy pages, nearly all apostrophes inside
-comments, which is the ignorable-checker failure `prove-tdz-rules.py` exists to prevent.
+Then, in the console of any page on that origin:
+
+```js
+const strip = (s) => s
+  .replace(/^[ \t]*import\s+[\s\S]*?\bfrom\s*['"][^'"]*['"]\s*;?/gm, '')
+  .replace(/^[ \t]*import\s*['"][^'"]*['"]\s*;?/gm, '')
+  .replace(/^[ \t]*export\s*\{[^}]*\}\s*;?/gm, '')
+  .replace(/^([ \t]*)export\s+default\s+/gm, '$1')
+  .replace(/^([ \t]*)export\s+(?=(const|let|var|function|async|class)\b)/gm, '$1');
+const check = (src) => { new Function('return (async () => {' + strip(src) + '})'); };
+
+const html = await (await fetch('/props.html')).text();
+const body = html.split('<script type="module">')[1].split('<\/script>')[0];
+try { check(body); 'PARSES CLEANLY'; } catch (e) { e.message; }
+```
+
+Three details are load-bearing, each learnt by getting it wrong:
+
+- **The import stripper is anchored to the start of a line.** Unanchored, it matched the word
+  `import` inside a string on `import.html` and ate everything up to the next quoted `from`, which
+  reported a syntax error in a healthy page.
+- **`export` is removed as a keyword, not as a line.** Deleting whole `export` lines takes function
+  signatures with them and leaves `app.js` full of orphaned braces.
+- **The body is wrapped in an async arrow**, because `new Function` rejects top-level `await` and
+  every one of these pages has one. Deleting the `await`s instead changes the code being checked.
+
+A crude quote-counting scanner was tried before any of this and abandoned: thirty-five hits on three
+healthy pages, nearly all apostrophes inside comments, which is the ignorable-checker failure
+`prove-tdz-rules.py` exists to prevent.
+
+**Loading each page over `http://` is the stronger check** and costs nothing once the server is up.
+An unauthenticated page should reach `requireRole` and stop there — console shows `Error: not signed
+in` and nothing else. Anything earlier in the console is a real fault.
 
 ## check-imports.py
 

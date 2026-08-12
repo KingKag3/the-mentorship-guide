@@ -746,7 +746,18 @@ export function renderPager(selector, state, onChange) {
 
   const { page, pages, from, rows, total } = state;
 
-  if (total <= PAGE_SIZES[0] && pages <= 1) { el.innerHTML = ''; return; }
+  /* Hidden only when the list is genuinely short.
+   *
+   * The first rule was "hide it when everything fits on one page", which is
+   * defensible and was wrong in practice: seventeen prop accounts fit inside a
+   * page of twenty-five, so the control vanished on the page whose cards are
+   * tallest and whose scroll was the original complaint. Fitting on one page at
+   * the CURRENT size says nothing about whether somebody wants a smaller one.
+   *
+   * Ten is the point where a list stops being glanceable. Below it a pager is
+   * furniture; above it, the count alone earns its place even when there is
+   * only one page. */
+  if (total <= 10 && pages <= 1) { el.innerHTML = ''; return; }
 
   const btn = (label, to, disabled, current) =>
     '<button type="button" class="pager-btn' + (current ? ' is-current' : '') + '"' +

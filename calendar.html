@@ -419,7 +419,15 @@ function card(label, value, note) {
 // day went badly; it cannot tell you it was one bad trade or six, which is the
 // thing worth knowing. Clicking a day still works — it scrolls here.
 
-const MAX_ROWS = 400;
+/* There was a MAX_ROWS = 400 here, and a message explaining that the rest of
+ * the month had not been drawn and could be reached by narrowing the account
+ * filter. It existed because the page drew every trade at once and four hundred
+ * tables is slow.
+ *
+ * Paging is the better answer to the same problem, and leaving both would mean
+ * a month of 450 trades quietly losing 50 of them with a pager sitting above
+ * saying 1-25 of 400. A cap and a pager disagree about what the total is, and
+ * the pager is the one somebody is reading. */
 
 /* Paging state, and the month it belongs to.
  *
@@ -492,19 +500,35 @@ function renderMonthTrades(monthRows) {
   // Ascending, so the list reads in the same direction as the grid above it.
   const keys = [...new Set(monthRows.map((r) => localDay(r.opened_at)))].filter(Boolean).sort();
 
-  let shown = 0;
-  const groups = [];
-  let truncated = 0;
+  /* Paged by TRADE, not by day.
+   *
+   * Paging the day-groups was the obvious reading and it is wrong on the data
+   * this page actually holds: eighteen copied accounts trading one morning is
+   * four hundred and fifty rows inside a single group, so there was one page,
+   * the pager hid itself for having nothing to do, and the scroll was exactly
+   * as long as before.
+   *
+   * Slicing the trades and grouping whatever lands on the page works for both
+   * shapes - a month of ordinary days and one enormous one - and it also
+   * retires MAX_ROWS, which existed only to stop the page drawing everything
+   * at once. That is now what paging is for. */
+  const ordered = [];
+  for (const key of keys) ordered.push(...(byDay.get(key) || []));
 
-  for (const key of keys) {
-    const rows = byDay.get(key) || [];
-    if (shown >= MAX_ROWS) { truncated += rows.length; continue; }
-    groups.push(dayGroup(key, rows));
-    shown += rows.length;
-  }
-
-  const state = { ...pageSlice(groups, dayPage, dayPer), per: dayPer };
+  const state = { ...pageSlice(ordered, dayPage, dayPer), per: dayPer };
   dayPage = state.page;
+
+  // The page's trades, re-grouped into the days they fall on. A page can hold
+  // the tail of one day and the head of the next, and both get their own
+  // heading rather than being run together under whichever came first.
+  const pageDays = new Map();
+  for (const row of state.rows) {
+    const key = localDay(row.opened_at);
+    if (!key) continue;
+    if (!pageDays.has(key)) pageDays.set(key, []);
+    pageDays.get(key).push(row);
+  }
+  const groups = [...pageDays.entries()].map(([key, rows]) => dayGroup(key, rows));
 
   const onPage = (next) => {
     if (next.per) { dayPer = next.per; setPageSize('calendar', dayPer); }
@@ -519,11 +543,8 @@ function renderMonthTrades(monthRows) {
       keys.length + (keys.length === 1 ? ' day' : ' days') +
       '. Click a day above to jump to it.</p>' +
     '<div id="pager-top"></div>' +
-    state.rows.join('') +
-    '<div id="pager-bottom"></div>' +
-    (truncated ? '<p class="stat-note">' + truncated + ' further trade' +
-      (truncated === 1 ? '' : 's') + ' not listed — this month is past the ' + MAX_ROWS +
-      ' the page will draw at once. Narrow it with the account filter.</p>' : '');
+    groups.join('') +
+    '<div id="pager-bottom"></div>';
 
   // After the innerHTML, not before: unlike the journal and the prop page,
   // these two mount points are written by the line above and do not exist

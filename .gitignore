@@ -7,3 +7,8 @@ _analytics-check.html
 # rebuilds it and the version in the filename ties it to one machine's Python.
 __pycache__/
 *.pyc
+
+# Local tooling. launch.json only says how to serve the site over http on this
+# machine, which is how a page gets parse-checked in a real browser before it is
+# called working. Nothing in here belongs to the site itself.
+.claude/

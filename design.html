@@ -545,6 +545,43 @@ pager that cannot shorten anything is furniture.</p>
   </div>
 </div>
 
+<h3>Sortable heading</h3>
+
+<p>A real <code>button</code> inside the <code>th</code>, so it is reachable from a keyboard and
+announced as something that does a thing &mdash; a <code>th</code> with a click handler is neither.
+It inherits the header&rsquo;s own type, so the table still reads as a table rather than as a row of
+links. The arrow appears only on the column doing the work.</p>
+
+<div class="demo">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th><button type="button" class="th-sort is-on">When <span aria-hidden="true">&darr;</span></button></th>
+          <th><button type="button" class="th-sort">Model</button></th>
+          <th><button type="button" class="th-sort">Session</button></th>
+          <th><button type="button" class="th-sort">Result</button></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>11 Aug, 10:14</td><td>silver bullet</td><td>AM killzone</td>
+            <td><span class="tag bull">+2.40R</span></td></tr>
+        <tr><td>11 Aug, 09:41</td><td>2022 entry</td><td>AM killzone</td>
+            <td><span class="tag bear">&minus;1.00R</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="field-note">Sorting and filtering both happen in the browser rather than in the query. Five
+hundred trades is nothing to sort, and a round trip per column click makes a table feel broken. It
+also keeps the counts honest: the filter runs over every trade loaded, not over the page you can
+see.</p>
+
+<p class="field-note">Unknowns sink whichever way the column points. A trade with no model is not
+before A or after Z, it is missing &mdash; and sorting by model to find out which model pays should
+not hand you a screen of untagged rows.</p>
+
 <h4>Card steps</h4>
 
 <p>Same component, smaller steps. Rows and cards are not the same problem: twenty-five journal rows

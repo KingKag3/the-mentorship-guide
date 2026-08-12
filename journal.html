@@ -272,6 +272,12 @@
   <h2>Your trades</h2>
   <p class="stat-note" id="count-note"></p>
 
+  <div class="cal-toggle">
+    <select id="account-filter" class="role-select cal-account" hidden
+            aria-label="Show one account"></select>
+    <button type="button" class="link-button" id="reset-view" hidden>Back to newest first</button>
+  </div>
+
   <!-- Hidden until something is ticked. A destructive control sitting on screen
        permanently is a destructive control that eventually gets clicked. -->
   <div class="bulk-bar" id="bulk-bar" hidden>
@@ -738,10 +744,17 @@ async function load() {
     .from('trades')
     .select('*')
     .order('opened_at', { ascending: false })
-    // One more than is shown, purely to find out whether there were more. A
-    // list silently cut at five hundred looks complete, and the trades it
-    // dropped are the oldest ones - the ones somebody goes looking for.
-    .limit(501);
+    /* One more than is kept, purely to find out whether there were more. A list
+     * silently cut looks complete, and the trades it drops are the oldest -
+     * the ones somebody goes looking for.
+     *
+     * The cap was five hundred when the page drew every row it held. Paging
+     * retired that reason, and filtering makes a low cap actively misleading:
+     * narrowing to one prop account out of the newest five hundred rows shows
+     * a fraction of that account's history under a heading that does not say
+     * so. Five thousand matches what the calendar and the statistics page
+     * already load. */
+    .limit(5001);
 
   const mount = $('list');
 
@@ -750,8 +763,8 @@ async function load() {
     return;
   }
 
-  const capped = (data || []).length > 500;
-  rows = (data || []).slice(0, 500);
+  const capped = (data || []).length > 5000;
+  rows = (data || []).slice(0, 5000);
 
   // Offered back as suggestions so the second trade in an account is a pick
   // rather than a retype. Free text that drifts into "Apex 50k" and "apex 50K"
@@ -760,9 +773,21 @@ async function load() {
   $('dl-account').innerHTML = names
     .map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
 
+  // The same names, as a filter. Hidden with one account, because a filter
+  // offering a single choice is a control that cannot do anything.
+  const filter = $('account-filter');
+  filter.innerHTML = '<option value="all">All accounts</option>' +
+    names.map((n) => '<option value="' + escapeHtml(n) + '"' +
+      (n === account ? ' selected' : '') + '>' + escapeHtml(n) + '</option>').join('');
+  filter.hidden = names.length < 2;
+
+  // An account that has gone - every one of its trades deleted - must not leave
+  // the page filtered to nothing with no way back that anybody would find.
+  if (account !== 'all' && !names.includes(account)) account = 'all';
+
   $('count-note').textContent = !rows.length ? ''
     : capped
-      ? 'Showing the most recent 500. There are more - the statistics and the calendar read all ' +
+      ? 'Showing the most recent 5,000. There are more - the statistics and the calendar read all ' +
         'of them, and the export below takes the lot.'
       : rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
         (rows.length < 50
@@ -798,8 +823,74 @@ async function load() {
 let page = 1;
 let per = pageSize('journal', 50);
 
+/* ------------------------- what is on screen, and why ----------------------
+ *
+ * Filtering and sorting happen here rather than in the query. Five hundred and
+ * fifty trades is nothing to sort in a browser, and a round trip per column
+ * click would make the table feel broken. It also means the counts stay honest:
+ * the filter runs over every trade that was loaded, not over a page of them.
+ *
+ * The account filter matters more than it looks. Somebody running seventeen
+ * copied prop accounts sees each decision seventeen times, and every question
+ * they have about the journal is really about one of those accounts.
+ */
+
+let account = 'all';
+let sortKey = 'opened_at';
+let sortAsc = false;
+
+const SORTS = {
+  opened_at:  (r) => Date.parse(r.opened_at) || 0,
+  symbol:     (r) => (r.symbol || '') + ' ' + (r.direction || ''),
+  model:      (r) => r.model || '',
+  session_kz: (r) => r.session_kz || '',
+  pd_array:   (r) => r.pd_array || '',
+  r_multiple: (r) => (r.r_multiple === null || r.r_multiple === undefined
+                       ? NaN : Number(r.r_multiple))
+};
+
+function visible() {
+  const key = SORTS[sortKey] || SORTS.opened_at;
+  const list = account === 'all'
+    ? rows.slice()
+    : rows.filter((r) => (r.account || '') === account);
+
+  const missing = (v) => v === '' || (typeof v === 'number' && !Number.isFinite(v));
+
+  list.sort((a, b) => {
+    const x = key(a);
+    const y = key(b);
+
+    // Unknowns sink whichever way the column points. A trade with no model is
+    // not before A or after Z, it is missing - and sorting by model to find
+    // out which model pays should not hand you a screen of untagged rows.
+    if (missing(x) !== missing(y)) return missing(x) ? 1 : -1;
+
+    if (x < y) return sortAsc ? -1 : 1;
+    if (x > y) return sortAsc ? 1 : -1;
+
+    // Ties by time, newest first, so the order is stable between draws and a
+    // column with six distinct values still reads chronologically inside each.
+    return Date.parse(b.opened_at) - Date.parse(a.opened_at);
+  });
+
+  return list;
+}
+
+/** A sortable heading. The arrow says which way, on the column doing the work. */
+function th(label, key) {
+  const on = sortKey === key;
+  return '<th><button type="button" class="th-sort' + (on ? ' is-on' : '') + '" data-sort="' + key +
+    '" aria-label="Sort by ' + escapeHtml(label.toLowerCase()) +
+    (on && sortAsc ? ', currently ascending' : on ? ', currently descending' : '') + '">' +
+    escapeHtml(label) +
+    (on ? ' <span aria-hidden="true">' + (sortAsc ? '&uarr;' : '&darr;') + '</span>' : '') +
+    '</button></th>';
+}
+
 function drawPage() {
-  const state = { ...pageSlice(rows, page, per), per };
+  const list = visible();
+  const state = { ...pageSlice(list, page, per), per };
   page = state.page;
 
   const onChange = (next) => {
@@ -818,15 +909,56 @@ function drawPage() {
     '<div class="table-scroll"><table><thead><tr>' +
     '<th class="pick-cell"><input type="checkbox" id="pick-all" ' +
       'aria-label="Select every trade shown"></th>' +
-    '<th>When</th><th>Trade</th><th>Model</th><th>Session</th><th>From</th>' +
-    '<th>Result</th><th></th>' +
+    th('When', 'opened_at') + th('Trade', 'symbol') + th('Model', 'model') +
+    th('Session', 'session_kz') + th('From', 'pd_array') + th('Result', 'r_multiple') +
+    '<th></th>' +
     '</tr></thead><tbody>' +
     state.rows.map((r) => renderRow(r, shotUrls.get(r.screenshot_path))).join('') +
     '</tbody></table></div>';
 
   $('empty-row').hidden = false;
+  $('reset-view').hidden = account === 'all' && sortKey === 'opened_at' && !sortAsc;
   syncBulk();
 }
+
+/* --- the controls -------------------------------------------------------- */
+
+// A heading is a button, so it works from a keyboard and reads as one. Clicking
+// the column already sorted turns it round; clicking a different one starts it
+// where that column is most useful - times and results newest and biggest
+// first, words from A.
+$('list').addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('[data-sort]');
+  if (!btn) return;
+
+  const key = btn.getAttribute('data-sort');
+  if (key === sortKey) {
+    sortAsc = !sortAsc;
+  } else {
+    sortKey = key;
+    sortAsc = !(key === 'opened_at' || key === 'r_multiple');
+  }
+
+  page = 1;
+  drawPage();
+});
+
+$('account-filter').addEventListener('change', (e) => {
+  account = e.target.value;
+  // Back to page one: staying on page 7 of a list that now has two is the
+  // pager's problem to clamp, but landing there is nobody's idea of a filter.
+  page = 1;
+  drawPage();
+});
+
+$('reset-view').addEventListener('click', () => {
+  account = 'all';
+  sortKey = 'opened_at';
+  sortAsc = false;
+  page = 1;
+  $('account-filter').value = 'all';
+  drawPage();
+});
 
 /* ----------------------------- bulk selection -----------------------------
  *
@@ -840,10 +972,16 @@ const picked = new Set();
 
 function syncBulk() {
   const bar = $('bulk-bar');
-  // Anything selected but no longer on screen is gone; drop it rather than
-  // deleting a row the user can no longer see.
+
+  /* Anything selected but no longer on screen is dropped rather than acted on.
+   *
+   * Measured against what the filter shows, not against everything loaded:
+   * ticking six trades, narrowing to one account and pressing Delete should
+   * delete what is in front of you. Carrying a hidden selection into a
+   * destructive button is how somebody loses rows they never saw. */
+  const shown = visible();
   for (const id of [...picked]) {
-    if (!rows.some((r) => String(r.id) === id)) picked.delete(id);
+    if (!shown.some((r) => String(r.id) === id)) picked.delete(id);
   }
 
   bar.hidden = picked.size === 0;
@@ -853,8 +991,8 @@ function syncBulk() {
 
   const all = document.getElementById('pick-all');
   if (all) {
-    all.checked = rows.length > 0 && picked.size === rows.length;
-    all.indeterminate = picked.size > 0 && picked.size < rows.length;
+    all.checked = shown.length > 0 && picked.size === shown.length;
+    all.indeterminate = picked.size > 0 && picked.size < shown.length;
   }
   document.querySelectorAll('input[data-pick]').forEach((box) => {
     box.checked = picked.has(box.getAttribute('data-pick'));
@@ -972,7 +1110,9 @@ function renderRow(r, shotUrl) {
 
 $('list').addEventListener('change', (e) => {
   if (e.target.id === 'pick-all') {
-    if (e.target.checked) rows.forEach((r) => picked.add(String(r.id)));
+    // Everything the filter is showing, not everything loaded. The box sits in
+    // a header above a filtered table and has to mean what that table says.
+    if (e.target.checked) visible().forEach((r) => picked.add(String(r.id)));
     else picked.clear();
     syncBulk();
     return;
@@ -1052,7 +1192,7 @@ async function copyForTradingView(list, what) {
 }
 
 $('copy-tv').addEventListener('click', () =>
-  copyForTradingView(pageSlice(rows, page, per).rows, 'this page'));
+  copyForTradingView(pageSlice(visible(), page, per).rows, 'this page'));
 
 $('bulk-tv').addEventListener('click', () =>
   copyForTradingView(rows.filter((r) => picked.has(String(r.id))), 'your selection'));

@@ -1090,6 +1090,25 @@ main.landing .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .link-button.is-on:hover { color: var(--bull); text-decoration: underline; }
 
+/* A sortable column heading. A real button inside the th, so it is reachable
+   from a keyboard and announced as something that does a thing - a th with a
+   click handler is neither. It inherits the header's own type so the table
+   still reads as a table rather than as a row of links. */
+.th-sort {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.th-sort:hover { color: var(--fg-strong); text-decoration: underline; text-underline-offset: 3px; }
+.th-sort.is-on { color: var(--fg-strong); }
+
 /* Keys to press, in prose. Small enough not to shout in a field note. */
 kbd {
   font-family: var(--mono);

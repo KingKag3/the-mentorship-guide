@@ -31,6 +31,13 @@ on conflict (id) do update set public = false;
 -- Reading is what signing a URL requires: Supabase checks the caller can
 -- select the object before it issues a token. So members can view, and nobody
 -- else can mint a link at all.
+--
+-- The journal/ prefix is carved out of both the member read and the admin
+-- update, because trade screenshots live in this bucket and belong to one
+-- member each. Do not widen either of these back: the clause is not decorative
+-- and `journal-media-privacy.sql` explains at length why. That file also adds
+-- a RESTRICTIVE policy which will keep journal objects private even if this
+-- one is widened by accident - but it should not have to.
 -- ---------------------------------------------------------------------------
 
 drop policy if exists "members read lesson media"   on storage.objects;
@@ -40,16 +47,31 @@ drop policy if exists "admins delete lesson media"  on storage.objects;
 
 create policy "members read lesson media"
   on storage.objects for select
-  using (bucket_id = 'lesson-media' and public.is_member());
+  using (
+    bucket_id = 'lesson-media'
+    and public.is_member()
+    and (storage.foldername(name))[1] is distinct from 'journal'
+  );
 
 create policy "admins upload lesson media"
   on storage.objects for insert
   with check (bucket_id = 'lesson-media' and public.is_admin());
 
+-- A rename is an update, and moving journal/<uid>/x.jpg to lessons/x.jpg would
+-- publish it to every member. Admins keep insert and delete over the whole
+-- bucket; they do not get to move somebody's journal out of it.
 create policy "admins update lesson media"
   on storage.objects for update
-  using (bucket_id = 'lesson-media' and public.is_admin())
-  with check (bucket_id = 'lesson-media' and public.is_admin());
+  using (
+    bucket_id = 'lesson-media'
+    and public.is_admin()
+    and (storage.foldername(name))[1] is distinct from 'journal'
+  )
+  with check (
+    bucket_id = 'lesson-media'
+    and public.is_admin()
+    and (storage.foldername(name))[1] is distinct from 'journal'
+  );
 
 create policy "admins delete lesson media"
   on storage.objects for delete

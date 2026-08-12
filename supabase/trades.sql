@@ -131,11 +131,18 @@ create trigger trades_touch
 -- 4. Screenshots
 --
 -- Journal images go into the existing private lesson-media bucket under a
--- journal/ prefix. storage.sql already restricts that bucket to members; these
--- two policies narrow it further so a member can only reach their own folder.
+-- journal/ prefix. Paths are journal/<user id>/<uuid>.<ext>, which is what
+-- makes the owner check below possible.
 --
--- Paths are journal/<user id>/<uuid>.<ext>, which is what makes the owner
--- check below possible.
+-- This section used to claim the two policies below "narrow" the bucket's
+-- member-wide read policy. They do not. Permissive policies for the same
+-- command are OR'd, so the read policy here only ever added a second way in,
+-- and every member could read every other member's screenshots.
+--
+-- The narrowing that actually holds is a RESTRICTIVE policy, and it lives in
+-- `journal-media-privacy.sql` along with the mentor's opt-in read. Run that
+-- file after this one. Re-running this one is still safe: it recreates the two
+-- policies below unchanged and touches nothing the other file adds.
 -- ---------------------------------------------------------------------------
 
 drop policy if exists "members write own journal media" on storage.objects;

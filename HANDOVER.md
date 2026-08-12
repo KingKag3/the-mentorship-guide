@@ -326,6 +326,29 @@ Be honest about this list before trusting anything below it.
 
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
+- **`supabase/journal-media-privacy.sql`, written 12 August 2026 and never run.** It is the fix for
+  a real hole: until it is applied, any signed-in member can read any other member's trade
+  screenshots, because the "narrow" journal policy in `trades.sql` was permissive and permissive
+  policies are OR'd. Only the uuid in the filename is stopping it today. The file itself has been
+  read for syntax and nothing more — no part of it has touched a database.
+
+  **What proving it takes, and it needs two accounts.** With account A a member holding at least one
+  trade with a screenshot, and account B a second member (not an admin):
+
+  1. As A, open the journal and copy the object path out of `screenshot_path` — or read it from the
+     network tab. It looks like `journal/<A's user id>/<uuid>.jpg`.
+  2. As B, signed in on the site, run in the devtools console:
+     `await supabase.storage.from('lesson-media').createSignedUrl('<that path>', 60)`.
+     **Before** the migration this returns a URL, which is the bug. **After** it must return an
+     error and no URL. A URL here means the migration did not take.
+  3. As B, confirm nothing else broke: a lesson page with an uploaded image still renders, and B's
+     own journal screenshots still appear. Both go through the same bucket.
+  4. As A, tick *share with mentor* on the trade that has the screenshot. As an admin, open the
+     Review tab and confirm the image renders. Untick it and reload: the image must disappear while
+     the rest of the card stays. That last step is the one that proves the admin read is the trades
+     table's opt-in and not a bucket-wide grant — the grant is what was removed.
+
+  Steps 2 and 4 are the test. Step 3 is what says the fix did not cost anything.
 - **`admins read shared`, and the whole Review tab with it** — needs a second account with
   `shared_with_mentor` ticked. The policy has existed since the original schema and has never
   returned a row. The tab, the card, the levels grid and the copy button were built against it on

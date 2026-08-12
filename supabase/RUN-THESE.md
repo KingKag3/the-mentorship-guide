@@ -14,6 +14,10 @@ see `CLAUDE.md`.
 | File | What it does | Why now |
 | --- | --- | --- |
 | `trade-chart-url.sql` | Adds `chart_url` to `trades` — a link to the chart image rather than an uploaded file | The journal and the Review tab both read it. Until it is run, pasting a snapshot link fails with *column does not exist*, and the journal says so rather than failing silently |
+| `journal-media-privacy.sql` | Makes journal screenshots private for real: a RESTRICTIVE policy on `storage.objects`, plus the mentor's opt-in read | **Run this first of the two.** Right now every signed-in member can read every other member's trade screenshots — the narrow policy in `trades.sql` was permissive, so it added a way in rather than taking one away. Only the uuid in the filename is stopping it. Nothing moves and nothing is deleted; the Review tab keeps working through a new admin policy that mirrors `shared_with_mentor` |
+
+Re-run `storage.sql` too if it has been applied since the journal existed — its member read policy is
+what was leaking, and it has been amended in place so the two files agree in whichever order they run.
 
 
 ### How to tell they worked, if you ever need to check again
@@ -32,7 +36,18 @@ select count(*) filter (where closed_at is null)     as no_close,
 select account, risk_per_trade, updated_at
   from public.risk_settings
  order by account;
+
+-- journal-media-privacy: expect exactly one row with permissive = 'RESTRICTIVE'.
+-- Its absence is the whole bug coming back, and nothing in the UI would show it.
+select policyname, permissive, cmd
+  from pg_policies
+ where schemaname = 'storage' and tablename = 'objects'
+   and cmd in ('SELECT', 'ALL')
+ order by permissive desc, policyname;
 ```
+
+The query above says the policy exists. It does not say it works — that needs two signed-in
+accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 ---
 

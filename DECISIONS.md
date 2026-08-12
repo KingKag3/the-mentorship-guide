@@ -619,3 +619,44 @@ delivering anything on a schedule.
 **Recorded as a standing risk:** if the concept pages are ever gated, this entry is the argument
 against doing it with JavaScript, and the migration into the database is the only version worth
 building.
+
+
+---
+
+## 2026-08-12 - Journal screenshots are made private with a RESTRICTIVE policy, not a second bucket
+
+**Decided:** trade screenshots stay in the `lesson-media` bucket under `journal/<user id>/`, and the
+privacy that `trades.sql` only claimed is made real by a RESTRICTIVE policy on `storage.objects` in
+`supabase/journal-media-privacy.sql`, plus an admin read that mirrors `shared_with_mentor` on the
+trades table.
+
+**Instead of:** moving journal media into its own bucket, which is the obvious structural answer.
+
+**Why:** the bug first. `trades.sql` said its journal policies "narrow" the bucket's member-wide read
+policy. A permissive policy cannot narrow anything - Postgres OR's permissive policies for the same
+command, so the journal policy only added a second way in, and every signed-in member could read
+every other member's trade screenshots. The uuid in the filename was the only thing between them,
+which is obscurity, not access control. Signed URLs did not help: Supabase checks the caller may
+SELECT the object before minting one.
+
+A separate bucket would make the mistake unrepeatable, and it was the better answer if the site were
+starting from empty. It is not. `storage.objects` rows point at bytes stored under their bucket, so
+no SQL statement moves an object across buckets; a client-side copy would be needed, and then every
+`trades.screenshot_path` would have to be rewritten - on rows that admins deliberately cannot update.
+Granting that write to run the migration would trade a read hole for a write hole, in the one table
+where "nobody can edit your journal but you" is the promise.
+
+The restrictive policy buys the same property for the objects that already exist. Restrictive
+policies are AND'd rather than OR'd, so a permissive policy written years from now granting the whole
+bucket still cannot reach anything under `journal/`. That is precisely what the second bucket was
+wanted for.
+
+**Two things that came out of writing it, and are worth keeping in mind.** A rename is an UPDATE, so
+an admin update policy covering `journal/` was a read bypass with extra steps - moving a file to
+`lessons/` publishes it. That policy is now carved out in `storage.sql` itself, since a migration
+that only adds a file leaves the old one to undo it on the next re-run. And the mentor's access is
+per object, resolved through the flagged trade that points at it, so unticking *share with mentor*
+takes the screenshot back as well as the row.
+
+**The standing rule this leaves:** in this project, a policy that is meant to take something away
+must say `as restrictive`. A permissive one is always an addition, however narrowly it reads.

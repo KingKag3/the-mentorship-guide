@@ -864,7 +864,7 @@ function mapRow(row, fallbackAccount, dayFirst) {
 
   const result = pnl !== null ? pnl : points;
 
-  return {
+  const trade = {
     external_id: external,
     account,
     opened_at: stamp.toISOString(),
@@ -890,10 +890,25 @@ function mapRow(row, fallbackAccount, dayFirst) {
     // column still wins.
     session_kz: text(row, 'session_kz') || sessionAt(stamp),
     notes: text(row, 'notes'),
-    chart_url: text(row, 'chart_url'),
     imported_at: new Date().toISOString(),
     checklist_done: false
   };
+
+  /* chart_url is added only when the file actually has one.
+   *
+   * PostgREST rejects a key the table does not have whatever its value is, so
+   * sending `chart_url: null` from a broker export that has never heard of a
+   * chart link fails the whole import until a migration is run - for a column
+   * the file did not use. That is a bad trade: the person paying is the one who
+   * pasted nothing.
+   *
+   * Present-and-mapped is the honest condition. Somebody re-importing a journal
+   * exported from this site does have the column and does need the migration,
+   * and gets told which file to run. */
+  const chart = text(row, 'chart_url');
+  if (chart !== null) trade.chart_url = chart;
+
+  return trade;
 }
 
 /* -------------------------------- the page -------------------------------- */

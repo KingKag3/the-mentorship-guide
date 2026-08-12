@@ -81,7 +81,9 @@
 
   <div id="bulk"></div>
 
+  <div id="pager-top"></div>
   <div id="accounts"></div>
+  <div id="pager-bottom"></div>
 
   <h2>Adding an account</h2>
   <p>Any account name that appears in your journal shows up below automatically. Fill in what the
@@ -147,7 +149,8 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
-         accountsHidden, setAccountsHidden, aliasMap } from './app.js';
+         accountsHidden, setAccountsHidden, aliasMap,
+         pageSize, setPageSize, pageSlice, renderPager } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -158,6 +161,11 @@ if (!profile) { throw new Error('not signed in'); }
 document.getElementById('body').hidden = false;
 
 const $ = (id) => document.getElementById(id);
+
+// Sixteen copied evaluations is sixteen tall cards, and the one that
+// diverged is as likely to be last as first.
+let propPage = 1;
+let propPer = pageSize('props', 25);
 const mount = $('accounts');
 
 /* ------------------------------- the data -------------------------------- */
@@ -890,12 +898,23 @@ function render() {
       '<a href="import.html">Import</a> · <a href="journal.html">Journal</a></p></div>';
     return;
   }
+  const state = { ...pageSlice(names, propPage, propPer), per: propPer };
+  propPage = state.page;
+
+  const onPage = (next) => {
+    if (next.per) { propPer = next.per; setPageSize('props', propPer); }
+    if (next.page) propPage = next.page;
+    render();
+  };
+  renderPager('#pager-top', state, onPage);
+  renderPager('#pager-bottom', state, onPage);
+
   mount.innerHTML =
     '<datalist id="dl-firm">' +
       [...new Set(presets.map((p) => p.firm))].map((f) =>
         '<option>' + escapeHtml(f) + '</option>').join('') +
     '</datalist>' +
-    names.map(card).join('');
+    state.rows.map(card).join('');
 
   for (const b of mount.querySelectorAll('[data-end]')) {
     b.addEventListener('click', () => endAttempt(b.getAttribute('data-end'), b));

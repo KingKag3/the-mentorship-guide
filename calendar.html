@@ -157,7 +157,8 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError,
-         accountsHidden, setAccountsHidden, aliasMap, distinctDecisions } from './app.js';
+         accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
+         pageSize, setPageSize, pageSlice, renderPager } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -420,6 +421,18 @@ function card(label, value, note) {
 
 const MAX_ROWS = 400;
 
+/* Paging state, and the month it belongs to.
+ *
+ * The month's rows are cached because turning a page has to redraw this list
+ * without redrawing the grid above it - and without the caller, since a pager
+ * button has no idea which month it is looking at.
+ *
+ * Twenty-five day-groups is already a long page: each one carries a table.
+ */
+let dayPage = 1;
+let dayPer = pageSize('calendar', 25);
+let lastMonthRows = [];
+
 function tradeRow(r) {
   const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts,
                          fees: r.fees, netPnl: r.net_pnl });
@@ -463,6 +476,17 @@ function dayGroup(key, rows) {
 }
 
 function renderMonthTrades(monthRows) {
+  // Called with the month's rows by render(), and without them by a pager
+  // button, which has no idea which month is on screen. Changing month resets
+  // the page: arriving at March on page 4 because February had four is not
+  // what anybody meant by turning a page.
+  if (monthRows) {
+    if (monthRows !== lastMonthRows) dayPage = 1;
+    lastMonthRows = monthRows;
+  } else {
+    monthRows = lastMonthRows;
+  }
+
   if (!monthRows.length) { $('month-trades').innerHTML = ''; return; }
 
   // Ascending, so the list reads in the same direction as the grid above it.
@@ -479,16 +503,33 @@ function renderMonthTrades(monthRows) {
     shown += rows.length;
   }
 
+  const state = { ...pageSlice(groups, dayPage, dayPer), per: dayPer };
+  dayPage = state.page;
+
+  const onPage = (next) => {
+    if (next.per) { dayPer = next.per; setPageSize('calendar', dayPer); }
+    if (next.page) dayPage = next.page;
+    renderMonthTrades();
+  };
+
   $('month-trades').innerHTML =
     '<h2>Every trade this month</h2>' +
     '<p class="stat-note">' + monthRows.length +
       (monthRows.length === 1 ? ' trade across ' : ' trades across ') +
       keys.length + (keys.length === 1 ? ' day' : ' days') +
       '. Click a day above to jump to it.</p>' +
-    groups.join('') +
+    '<div id="pager-top"></div>' +
+    state.rows.join('') +
+    '<div id="pager-bottom"></div>' +
     (truncated ? '<p class="stat-note">' + truncated + ' further trade' +
       (truncated === 1 ? '' : 's') + ' not listed — this month is past the ' + MAX_ROWS +
       ' the page will draw at once. Narrow it with the account filter.</p>' : '');
+
+  // After the innerHTML, not before: unlike the journal and the prop page,
+  // these two mount points are written by the line above and do not exist
+  // until it has run.
+  renderPager('#pager-top', state, onPage);
+  renderPager('#pager-bottom', state, onPage);
 }
 
 // A day square scrolls to its group rather than opening a panel, so the list

@@ -690,6 +690,101 @@ export function weightedExit(exits) {
 }
 
 /** $1,234.50, with the sign kept because a loss reading as a gain is worse than ugly. */
+/* -------------------------------- paging ---------------------------------
+ *
+ * Three pages render a list long enough that the thing you came for is a
+ * thousand pixels below the thing you are looking at. The journal draws five
+ * hundred trades, the calendar draws every day of a month, and the prop page
+ * draws a card per account - which is sixteen for anybody running copied
+ * evaluations, and sixteen tall cards is a lot of wheel.
+ *
+ * Deliberately not infinite scroll. A page number can be returned to, said out
+ * loud, and left; a scroll position cannot, and "it was somewhere near the
+ * middle" is not a way to find a trade.
+ */
+
+const PAGE_SIZES = [25, 50, 100, 150, 200];
+
+/**
+ * How many rows a page shows, remembered per list.
+ *
+ * Kept in localStorage rather than in the database: it is a property of the
+ * screen being read on, not of the member. Somebody who sets 200 on a desktop
+ * has said nothing about what they want on a phone, and syncing it would make
+ * that choice follow them somewhere it does not fit.
+ */
+export function pageSize(key, fallback = 50) {
+  const raw = Number(localStorage.getItem('tk-page-' + key));
+  return PAGE_SIZES.includes(raw) ? raw : fallback;
+}
+
+export function setPageSize(key, value) {
+  localStorage.setItem('tk-page-' + key, String(value));
+}
+
+/**
+ * The slice of `items` belonging to `page`, and the page actually used.
+ *
+ * Clamped, because a page number can outlive the list that justified it: filter
+ * a journal down while sitting on page 7 and the honest answer is the last page
+ * that exists, not an empty one with no way back.
+ */
+export function pageSlice(items, page, per) {
+  const pages = Math.max(1, Math.ceil(items.length / per));
+  const current = Math.min(Math.max(1, page), pages);
+  const from = (current - 1) * per;
+  return { rows: items.slice(from, from + per), page: current, pages, from, total: items.length };
+}
+
+/**
+ * The control strip. Renders nothing at all when everything already fits -
+ * a pager under a list of nine is furniture.
+ */
+export function renderPager(selector, state, onChange) {
+  const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+  if (!el) return;
+
+  const { page, pages, from, rows, total } = state;
+
+  if (total <= PAGE_SIZES[0] && pages <= 1) { el.innerHTML = ''; return; }
+
+  const btn = (label, to, disabled, current) =>
+    '<button type="button" class="pager-btn' + (current ? ' is-current' : '') + '"' +
+    (disabled ? ' disabled' : '') + ' data-page="' + to + '">' + label + '</button>';
+
+  // First, last, and a window either side of where you are. A list of forty
+  // pages rendered in full is its own scrolling problem.
+  const nums = [];
+  for (let i = 1; i <= pages; i++) {
+    if (i === 1 || i === pages || Math.abs(i - page) <= 1) nums.push(i);
+    else if (nums[nums.length - 1] !== '...') nums.push('...');
+  }
+
+  el.className = 'pager';
+  el.innerHTML =
+    '<span class="pager-count">' +
+      (total ? (from + 1) + '-' + (from + rows.length) + ' of ' + total : '0') +
+    '</span>' +
+    '<span class="pager-pages">' +
+      btn('&larr;', page - 1, page <= 1, false) +
+      nums.map((n) => n === '...'
+        ? '<span class="pager-gap">&hellip;</span>'
+        : btn(String(n), n, false, n === page)).join('') +
+      btn('&rarr;', page + 1, page >= pages, false) +
+    '</span>' +
+    '<label class="pager-size">Per page ' +
+      '<select class="role-select">' +
+        PAGE_SIZES.map((n) => '<option value="' + n + '"' +
+          (n === state.per ? ' selected' : '') + '>' + n + '</option>').join('') +
+      '</select></label>';
+
+  el.querySelectorAll('[data-page]').forEach((b) => {
+    b.addEventListener('click', () => onChange({ page: Number(b.getAttribute('data-page')) }));
+  });
+  const sel = el.querySelector('select');
+  if (sel) sel.addEventListener('change', () => onChange({ per: Number(sel.value), page: 1 }));
+}
+
 /* ------------------------------ taking it out -----------------------------
  *
  * A journal you cannot get out of is a journal you are renting. Import has

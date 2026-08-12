@@ -748,13 +748,9 @@ async function endAttempt(name, btn) {
   const word = { failed: 'blown', passed: 'passed', retired: 'retired' }[outcome] || outcome;
 
   const p = progress(name, saved.get(name) || {}, live);
-  if (!confirm('Mark attempt ' + live.attempt + ' on ' + label(name) + ' as ' + word + '?
-
-' +
+  if (!confirm('Mark attempt ' + live.attempt + ' on ' + label(name) + ' as ' + word + '?\n\n' +
                p.trades + ' trades, ' + money(p.total) + ', worst dip ' + money(p.worstDip) +
-               '.
-
-Nothing is deleted. The trades stay where they are and the attempt keeps ' +
+               '.\n\nNothing is deleted. The trades stay where they are and the attempt keeps ' +
                'its dates and its result.')) return;
 
   btn.disabled = true;
@@ -810,9 +806,7 @@ async function splitAttempt(name, on, btn) {
   const nextDay = next.toISOString().slice(0, 10);
 
   if (!confirm('End attempt ' + live.attempt + ' on ' + on + ' and start attempt ' +
-               (live.attempt + 1) + ' on ' + nextDay + '?
-
-No trade is changed or deleted. ' +
+               (live.attempt + 1) + ' on ' + nextDay + '?\n\nNo trade is changed or deleted. ' +
                'They simply stop being counted as one run.')) return;
 
   btn.disabled = true;
@@ -835,9 +829,7 @@ No trade is changed or deleted. ' +
     // The close landed and the open did not. Say so plainly rather than
     // leaving somebody to wonder why there is no live attempt.
     alert('Attempt ' + live.attempt + ' was closed, but the next one could not be started: ' +
-          started.error.message + '
-
-Use "Start attempt" below.');
+          started.error.message + '\n\nUse "Start attempt" below.');
     render();
     return;
   }

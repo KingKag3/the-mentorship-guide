@@ -101,6 +101,44 @@ three phantom bugs gets ignored, and then the real one is ignored too.
 python tools/prove-tdz-rules.py
 ```
 
+## Never write JavaScript escapes through a shell heredoc
+
+Not a tool — a rule, written here because breaking it took `props.html` down and cost an hour.
+
+Editing a page with `python - <<'PYEOF'` looks safe, and the quoted delimiter is supposed to stop the
+shell touching anything. It does not reliably survive this environment: `\\n` intended as a newline
+escape arrived as a single `\n`, Python wrote a **real line break inside a JavaScript string
+literal**, and the module stopped parsing.
+
+The symptom is the worst one this project has:
+
+```
+SyntaxError: Invalid or unexpected token
+```
+
+with **no line number**, and a page showing its heading, its footer, and nothing between. Identical
+to the blank pages that `check-tdz.py` and `check-imports.py` were each written for, and caught by
+neither — both of those run *after* a parse, and nothing here ever parsed.
+
+**Use the Write tool for any file content containing a backslash.** If a heredoc is unavoidable,
+read the result back and look at the line before believing it.
+
+### How to find one
+
+There is no JavaScript runtime on these machines, so the check is a browser:
+
+```js
+const html = await (await fetch('props.html')).text();
+const body = html.split('<script type="module">')[1].split('<\/script>')[0];
+const src  = body.replace(/^\s*import[\s\S]*?from\s*'[^']*';/gm, '').replace(/\bawait\b/g, '');
+try { new Function(src); 'PARSES CLEANLY'; } catch (e) { e.message; }
+```
+
+Imports and top-level `await` are stripped because `new Function` allows neither, and the only
+question being asked is whether the rest parses. A crude quote-counting scanner was tried first and
+abandoned: it reported thirty-five hits on three healthy pages, nearly all apostrophes inside
+comments, which is the ignorable-checker failure `prove-tdz-rules.py` exists to prevent.
+
 ## check-imports.py
 
 Every name a page imports must be exported by the module it names.

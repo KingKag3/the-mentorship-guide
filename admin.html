@@ -57,15 +57,37 @@
   here is checked again by the database — if your own role were revoked, this page would stop
   working immediately regardless of what the browser thinks.</p>
 
-  <!-- One page, five jobs. Everything still loads in one pass behind one auth
-       check; the tabs only decide what is on screen. -->
+  <!-- One page, six jobs. Everything still loads in one pass behind one auth
+       check; the tabs only decide what is on screen. Review comes first and is
+       the default, because it is the only tab with something waiting in it. -->
   <nav class="admin-tabs" id="admin-tabs">
+    <button type="button" class="admin-tab" data-panel="review">Review<span
+      class="tag" id="review-badge" hidden></span></button>
     <button type="button" class="admin-tab" data-panel="users">Accounts</button>
     <button type="button" class="admin-tab" data-panel="invites">Invites</button>
     <button type="button" class="admin-tab" data-panel="scripts">Indicators</button>
     <button type="button" class="admin-tab" data-panel="phases">Phases</button>
     <button type="button" class="admin-tab" data-panel="lessons">Entries</button>
   </nav>
+
+  <section class="admin-panel" data-panel="review" hidden>
+  <!-- =================== sent for review =================== -->
+  <h2>Sent for review</h2>
+
+  <p>Every trade a member ticked <em>share with mentor</em> on, newest first. They chose to send
+  it; unticking it on their side takes it out of this list again.</p>
+
+  <p class="field-note">Read-only. The admin policy on <code>trades</code> is select-only and this
+  page does not write to it &mdash; a critique belongs in its own table, not as a second author on
+  somebody else&rsquo;s journal. Copy a trade out for now and reply wherever you already talk.</p>
+
+  <p class="stat-note" id="review-count">&nbsp;</p>
+
+  <div id="review-pager-top"></div>
+  <div id="review-list"></div>
+  <div id="review-pager-bottom"></div>
+
+  </section>
 
   <section class="admin-panel" data-panel="users" hidden>
   <!-- =================== users =================== -->
@@ -406,7 +428,9 @@ import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
          hydrateStorageImages, humanSize, discordToHtml, dataUrlToFile,
-         looksLikeDiscordMarkup, getSetting, setSetting } from './app.js';
+         looksLikeDiscordMarkup, getSetting, setSetting,
+         signedUrlMap, tradeValue, money, toNumber, dbError,
+         pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
 
@@ -422,6 +446,13 @@ let allPhases = [];
 let allScripts = [];
 let coverPath = null;
 let quill = null;
+
+// Sent for review. Cards rather than rows, so CARD_SIZES and a default of ten:
+// a screenshot is the tallest thing on this site.
+let sharedTrades = [];
+let shotUrls = new Map();
+let reviewPage = 1;
+let reviewPer = pageSize('review', 10, CARD_SIZES);
 
 const me = await requireRole(['admin']);
 
@@ -455,7 +486,10 @@ if (me) {
   // Wrapped so one failing query cannot abort module evaluation and leave the
   // page rendered but inert.
   try {
+    // Users first: the review cards name whoever sent the trade, and the only
+    // place a name lives is `profiles`.
     await loadUsers();
+    await loadShared();
     await loadInvites();
     await loadVideo();
     await loadScripts();
@@ -475,6 +509,240 @@ if (me) {
     banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
+
+/* --------------------------- sent for review ---------------------------
+ *
+ * Reads rows belonging to other people, which nothing else on this site does.
+ * It is allowed by one policy and one only, in supabase/trades.sql:
+ *
+ *   create policy "admins read shared"
+ *     on public.trades for select
+ *     using (shared_with_mentor and public.is_admin());
+ *
+ * Opt-in, per row, select-only. The filter below is not what makes this safe -
+ * Postgres is - but it is still needed, because without it an admin's own
+ * unshared trades would come back too under "select own trades" and appear in
+ * a list that says everything in it was sent by somebody.
+ *
+ * `account` is deliberately not selected. The member shared a trade to have it
+ * critiqued; the broker account it sat in answers no question a critique asks.
+ */
+
+async function loadShared() {
+  const { data, error } = await supabase
+    .from('trades')
+    .select('id, user_id, opened_at, closed_at, symbol, direction, contracts, ' +
+            'entry, stop, target, exit_price, points, fees, net_pnl, r_multiple, outcome, ' +
+            'model, session_kz, pd_array, liquidity, bias, agreed_with_bias, ' +
+            'checklist_done, management, notes, screenshot_path')
+    .eq('shared_with_mentor', true)
+    .order('opened_at', { ascending: false })
+    .limit(500);
+
+  if (error) {
+    document.getElementById('review-list').innerHTML = dbError(error, 'Could not read shared trades');
+    return;
+  }
+
+  sharedTrades = data || [];
+  await renderShared();
+}
+
+/** Whoever sent it. `profiles` is already loaded for the Accounts tab. */
+function sharedBy(userId) {
+  const u = allUsers.find((x) => x.id === userId);
+  if (!u) return 'A member';
+  return u.full_name || u.email || 'A member';
+}
+
+/**
+ * What the trade was asking for, from the levels the member typed.
+ *
+ * This is the closest thing to redrawing the chart that is possible without
+ * price data, and for a critique it answers most of the same questions: was
+ * the stop inside the noise, was the target ever realistic, and did they take
+ * a fraction of what they planned for.
+ */
+function plannedRR(r) {
+  const entry = toNumber(r.entry);
+  const stop = toNumber(r.stop);
+  const target = toNumber(r.target);
+  if (!Number.isFinite(entry) || !Number.isFinite(stop) || !Number.isFinite(target)) return null;
+  const risk = Math.abs(entry - stop);
+  if (!risk) return null;
+  return Math.abs(target - entry) / risk;
+}
+
+function heldFor(r) {
+  if (!r.opened_at || !r.closed_at) return null;
+  const secs = (new Date(r.closed_at) - new Date(r.opened_at)) / 1000;
+  if (!Number.isFinite(secs) || secs < 0) return null;
+  if (secs < 90) return Math.round(secs) + 's';
+  if (secs < 5400) return Math.round(secs / 60) + 'm';
+  return (secs / 3600).toFixed(1) + 'h';
+}
+
+function num(v, digits = 2) {
+  const n = toNumber(v);
+  return Number.isFinite(n) ? n.toFixed(digits) : '—';
+}
+
+function reviewTags(r) {
+  const tags = [];
+  const add = (text, cls) => { if (text) tags.push(['<span class="tag' + (cls || '') + '">', text]); };
+
+  add(r.direction, r.direction === 'long' ? ' bull' : ' bear');
+  add(r.model);
+  add(r.session_kz, ' time');
+  add(r.pd_array);
+  add(r.liquidity ? 'after ' + r.liquidity : '');
+  add(r.bias ? r.bias + ' bias' : '');
+  if (r.agreed_with_bias === false) add('against own bias', ' bear');
+  if (!r.checklist_done) add('no checklist', ' bear');
+  if (r.outcome) add(r.outcome, r.outcome === 'win' ? ' bull' : r.outcome === 'loss' ? ' bear' : '');
+
+  return tags.map(([open, text]) => open + escapeHtml(String(text)) + '</span>').join('');
+}
+
+function reviewCard(r) {
+  const when = new Date(r.opened_at);
+  const rm = toNumber(r.r_multiple);
+  const rr = plannedRR(r);
+  const held = heldFor(r);
+  const v = tradeValue({ symbol: r.symbol, points: r.points, contracts: r.contracts,
+                         fees: r.fees, netPnl: r.net_pnl });
+  const url = shotUrls.get(r.screenshot_path);
+
+  const field = (label, value) =>
+    '<div><b>' + value + '</b><span>' + escapeHtml(label) + '</span></div>';
+
+  // Said out loud rather than left as two numbers to compare. Taking a third of
+  // what you planned for is the single most common thing in a shared trade and
+  // the thing a member is least likely to notice on their own.
+  const short = (Number.isFinite(rm) && rr && rm > 0 && rm < rr * 0.6)
+    ? '<p class="field-note">Planned ' + rr.toFixed(1) + 'R, took ' + rm.toFixed(2) + 'R &mdash; ' +
+      Math.round(rm / rr * 100) + '% of the move they were waiting for.</p>'
+    : '';
+
+  return '<article class="review">' +
+    '<div class="review-head">' +
+      '<span class="review-who">' + escapeHtml(sharedBy(r.user_id)) + '</span>' +
+      '<span class="review-when">' + escapeHtml(when.toLocaleString()) + '</span>' +
+      '<span class="review-spacer"></span>' +
+      '<button type="button" class="link-button" data-copy-trade="' + escapeHtml(String(r.id)) + '">' +
+        'copy for a reply</button>' +
+    '</div>' +
+
+    '<div class="review-plan">' +
+      field(escapeHtml(r.symbol || 'symbol') + (r.contracts ? ' x' + escapeHtml(String(r.contracts)) : ''),
+        Number.isFinite(rm) ? (rm > 0 ? '+' : '') + rm.toFixed(2) + 'R' : 'open') +
+      field('entry', num(r.entry)) +
+      field('stop', num(r.stop)) +
+      field('target', num(r.target)) +
+      field('exit', num(r.exit_price)) +
+      field('planned', rr ? rr.toFixed(1) + 'R' : '—') +
+      field('held', held || '—') +
+      field('dollars', v.dollars === null ? '—' : escapeHtml(money(v.dollars))) +
+    '</div>' +
+
+    '<div class="review-tags">' + reviewTags(r) + '</div>' +
+    short +
+
+    (r.management ? '<p class="review-note"><b>Managed:</b> ' + escapeHtml(r.management) + '</p>' : '') +
+    (r.notes ? '<p class="review-note">' + escapeHtml(r.notes) + '</p>' : '') +
+
+    (url
+      ? '<p class="review-shot"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
+        '<img src="' + escapeHtml(url) + '" alt="Chart screenshot attached to this trade" ' +
+        'loading="lazy"></a></p>'
+      : (r.screenshot_path
+          ? '<p class="media-missing">A screenshot is attached but could not be loaded.</p>'
+          : '')) +
+  '</article>';
+}
+
+async function renderShared() {
+  const list = document.getElementById('review-list');
+  const badge = document.getElementById('review-badge');
+
+  badge.hidden = sharedTrades.length === 0;
+  badge.textContent = String(sharedTrades.length);
+
+  if (!sharedTrades.length) {
+    document.getElementById('review-count').textContent = '';
+    list.innerHTML =
+      '<div class="callout"><span class="callout-label">Nothing waiting</span>' +
+      '<p>No member has shared a trade yet. The tick is on the journal form, ' +
+      'beside the notes field.</p></div>';
+    renderPager('#review-pager-top', { ...pageSlice([], 1, reviewPer), per: reviewPer },
+      () => {}, CARD_SIZES);
+    renderPager('#review-pager-bottom', { ...pageSlice([], 1, reviewPer), per: reviewPer },
+      () => {}, CARD_SIZES);
+    return;
+  }
+
+  const state = { ...pageSlice(sharedTrades, reviewPage, reviewPer), per: reviewPer };
+  reviewPage = state.page;
+
+  // Signed for this page only. They expire, and a session left open on page one
+  // should not be handing out live URLs for four hundred screenshots.
+  shotUrls = await signedUrlMap(state.rows.map((r) => r.screenshot_path));
+
+  const people = new Set(sharedTrades.map((r) => r.user_id)).size;
+  document.getElementById('review-count').textContent =
+    sharedTrades.length + (sharedTrades.length === 1 ? ' trade' : ' trades') +
+    ' from ' + people + (people === 1 ? ' member' : ' members');
+
+  list.innerHTML = state.rows.map(reviewCard).join('');
+
+  const onPage = (next) => {
+    if (next.per) { reviewPer = next.per; setPageSize('review', reviewPer); }
+    if (next.page) reviewPage = next.page;
+    renderShared();
+    if (next.page) {
+      document.getElementById('review-pager-top')
+        .scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+  renderPager('#review-pager-top', state, onPage, CARD_SIZES);
+  renderPager('#review-pager-bottom', state, onPage, CARD_SIZES);
+}
+
+/* Plain text, because the reply happens somewhere this site does not reach yet.
+ * Until a critique table exists, the useful thing is getting the trade out in a
+ * shape that can be pasted into Discord and answered line by line. */
+document.getElementById('review-list').addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('[data-copy-trade]');
+  if (!btn) return;
+
+  const r = sharedTrades.find((t) => String(t.id) === btn.getAttribute('data-copy-trade'));
+  if (!r) return;
+
+  const rm = toNumber(r.r_multiple);
+  const rr = plannedRR(r);
+  const lines = [
+    sharedBy(r.user_id) + ' — ' + new Date(r.opened_at).toLocaleString(),
+    (r.direction || '') + ' ' + (r.symbol || '') + (r.contracts ? ' x' + r.contracts : ''),
+    'entry ' + num(r.entry) + ', stop ' + num(r.stop) + ', target ' + num(r.target) +
+      ', exit ' + num(r.exit_price),
+    'planned ' + (rr ? rr.toFixed(1) + 'R' : 'unknown') +
+      ', result ' + (Number.isFinite(rm) ? rm.toFixed(2) + 'R' : 'open'),
+    [r.model, r.session_kz, r.pd_array, r.liquidity && 'after ' + r.liquidity]
+      .filter(Boolean).join(' / '),
+    r.checklist_done ? 'checklist done' : 'no checklist',
+    r.management ? 'managed: ' + r.management : '',
+    r.notes ? 'notes: ' + r.notes : ''
+  ].filter(Boolean);
+
+  copyText(lines.join('\n'));
+
+  // Said on the button rather than through setStatus, which rewrites the
+  // className of whatever it is pointed at and would leave #review-count
+  // wearing form-status for the rest of the session.
+  const was = btn.textContent;
+  btn.textContent = 'copied';
+  setTimeout(() => { btn.textContent = was; }, 1500);
+});
 
 /* ------------------------------- users ------------------------------- */
 
@@ -784,11 +1052,13 @@ async function copyText(text) {
 // changes what is visible, so nothing refetches and no in-progress edit is
 // lost by moving away and back.
 
-const PANELS = ['users', 'invites', 'scripts', 'phases', 'lessons'];
+// Review first, and first is the fallback: it is the only tab that has things
+// arriving in it, so landing anywhere else means missing them.
+const PANELS = ['review', 'users', 'invites', 'scripts', 'phases', 'lessons'];
 const TAB_KEY = 'tk.admin.tab';
 
 function showPanel(name, remember = true) {
-  const panel = PANELS.includes(name) ? name : 'users';
+  const panel = PANELS.includes(name) ? name : PANELS[0];
 
   for (const el of document.querySelectorAll('.admin-panel')) {
     el.hidden = el.dataset.panel !== panel;
@@ -807,7 +1077,10 @@ function showPanel(name, remember = true) {
 }
 
 document.getElementById('admin-tabs').addEventListener('click', (e) => {
-  const name = e.target.dataset && e.target.dataset.panel;
+  // closest, not e.target: the Review tab carries a count badge, and clicking
+  // the badge would otherwise be a click on nothing.
+  const tab = e.target.closest && e.target.closest('[data-panel]');
+  const name = tab && tab.dataset.panel;
   if (name) showPanel(name);
 });
 
@@ -820,7 +1093,7 @@ function initialPanel() {
     const saved = localStorage.getItem(TAB_KEY);
     if (PANELS.includes(saved)) return saved;
   } catch (err) { /* private mode */ }
-  return 'users';
+  return PANELS[0];
 }
 
 showPanel(initialPanel(), false);

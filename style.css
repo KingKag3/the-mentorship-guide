@@ -2828,6 +2828,14 @@ a.tool-chip:hover { color: var(--ink-900); border-color: var(--brand-400); backg
 
 .admin-tab:hover { color: var(--fg); background: var(--surface-3); }
 
+/* The count on the Review tab. Hidden entirely at zero rather than showing a
+   nought, which reads as a broken badge rather than an empty inbox. */
+.admin-tab .tag {
+  margin-left: 6px;
+  vertical-align: baseline;
+  pointer-events: none;
+}
+
 .admin-tab.is-on {
   color: var(--accent);
   background: var(--bg-alt);
@@ -3224,6 +3232,83 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .day-group.is-target { animation: none; box-shadow: var(--ring); }
+}
+
+/* --------------------------- sent for review ------------------------------
+ *
+ * The mentor's side of `shared_with_mentor`. A card rather than a table row,
+ * because the point is to look at one trade properly and a row twenty columns
+ * wide is how you end up looking at none of them.
+ *
+ * Read-only by construction. Nothing in here is an input: the row belongs to
+ * the member, the admin policy on `trades` is select-only, and a critique needs
+ * its own table rather than a second writer on somebody else's journal.
+ */
+
+.review {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--s-3) var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+}
+
+.review-who   { font-weight: 600; color: var(--fg-strong); }
+.review-when  { font-family: var(--serif); font-size: var(--step--1); color: var(--muted); }
+.review-spacer { flex: 1 1 auto; }
+
+.review-tags { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0 0; }
+
+/* The numbers a critique actually turns on: where risk sat, what was being
+   asked of the trade, and what it came back with. Monospace so the columns
+   line up between one card and the next. */
+.review-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--s-2) var(--s-3);
+  margin: var(--s-3) 0 0;
+}
+
+.review-plan div { display: flex; flex-direction: column; gap: 2px; }
+
+.review-plan b {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--fg-strong);
+}
+
+.review-plan span {
+  font-family: var(--sans);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.review-note {
+  margin: var(--s-3) 0 0;
+  padding-left: var(--s-3);
+  border-left: 3px solid var(--border);
+  white-space: pre-wrap;
+}
+
+/* The screenshot is the reason this page exists - it is the only thing here
+   that shows the chart as it actually looked. Full width, and a link out for
+   anything the card is too small to read. */
+.review-shot { margin: var(--s-3) 0 0; }
+
+.review-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 /* Per-platform export instructions. A definition list because that is what it

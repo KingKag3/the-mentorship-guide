@@ -572,6 +572,52 @@ number.</p>
   </div>
 </div>
 
+<h3>Review card</h3>
+
+<p>A trade a member ticked <em>ask the mentor to look at this one</em> on, shown on the Review tab of
+<code>admin.html</code>. A card rather than a table row, because the point is to look at one trade
+properly and a row twenty columns wide is how you end up looking at none of them.</p>
+
+<p class="field-note">Read-only by construction. The only policy that lets an admin see another
+person&rsquo;s trade is <code>select</code>-only and requires the row&rsquo;s own
+<code>shared_with_mentor</code> flag, so nothing here can write. The levels stand in for the chart:
+without price data they are the closest thing to redrawing it, and they answer most of what a
+critique asks &mdash; whether the stop sat inside the noise, whether the target was ever realistic,
+and whether a planned move was taken in full.</p>
+
+<div class="demo">
+  <article class="review">
+    <div class="review-head">
+      <span class="review-who">Sam Okafor</span>
+      <span class="review-when">11 Aug 2026, 10:14</span>
+      <span class="review-spacer"></span>
+      <button type="button" class="link-button">copy for a reply</button>
+    </div>
+    <div class="review-plan">
+      <div><b>+0.84R</b><span>NQ x2</span></div>
+      <div><b>18422.25</b><span>entry</span></div>
+      <div><b>18410.00</b><span>stop</span></div>
+      <div><b>18460.00</b><span>target</span></div>
+      <div><b>18432.50</b><span>exit</span></div>
+      <div><b>3.1R</b><span>planned</span></div>
+      <div><b>14m</b><span>held</span></div>
+      <div><b>$412.00</b><span>dollars</span></div>
+    </div>
+    <div class="review-tags">
+      <span class="tag bull">long</span>
+      <span class="tag">2022 entry</span>
+      <span class="tag time">AM killzone</span>
+      <span class="tag">fair value gap</span>
+      <span class="tag">after PM low</span>
+      <span class="tag bear">no checklist</span>
+    </div>
+    <p class="field-note">Planned 3.1R, took 0.84R &mdash; 27% of the move they were waiting
+    for.</p>
+    <p class="review-note">Took it early because the first candle after entry went against me and I
+    did not want to give it back again.</p>
+  </article>
+</div>
+
 <h3>Findings</h3>
 
 <p>Sentences the journal wrote about itself, on <code>stats.html</code>. Conclusions rather than

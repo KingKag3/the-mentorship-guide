@@ -326,7 +326,11 @@ Be honest about this list before trusting anything below it.
 
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
-- **`admins read shared`** — needs a second account with `shared_with_mentor` set.
+- **`admins read shared`, and the whole Review tab with it** — needs a second account with
+  `shared_with_mentor` ticked. The policy has existed since the original schema and has never
+  returned a row. The tab, the card, the levels grid and the copy button were built against it on
+  12 August 2026 and verified only as markup, in `design.html`. Until a second account has shared a
+  trade, "the mentor can see it" is a claim about a policy nobody has exercised.
 - **The pre-trade checklist end to end.** The roll-up logic was run in a browser across all five
   states; the module load, the save-time confirmation and the value reaching the database were not.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at

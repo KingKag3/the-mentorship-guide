@@ -14,7 +14,18 @@ see `CLAUDE.md`.
 | File | What it does | Why now |
 | --- | --- | --- |
 | `trade-chart-url.sql` | Adds `chart_url` to `trades` — a link to the chart image rather than an uploaded file | The journal and the Review tab both read it. Until it is run, pasting a snapshot link fails with *column does not exist*, and the journal says so rather than failing silently |
-| `journal-media-privacy.sql` | Makes journal screenshots private for real: a RESTRICTIVE policy on `storage.objects`, plus the mentor's opt-in read | **Run this first of the two.** Right now every signed-in member can read every other member's trade screenshots — the narrow policy in `trades.sql` was permissive, so it added a way in rather than taking one away. Only the uuid in the filename is stopping it. Nothing moves and nothing is deleted; the Review tab keeps working through a new admin policy that mirrors `shared_with_mentor` |
+| `journal-media-privacy.sql` | Makes journal screenshots private for real: a RESTRICTIVE policy on `storage.objects`, plus the mentor's opt-in read | Every signed-in member can currently read every other member's trade screenshots — the narrow policy in `trades.sql` was permissive, so it added a way in rather than taking one away. Only the uuid in the filename is stopping it. Nothing moves and nothing is deleted; the Review tab keeps working through a new admin policy that mirrors `shared_with_mentor` |
+
+**Run `trade-chart-url.sql` first, whichever order the rest go in.** Not because the privacy
+migration needs it — it does not — but because `readForm` in `journal.html` sends `chart_url` on
+every save, so until that column exists no trade can be saved from the form at all. That includes
+the trade-with-a-screenshot needed to test the privacy migration, and it is why
+`select ... where screenshot_path is not null` returned nothing on 12 August 2026: no screenshot has
+ever been uploaded, because no save through that form has ever succeeded.
+
+The happy side of that: the privacy fix lands before a single private screenshot exists, so the
+window it closes was never open on real data. It stops being true the moment somebody uploads one.
+
 
 Re-run `storage.sql` too if it has been applied since the journal existed — its member read policy is
 what was leaking, and it has been amended in place so the two files agree in whichever order they run.

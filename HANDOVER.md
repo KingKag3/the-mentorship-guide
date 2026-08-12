@@ -356,19 +356,30 @@ Be honest about this list before trusting anything below it.
      has to be imported before it can be reached. One expression, re-runnable, no variable to
      collide on a second go:
 
+     The path is fetched rather than typed, pasted or prompted for. Every attempt that moved the
+     string by hand got it wrong instead — `<A user id>`, then a literal `…`, then a cancelled
+     prompt leaving `null` — and each one failed in a way that looked like the pass being tested
+     for. Ask the database for it:
+
      ```js
-     window.P = prompt('paste screenshot_path')
+     window.P = (await (await import('./app.js')).supabase.from('trades')
+       .select('screenshot_path').eq('shared_with_mentor', true)
+       .not('screenshot_path', 'is', null).limit(1)).data[0].screenshot_path
      ```
+
+     The console echoes the assignment, so the path is visible before anything is done with it. If
+     that line throws, stop: there is no shared trade with a screenshot to test against, and the
+     rest of the step is meaningless. `window.P` rather than `const` so a second run does not
+     collide with the first.
+
+     **The admin must capture the path while the trade is still shared**, because once it is
+     unticked the admin cannot read the row either — `admins read shared` is the only thing giving
+     them the trade. Capture first, then have the owner untick, then sign.
 
      ```js
      await (await import('./app.js')).supabase.storage
        .from('lesson-media').createSignedUrl(window.P, 60)
      ```
-
-     The path goes through a `prompt` rather than into the middle of the code because every attempt
-     that edited the string got it wrong instead — `<A user id>` once and a literal `…` the next
-     time, each producing a failure that was mistaken for a pass. Nothing here is worth typing by
-     hand. `window.P` rather than `const` so a second run does not collide with the first.
 
      **Both** awaits on the second line are load-bearing. Without the outer one the console prints
      `Promise {<pending>}` and never the answer, which reads as a broken command rather than a

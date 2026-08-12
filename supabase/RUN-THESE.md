@@ -11,24 +11,13 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why now |
-| --- | --- | --- |
-| `trade-chart-url.sql` | Adds `chart_url` to `trades` — a link to the chart image rather than an uploaded file | The journal and the Review tab both read it. Until it is run, pasting a snapshot link fails with *column does not exist*, and the journal says so rather than failing silently |
-| `journal-media-privacy.sql` | Makes journal screenshots private for real: a RESTRICTIVE policy on `storage.objects`, plus the mentor's opt-in read | Every signed-in member can currently read every other member's trade screenshots — the narrow policy in `trades.sql` was permissive, so it added a way in rather than taking one away. Only the uuid in the filename is stopping it. Nothing moves and nothing is deleted; the Review tab keeps working through a new admin policy that mirrors `shared_with_mentor` |
+Nothing.
 
-**Run `trade-chart-url.sql` first, whichever order the rest go in.** Not because the privacy
-migration needs it — it does not — but because `readForm` in `journal.html` sends `chart_url` on
-every save, so until that column exists no trade can be saved from the form at all. That includes
-the trade-with-a-screenshot needed to test the privacy migration, and it is why
-`select ... where screenshot_path is not null` returned nothing on 12 August 2026: no screenshot has
-ever been uploaded, because no save through that form has ever succeeded.
-
-The happy side of that: the privacy fix lands before a single private screenshot exists, so the
-window it closes was never open on real data. It stops being true the moment somebody uploads one.
-
-
-Re-run `storage.sql` too if it has been applied since the journal existed — its member read policy is
-what was leaking, and it has been amended in place so the two files agree in whichever order they run.
+**One outstanding proof, which is not the same as a migration waiting.**
+`journal-media-privacy.sql` has been applied and has not been shown to work. The steps are in the
+**Untested** section of `HANDOVER.md` and they need two member accounts; until somebody runs them,
+"a member cannot read another member's screenshots" is a claim about a policy nobody has exercised.
+It is the kind of claim that fails silently and in the wrong direction.
 
 
 ### How to tell they worked, if you ever need to check again
@@ -66,6 +55,8 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Applied, not confirmed** — and the confirmation is the point of the change, so treat the hole as open until two accounts have been through the steps in `HANDOVER.md`. What *is* known as of 12 Aug: no screenshot had ever been uploaded before this ran, so the window it closes was never open on real data |
+| `trade-chart-url.sql` | 12 Aug 2026 | Adds `chart_url` to `trades`. **Confirmed by the result**: a chart renders on the Review tab, and nothing but this column can produce one. It also unblocked saving from the journal form at all — `readForm` sends the key on every save, so the form had never once saved successfully before this |
 | `prop-attempts.sql` | 12 Aug 2026 | One account, several lives. **Not independently confirmed** — an Attempts section on each card in `props.html` is the proof, and until one is seen the backfill has not been shown to have run |
 | `account-kind.sql` | 11 Aug 2026 | Adds `kind` to `prop_accounts`: prop, live or demo. Without it every account is treated as an evaluation, and a live account gets a target it can never have. **Not independently confirmed** — `props.html` reads the column, so a card offering the prop/live/demo choice is the proof |
 | `session-backfill.sql` | 11 Aug 2026 | Fills `session_kz` from `opened_at` where it was blank. **Verified 11 Aug**: 636 trades tagged, no blanks, and every window's earliest and latest sit strictly inside its own boundary. No blanks is not a fault here - it means nothing was traded outside 07:00-16:00 New York. The boundary check is the one that matters |

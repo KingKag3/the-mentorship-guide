@@ -332,23 +332,48 @@ Be honest about this list before trusting anything below it.
   policies are OR'd. Only the uuid in the filename is stopping it today. The file itself has been
   read for syntax and nothing more — no part of it has touched a database.
 
-  **What proving it takes, and it needs two accounts.** With account A a member holding at least one
-  trade with a screenshot, and account B a second member (not an admin):
+  **What proving it takes, and it needs two accounts.** Account A is a member holding at least one
+  trade with a screenshot; account B is a second member — check B's `role` is `member`, because a
+  `pending` account is refused by every policy in the project and would "pass" this test while
+  proving nothing.
 
-  1. As A, open the journal and copy the object path out of `screenshot_path` — or read it from the
-     network tab. It looks like `journal/<A's user id>/<uuid>.jpg`.
-  2. As B, signed in on the site, run in the devtools console:
-     `await supabase.storage.from('lesson-media').createSignedUrl('<that path>', 60)`.
-     **Before** the migration this returns a URL, which is the bug. **After** it must return an
-     error and no URL. A URL here means the migration did not take.
-  3. As B, confirm nothing else broke: a lesson page with an uploaded image still renders, and B's
-     own journal screenshots still appear. Both go through the same bucket.
-  4. As A, tick *share with mentor* on the trade that has the screenshot. As an admin, open the
-     Review tab and confirm the image renders. Untick it and reload: the image must disappear while
-     the rest of the card stays. That last step is the one that proves the admin read is the trades
-     table's opt-in and not a bucket-wide grant — the grant is what was removed.
+  1. **Get a real path**, from the SQL editor rather than from the site, so it is known-good before
+     anything is concluded from a failure:
 
-  Steps 2 and 4 are the test. Step 3 is what says the fix did not cost anything.
+     ```sql
+     select user_id, screenshot_path
+       from public.trades
+      where screenshot_path is not null
+      limit 5;
+     ```
+
+  2. **As B, in the browser devtools console** — on a signed-in page of the site, *not* in the SQL
+     editor, which speaks only SQL. `supabase` is an ES module export rather than a global, so it
+     has to be imported before it can be reached. One expression, re-runnable, no variable to
+     collide on a second go:
+
+     ```js
+     (await import('./app.js')).supabase.storage
+       .from('lesson-media').createSignedUrl('journal/<A user id>/<uuid>.jpg', 60)
+     ```
+
+     **Before** the migration this answers with a `signedUrl`, which is the bug, in B's hands, for
+     somebody else's screenshot. **After** it must answer `{ data: null, error: ... }`.
+
+  3. **As A, run the identical line with the identical path.** It must return a URL. This step is
+     not optional: Supabase reports an object hidden by RLS as *"Object not found"*, which is
+     indistinguishable from a typo. Without A succeeding on the same string, step 2 proves only that
+     something was spelled wrong.
+
+  4. **As B, confirm nothing else broke.** A lesson page with an uploaded image still renders, and
+     B's own journal screenshots still appear. Both go through the same bucket and the same helper.
+
+  5. **As A, tick *share with mentor*** on the trade that has the screenshot. As an admin, open the
+     Review tab: the image must render. Untick it and reload: the image must disappear while the
+     rest of the card stays. This is what proves the mentor's access is the trades table's opt-in
+     and not a bucket-wide grant — the grant being what was removed.
+
+  Steps 2, 3 and 5 are the test. Step 4 is what says the fix did not cost anything.
 - **`admins read shared`, and the whole Review tab with it** — needs a second account with
   `shared_with_mentor` ticked. The policy has existed since the original schema and has never
   returned a row. The tab, the card, the levels grid and the copy button were built against it on

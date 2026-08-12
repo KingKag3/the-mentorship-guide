@@ -615,8 +615,46 @@ and whether a planned move was taken in full.</p>
     for.</p>
     <p class="review-note">Took it early because the first candle after entry went against me and I
     did not want to give it back again.</p>
+    <p class="review-shot"><a href="https://www.tradingview.com/x/m7azfyek/">Chart on
+    TradingView</a></p>
   </article>
 </div>
+
+<h3>Chart links, not uploads</h3>
+
+<p>A member looking at a trade is already looking at a chart. <kbd>Alt</kbd>+<kbd>S</kbd> in
+TradingView turns that into a link, and the image behind it sits at a URL derived from the id, so one
+paste gets both the durable link and something renderable &mdash; no upload, no bucket, no signed
+URL, and nothing of theirs stored anywhere it could leak.</p>
+
+<p class="field-note"><code>chartLink()</code> in <code>app.js</code> accepts any http(s) URL, not
+only TradingView: somebody hosting a chart elsewhere should not be told their screenshot is the wrong
+brand. It returns an inline image only when the URL is one that can be recognised &mdash; guessing at
+a page and rendering it as an <code>img</code> produces a broken-image icon, which reads as a bug
+rather than as a link. Hotlinked images are wired to fail down to their link rather than to a
+broken icon.</p>
+
+<h3>Ask, as a row action</h3>
+
+<p>Asking for a review is a property of a trade, not a form field. Reaching it through
+<em>edit</em> means opening a form over a trade nobody typed, scrolling past twenty inputs to a
+checkbox, and saving &mdash; to set one boolean. On an imported journal of several hundred rows,
+nobody does that twice.</p>
+
+<div class="demo">
+  <div class="row-actions">
+    <button type="button" class="link-button">ask</button>
+    <button type="button" class="link-button is-on">asked</button>
+    <button type="button" class="link-button">edit</button>
+    <button type="button" class="btn-danger">delete</button>
+  </div>
+</div>
+
+<p class="field-note">The on state drops its underline and takes the bull colour, so
+<em>asked</em> reads as a fact about the trade rather than as another thing to click. It writes
+straight through and redraws before the round trip finishes: a toggle that waits on the network
+reads as broken and gets clicked again, and the second click asks for the opposite of what the first
+one did.</p>
 
 <h3>Findings</h3>
 

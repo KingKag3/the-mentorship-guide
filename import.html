@@ -293,7 +293,14 @@ const FIELDS = [
   { key: 'notes', label: 'notes',
     hint: 'Anything you wrote about the trade',
     syn: ['notes', 'note', 'comment', 'comments', 'description', 'remark', 'remarks', 'tags',
-          'journal'] }
+          'journal'] },
+
+  /* Recognised so that a journal exported from this site re-imports whole. No
+     broker sends this; it only ever comes back out of our own export. */
+  { key: 'chart_url', label: 'chart link',
+    hint: 'A link to the chart — a TradingView snapshot, or any image URL',
+    syn: ['charturl', 'chartlink', 'chart', 'snapshot', 'screenshot', 'image', 'imageurl',
+          'link'] }
 ];
 
 /* Exports that timestamp and price each side of the round turn separately —
@@ -883,6 +890,7 @@ function mapRow(row, fallbackAccount, dayFirst) {
     // column still wins.
     session_kz: text(row, 'session_kz') || sessionAt(stamp),
     notes: text(row, 'notes'),
+    chart_url: text(row, 'chart_url'),
     imported_at: new Date().toISOString(),
     checklist_done: false
   };

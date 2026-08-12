@@ -11,7 +11,9 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why now |
+| --- | --- | --- |
+| `trade-chart-url.sql` | Adds `chart_url` to `trades` — a link to the chart image rather than an uploaded file | The journal and the Review tab both read it. Until it is run, pasting a snapshot link fails with *column does not exist*, and the journal says so rather than failing silently |
 
 
 ### How to tell they worked, if you ever need to check again

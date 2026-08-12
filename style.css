@@ -1079,6 +1079,29 @@ main.landing .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .link-button:hover { color: var(--brand-600); }
 
+/* A link-button that is also a state - the journal's "ask the mentor" toggle.
+   Underline off and the accent on, so "asked" reads as a fact about the trade
+   rather than as another thing to click. */
+.link-button.is-on {
+  color: var(--bull);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.link-button.is-on:hover { color: var(--bull); text-decoration: underline; }
+
+/* Keys to press, in prose. Small enough not to shout in a field note. */
+kbd {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  color: var(--fg-strong);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------
    Callouts
    --------------------------------------------------------------- */

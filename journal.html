@@ -242,7 +242,13 @@
     <label for="notes">Notes <span class="opt">— optional</span></label>
     <textarea id="notes" rows="4" placeholder="What you saw, what you would do differently."></textarea>
 
-    <label for="shot">Screenshot <span class="opt">— optional</span></label>
+    <label for="chart_url">Chart link <span class="opt">— optional</span></label>
+    <input id="chart_url" type="url" placeholder="https://www.tradingview.com/x/…">
+    <p class="field-note">In TradingView press <kbd>Alt</kbd>+<kbd>S</kbd> and paste what it copies.
+    That is the whole thing &mdash; nothing is uploaded, and the chart shows up on the trade. Any
+    other image link works too.</p>
+
+    <label for="shot">Screenshot file <span class="opt">— optional, if you would rather upload</span></label>
     <input id="shot" type="file" accept="image/*">
     <p class="field-note" id="shot-note"></p>
 
@@ -250,9 +256,10 @@
       <input id="shared_with_mentor" type="checkbox">
       <span>Ask the mentor to look at this one</span>
     </label>
-    <p class="field-note">Sends this trade &mdash; its levels, your tags, your notes and the
-    screenshot if you attached one &mdash; to the mentor&rsquo;s review list. Nothing else in your
-    journal becomes visible, and unticking it takes it back.</p>
+    <p class="field-note">Sends this trade &mdash; its levels, your tags, your notes and the chart
+    if you linked one &mdash; to the mentor&rsquo;s review list. Nothing else in your journal
+    becomes visible, and unticking it takes it back. You can also ask straight from the list below,
+    without opening this form.</p>
 
     <div class="row-actions">
       <button class="btn-primary" type="submit" id="save-btn">Save trade</button>
@@ -269,6 +276,8 @@
        permanently is a destructive control that eventually gets clicked. -->
   <div class="bulk-bar" id="bulk-bar" hidden>
     <span id="bulk-count"></span>
+    <button type="button" class="link-button" id="bulk-share">Ask for review</button>
+    <button type="button" class="link-button" id="bulk-unshare">Stop asking</button>
     <button type="button" class="btn-danger" id="bulk-delete">Delete selected</button>
     <button type="button" class="link-button" id="bulk-clear">Clear selection</button>
   </div>
@@ -357,7 +366,7 @@ import {
   supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
-  toCsv, downloadText, stampedName, SESSIONS,
+  toCsv, downloadText, stampedName, SESSIONS, chartLink,
   pageSize, setPageSize, pageSlice, renderPager } from './app.js';
 
 renderAccountStrip();
@@ -610,6 +619,7 @@ function readForm(derived, shotPath) {
     outcome: txt('outcome'),
     management: txt('management'),
     notes: txt('notes'),
+    chart_url: txt('chart_url'),
     shared_with_mentor: $('shared_with_mentor').checked
   };
 
@@ -894,6 +904,20 @@ function resultDetail(r) {
   return out;
 }
 
+/* The chart, if there is one.
+ *
+ * A pasted link beats an uploaded file: it is the chart itself rather than a
+ * copy of one, it survives without a bucket, and it costs a keystroke. Both are
+ * shown when both exist, because an old trade may have the upload and a new one
+ * the link, and neither should disappear because the other arrived. */
+function chartCell(r, shotUrl) {
+  const link = chartLink(r.chart_url);
+  const bits = [];
+  if (link) bits.push('<a href="' + escapeHtml(link.href) + '" target="_blank" rel="noopener">chart</a>');
+  if (shotUrl) bits.push('<a href="' + escapeHtml(shotUrl) + '" target="_blank" rel="noopener">shot</a>');
+  return bits.length ? '<br>' + bits.join(' &middot; ') : '';
+}
+
 function renderRow(r, shotUrl) {
   const when = new Date(r.opened_at);
   const result = (r.r_multiple === null || r.r_multiple === undefined)
@@ -920,10 +944,19 @@ function renderRow(r, shotUrl) {
     '<td>' + escapeHtml(r.pd_array || '—') +
       (r.liquidity ? '<br><span class="acct-muted">after ' + escapeHtml(r.liquidity) + '</span>' : '') +
       '</td>' +
-    '<td>' + result + resultDetail(r) +
-      (shotUrl ? '<br><a href="' + escapeHtml(shotUrl) + '" target="_blank" rel="noopener">shot</a>' : '') +
-      '</td>' +
+    '<td>' + result + resultDetail(r) + chartCell(r, shotUrl) + '</td>' +
     '<td class="row-actions">' +
+      // Asking is a row action, not a form field.
+      //
+      // It was only reachable through edit, which for an imported journal means
+      // opening a form over a trade nobody typed, scrolling past twenty inputs
+      // to a checkbox, and saving - to set one boolean. Nobody does that twice.
+      '<button class="link-button' + (r.shared_with_mentor ? ' is-on' : '') + '" ' +
+        'data-share="' + r.id + '" aria-pressed="' + (r.shared_with_mentor ? 'true' : 'false') +
+        '" title="' + (r.shared_with_mentor
+          ? 'The mentor can see this trade. Click to take it back.'
+          : 'Send this trade to the mentor to look at.') + '">' +
+        (r.shared_with_mentor ? 'asked' : 'ask') + '</button>' +
       '<button class="link-button" data-edit="' + r.id + '">edit</button>' +
       '<button class="btn-danger" data-del="' + r.id + '">delete</button>' +
       '</td>' +
@@ -945,6 +978,41 @@ $('list').addEventListener('change', (e) => {
 });
 
 $('bulk-clear').addEventListener('click', () => { picked.clear(); syncBulk(); });
+
+/* Asking about a batch.
+ *
+ * An imported journal arrives hundreds of rows at a time, and the trades worth
+ * a second opinion are usually a run of them - one morning, one model, one bad
+ * week. Ticking six and pressing once is the difference between this being used
+ * and not.
+ *
+ * No confirmation on the way in: it shows the mentor six trades and is undone by
+ * the same control. Deleting gets a confirm because deleting is not. */
+async function bulkShare(want) {
+  if (!picked.size) return;
+
+  const btn = $(want ? 'bulk-share' : 'bulk-unshare');
+  btn.disabled = true;
+  setStatus('#status', (want ? 'Sending ' : 'Withdrawing ') + picked.size + '...', 'info');
+
+  const { error } = await supabase.from('trades')
+    .update({ shared_with_mentor: want })
+    .in('id', [...picked]);
+
+  btn.disabled = false;
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+
+  const n = picked.size;
+  for (const r of rows) if (picked.has(String(r.id))) r.shared_with_mentor = want;
+  picked.clear();
+  drawPage();
+
+  setStatus('#status', n + ' trade' + (n === 1 ? '' : 's') +
+    (want ? ' sent to the mentor.' : ' taken back.'), 'ok');
+}
+
+$('bulk-share').addEventListener('click', () => bulkShare(true));
+$('bulk-unshare').addEventListener('click', () => bulkShare(false));
 
 $('bulk-delete').addEventListener('click', async () => {
   if (!picked.size) return;
@@ -1000,7 +1068,7 @@ $('export-journal').addEventListener('click', async () => {
   const cols = ['opened_at', 'closed_at', 'account', 'symbol', 'direction', 'contracts',
                 'entry', 'stop', 'target', 'exit_price', 'points', 'r_multiple',
                 'net_pnl', 'fees', 'outcome', 'model', 'session_kz', 'pd_array',
-                'liquidity', 'bias', 'agreed_with_bias', 'checklist_done',
+                'liquidity', 'bias', 'agreed_with_bias', 'checklist_done', 'chart_url',
                 'management', 'notes', 'external_id', 'created_at'];
 
   downloadText(stampedName('trade-karma-journal'), toCsv(data, cols));
@@ -1037,6 +1105,36 @@ $('empty-journal').addEventListener('click', async () => {
 $('list').addEventListener('click', async (e) => {
   const editId = e.target.getAttribute && e.target.getAttribute('data-edit');
   const delId = e.target.getAttribute && e.target.getAttribute('data-del');
+  const shareId = e.target.getAttribute && e.target.getAttribute('data-share');
+
+  if (shareId) {
+    const r = rows.find((x) => String(x.id) === shareId);
+    if (!r) return;
+
+    const want = !r.shared_with_mentor;
+
+    // Drawn before the round trip and put back if it fails. A toggle that waits
+    // on the network reads as broken and gets clicked again, and the second
+    // click then asks for the opposite of what the first one did.
+    r.shared_with_mentor = want;
+    drawPage();
+
+    const { error } = await supabase.from('trades')
+      .update({ shared_with_mentor: want })
+      .eq('id', shareId);
+
+    if (error) {
+      r.shared_with_mentor = !want;
+      drawPage();
+      setStatus('#status', error.message, 'error');
+      return;
+    }
+
+    setStatus('#status', want
+      ? 'Sent to the mentor. Add a chart link on this trade if you have one.'
+      : 'Taken back. The mentor can no longer see it.', 'ok');
+    return;
+  }
 
   if (editId) {
     const r = rows.find((x) => String(x.id) === editId);
@@ -1117,6 +1215,7 @@ function fillForm(r) {
   $('outcome').value = r.outcome || '';
   $('management').value = r.management || '';
   $('notes').value = r.notes || '';
+  $('chart_url').value = r.chart_url || '';
   $('shared_with_mentor').checked = !!r.shared_with_mentor;
 
   $('save-btn').textContent = 'Update trade';

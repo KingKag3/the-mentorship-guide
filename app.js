@@ -576,6 +576,9 @@ const MIGRATIONS = [
   // Listed above the looser patterns: "prop_accounts" contains "account",
   // which would otherwise send the reader to trade-accounts.sql.
   [/prop_accounts|prop_presets/i,        'supabase/prop-accounts.sql'],
+  [/chart_url/i,                         'supabase/trade-chart-url.sql'],
+  [/closed_at/i,                         'supabase/trade-closed-at.sql'],
+  [/prop_attempts/i,                     'supabase/prop-attempts.sql'],
   [/risk_settings/i,                     'supabase/risk-settings.sql'],
   [/trade_exits/i,                       'supabase/trade-exits.sql'],
   [/(account|net_pnl)/i,                 'supabase/trade-accounts.sql'],
@@ -1193,6 +1196,60 @@ export async function signedUrlMap(paths, seconds = SIGN_SECONDS) {
     if (row.signedUrl && !row.error) map.set(row.path, row.signedUrl);
   }
   return map;
+}
+
+/* ---------------------------- charts, by link -----------------------------
+ *
+ * A member looking at a trade is already looking at a chart. Alt+S in
+ * TradingView turns that into a link, and the image behind the link is at a
+ * URL derived from the id - first character of the id as the folder:
+ *
+ *     https://www.tradingview.com/x/m7azfyek/
+ *     https://s3.tradingview.com/snapshots/m/m7azfyek.png
+ *
+ * So one paste gets both the durable link and something renderable, with no
+ * upload, no bucket and nothing of theirs stored anywhere.
+ *
+ * Any https link is accepted, not only TradingView. Somebody hosting a chart
+ * elsewhere should not be told their screenshot is the wrong brand; they get
+ * the link, and an inline image too if the URL is one we can recognise.
+ */
+
+const TV_SNAPSHOT = /^https?:\/\/(?:[a-z-]+\.)?tradingview\.com\/x\/([A-Za-z0-9]+)\/?/;
+const IMAGE_FILE = /\.(png|jpe?g|gif|webp|avif)(\?|#|$)/i;
+
+/**
+ * Split a pasted chart link into what to link to and what to show.
+ *
+ * Returns null for anything that is not an http(s) URL, so a half-typed
+ * address renders as nothing rather than as a broken image.
+ */
+export function chartLink(raw) {
+  const url = String(raw || '').trim();
+  if (!url) return null;
+
+  let parsed;
+  try { parsed = new URL(url); } catch (err) { return null; }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+
+  const tv = url.match(TV_SNAPSHOT);
+  if (tv) {
+    const id = tv[1];
+    return {
+      href: 'https://www.tradingview.com/x/' + id + '/',
+      image: 'https://s3.tradingview.com/snapshots/' + id[0].toLowerCase() + '/' + id + '.png',
+      host: 'TradingView'
+    };
+  }
+
+  // Anywhere else: linkable always, previewable only when the URL is plainly
+  // an image. Guessing at a page and rendering it as an <img> produces a
+  // broken-image icon, which reads as a bug rather than as a link.
+  return {
+    href: url,
+    image: IMAGE_FILE.test(parsed.pathname) ? url : null,
+    host: parsed.hostname.replace(/^www\./, '')
+  };
 }
 
 /**

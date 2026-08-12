@@ -429,7 +429,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
          hydrateStorageImages, humanSize, discordToHtml, dataUrlToFile,
          looksLikeDiscordMarkup, getSetting, setSetting,
-         signedUrlMap, tradeValue, money, toNumber, dbError,
+         signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
@@ -534,7 +534,7 @@ async function loadShared() {
     .select('id, user_id, opened_at, closed_at, symbol, direction, contracts, ' +
             'entry, stop, target, exit_price, points, fees, net_pnl, r_multiple, outcome, ' +
             'model, session_kz, pd_array, liquidity, bias, agreed_with_bias, ' +
-            'checklist_done, management, notes, screenshot_path')
+            'checklist_done, management, notes, screenshot_path, chart_url')
     .eq('shared_with_mentor', true)
     .order('opened_at', { ascending: false })
     .limit(500);
@@ -604,6 +604,49 @@ function reviewTags(r) {
   return tags.map(([open, text]) => open + escapeHtml(String(text)) + '</span>').join('');
 }
 
+/* The chart, by whichever route it arrived.
+ *
+ * A pasted link wins over an uploaded file when both exist: it is the chart
+ * rather than a copy of one, it does not expire, and it costs the member a
+ * keystroke instead of a save-find-upload. The upload stays supported because
+ * older trades have one and because not everybody uses TradingView.
+ *
+ * The image is hotlinked from somebody else's CDN, so it is wired for failure
+ * in renderShared: a hotlink that stops working degrades to the link it came
+ * from rather than to a broken-image icon.
+ */
+function reviewChart(r, shotUrl) {
+  const link = chartLink(r.chart_url);
+
+  if (link && link.image) {
+    return '<p class="review-shot">' +
+      '<a href="' + escapeHtml(link.href) + '" target="_blank" rel="noopener">' +
+      '<img src="' + escapeHtml(link.image) + '" loading="lazy" ' +
+      'alt="Chart for this trade, from ' + escapeHtml(link.host) + '"></a></p>';
+  }
+
+  if (link) {
+    return '<p class="review-shot"><a href="' + escapeHtml(link.href) +
+      '" target="_blank" rel="noopener">Chart on ' + escapeHtml(link.host) + '</a></p>';
+  }
+
+  if (shotUrl) {
+    return '<p class="review-shot">' +
+      '<a href="' + escapeHtml(shotUrl) + '" target="_blank" rel="noopener">' +
+      '<img src="' + escapeHtml(shotUrl) + '" alt="Chart screenshot attached to this trade" ' +
+      'loading="lazy"></a></p>';
+  }
+
+  if (r.screenshot_path) {
+    return '<p class="media-missing">A screenshot is attached but could not be loaded.</p>';
+  }
+
+  // Worth saying rather than leaving blank. Without a chart the card is a set
+  // of levels, and the member is one keystroke from fixing that.
+  return '<p class="field-note">No chart on this one. Alt+S in TradingView and pasting the link ' +
+    'onto the trade is all it takes.</p>';
+}
+
 function reviewCard(r) {
   const when = new Date(r.opened_at);
   const rm = toNumber(r.r_multiple);
@@ -651,13 +694,7 @@ function reviewCard(r) {
     (r.management ? '<p class="review-note"><b>Managed:</b> ' + escapeHtml(r.management) + '</p>' : '') +
     (r.notes ? '<p class="review-note">' + escapeHtml(r.notes) + '</p>' : '') +
 
-    (url
-      ? '<p class="review-shot"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
-        '<img src="' + escapeHtml(url) + '" alt="Chart screenshot attached to this trade" ' +
-        'loading="lazy"></a></p>'
-      : (r.screenshot_path
-          ? '<p class="media-missing">A screenshot is attached but could not be loaded.</p>'
-          : '')) +
+    reviewChart(r, url) +
   '</article>';
 }
 
@@ -694,6 +731,17 @@ async function renderShared() {
     ' from ' + people + (people === 1 ? ' member' : ' members');
 
   list.innerHTML = state.rows.map(reviewCard).join('');
+
+  // Hotlinked chart images can 404 without warning. Say so where the image was,
+  // and leave the link - which is the durable half - alone.
+  for (const img of list.querySelectorAll('.review-shot img')) {
+    img.addEventListener('error', () => {
+      const said = document.createElement('span');
+      said.className = 'media-missing';
+      said.textContent = 'The chart image would not load. The link still works.';
+      img.replaceWith(said);
+    }, { once: true });
+  }
 
   const onPage = (next) => {
     if (next.per) { reviewPer = next.per; setPageSize('review', reviewPer); }

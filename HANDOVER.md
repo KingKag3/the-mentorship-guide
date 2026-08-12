@@ -331,6 +331,15 @@ Be honest about this list before trusting anything below it.
   returned a row. The tab, the card, the levels grid and the copy button were built against it on
   12 August 2026 and verified only as markup, in `design.html`. Until a second account has shared a
   trade, "the mentor can see it" is a claim about a policy nobody has exercised.
+- **`chart_url` and everything hanging off it.** `supabase/trade-chart-url.sql` has not been run, so
+  the column does not exist yet and saving a trade will fail until it does — the journal names the
+  file rather than failing silently, because `migrationHint` now knows it. What *was* verified on
+  12 August 2026: `chartLink()` against fifteen inputs including `javascript:` and `data:` URLs, both
+  rejected; and the derived snapshot URL loading a real 894×579 image from TradingView's CDN, which
+  is the mechanism the whole feature rests on.
+- **The row-level ask toggle and the bulk share buttons.** Written, parsed, and never clicked against
+  a database. Both write `shared_with_mentor` directly and redraw before the round trip returns, so
+  the failure worth watching for is a toggle that looks like it worked and did not.
 - **The pre-trade checklist end to end.** The roll-up logic was run in a browser across all five
   states; the module load, the save-time confirmation and the value reaching the database were not.
 - **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at

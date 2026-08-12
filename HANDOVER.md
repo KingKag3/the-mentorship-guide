@@ -357,15 +357,29 @@ Be honest about this list before trusting anything below it.
      collide on a second go:
 
      ```js
-     await (await import('./app.js')).supabase.storage
-       .from('lesson-media').createSignedUrl('PASTE THE PATH HERE', 60)
+     window.P = prompt('paste screenshot_path')
      ```
 
-     **Both** awaits are load-bearing. Without the outer one the console prints
-     `Promise {<pending>}` and never the answer, which looks like a broken command rather than a
-     result. And the path is a real pasted string: leaving an angle-bracket placeholder in makes an
-     invalid object key, and the 400 that comes back is the API rejecting the key rather than a
-     policy rejecting the caller.
+     ```js
+     await (await import('./app.js')).supabase.storage
+       .from('lesson-media').createSignedUrl(window.P, 60)
+     ```
+
+     The path goes through a `prompt` rather than into the middle of the code because every attempt
+     that edited the string got it wrong instead — `<A user id>` once and a literal `…` the next
+     time, each producing a failure that was mistaken for a pass. Nothing here is worth typing by
+     hand. `window.P` rather than `const` so a second run does not collide with the first.
+
+     **Both** awaits on the second line are load-bearing. Without the outer one the console prints
+     `Promise {<pending>}` and never the answer, which reads as a broken command rather than a
+     result.
+
+     **Read the error, not just the presence of one.** They mean opposite things:
+
+     - `Invalid key: …` — the path was malformed and never reached a policy. **The test did not
+       run.** Fix the string and go again.
+     - `Object not found` — this is the pass. Supabase reports an object hidden by RLS exactly as
+       it reports one that does not exist, which is why step 3 below is not optional.
 
      **Before** the migration this answers with a `signedUrl`, which is the bug, in B's hands, for
      somebody else's screenshot. **After** it must answer `{ data: null, error: ... }`.

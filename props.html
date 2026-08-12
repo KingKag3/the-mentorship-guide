@@ -262,7 +262,7 @@ function currentAttempt(account) {
   return all.find((a) => a.outcome === 'active') || all[all.length - 1] || null;
 }
 
-function progress(account, cfg, attemptRow) {
+function progress(account, cfg, attemptRow, dd) {
   const win = attemptWindow(account, attemptRow, cfg);
   const mine = trades.filter((t) => {
     if ((t.account || '') !== account) return false;
@@ -275,7 +275,11 @@ function progress(account, cfg, attemptRow) {
   let total = 0;
   let peak = 0;
   let worstDip = 0;
+  let worstOn = null;      // the day the dip was deepest
+  let breachedOn = null;   // the first day it passed the floor, if it ever did
   let counted = 0;
+
+  const floor = Number(dd) || 0;
 
   for (const t of mine) {
     const d = dollars(t);
@@ -284,11 +288,18 @@ function progress(account, cfg, attemptRow) {
     total += d;
     if (total > peak) peak = total;
     const dip = peak - total;
-    if (dip > worstDip) worstDip = dip;
+    if (dip > worstDip) {
+      worstDip = dip;
+      worstOn = localDay(t.opened_at);
+    }
+    // The first crossing, not the deepest. An attempt ends the moment the floor
+    // is touched; everything after it happened on an account the firm had
+    // already closed.
+    if (floor > 0 && dip >= floor && !breachedOn) breachedOn = localDay(t.opened_at);
   }
 
   const days = new Set(mine.map((t) => localDay(t.opened_at)).filter(Boolean)).size;
-  return { total, worstDip, days, counted, trades: mine.length };
+  return { total, worstDip, worstOn, breachedOn, days, counted, trades: mine.length };
 }
 
 /* ------------------------------- rendering ------------------------------- */
@@ -340,6 +351,39 @@ function attemptsBlock(name, live) {
   // infers. The journal holds closed trades; a trailing floor follows
   // unrealised equity, so a page like this can confirm you are dead and can
   // never tell you that you are safe.
+  // THE ONE THING THIS PAGE MAY ASSERT.
+  //
+  // It can never tell somebody they are safe - the floor follows unrealised
+  // equity and this only sees closed trades. But closed trades alone crossing
+  // the floor is not ambiguous: the firm shut the account at that moment, and
+  // everything dated after it belongs to a life this record does not have.
+  //
+  // Which is exactly what an import produces. Blow it, reset, trade on, import:
+  // the new rows carry the same account name and later dates, the attempt is
+  // still marked active with no end, and they fold into the dead one. Nothing
+  // looks wrong. The progress bar just quietly describes two accounts at once.
+  const cfgNow = saved.get(name) || {};
+  const floorNow = Number((live && live.drawdown) ?? cfgNow.drawdown) || 0;
+  const livePg = live && live.outcome === 'active'
+    ? progress(name, cfgNow, live, floorNow) : null;
+
+  const breach = livePg && livePg.breachedOn
+    ? '<div class="callout risk"><span class="callout-label">This attempt cannot still be running</span>' +
+      '<p>Closed trades alone put it ' + money(livePg.worstDip) + ' below its high-water mark, ' +
+      'against a floor of ' + money(floorNow) + '. It first crossed on <strong>' +
+      escapeHtml(livePg.breachedOn) + '</strong>, and the firm would have closed it that day.</p>' +
+      '<p>Anything dated after that is a different life. Leaving it here folds two accounts into ' +
+      'one progress bar, which is the one number on this page nobody would think to doubt.</p>' +
+      '<div class="row-actions">' +
+        '<button type="button" class="btn-danger" data-split="' + escapeHtml(name) + '" ' +
+          'data-on="' + escapeHtml(livePg.breachedOn) + '">End it on ' +
+          escapeHtml(livePg.breachedOn) + ' and start the next</button>' +
+      '</div>' +
+      '<p class="stat-note">Ends this attempt on the day it broke and opens the next one the day ' +
+      'after, so every trade lands in the life it was actually taken in. Nothing is deleted.</p>' +
+      '</div>'
+    : '';
+
   const controls = live && live.outcome === 'active'
     ? '<div class="row-actions">' +
         '<select class="role-select" data-end-outcome="' + escapeHtml(name) + '">' +
@@ -359,7 +403,8 @@ function attemptsBlock(name, live) {
       '<p class="stat-note">Begins today. Everything from here counts toward the new attempt, and ' +
       'everything before it stays with the old one.</p>';
 
-  return '<details' + (all.length > 1 ? ' open' : '') + '>' +
+  return breach +
+    '<details' + (all.length > 1 || breach ? ' open' : '') + '>' +
     '<summary>Attempts (' + all.length + ')</summary>' +
     '<div class="bars">' + rows + '</div>' + controls +
     (all.length > 1 ? sameWayTwice(name, all) : '') +
@@ -412,7 +457,7 @@ function card(name) {
   const kind = cfg.kind || 'prop';
   const isProp = kind === 'prop';
   const live = currentAttempt(name);
-  const p = progress(name, cfg, live);
+  const p = progress(name, cfg, live, Number((live && live.drawdown) ?? cfg.drawdown) || 0);
 
   // An attempt may carry its own terms, because firms change them between
   // resets and an old attempt should keep the ones it was judged against.
@@ -748,6 +793,59 @@ async function startAttempt(name, btn) {
   render();
 }
 
+/**
+ * Close the attempt on the day it broke, and open the next one the day after.
+ *
+ * Two writes rather than one, and the order matters: the partial unique index
+ * allows a single active attempt per account, so the old one has to stop being
+ * active before the new one can start. Doing it the other way round fails on
+ * the constraint, which is the constraint working.
+ */
+async function splitAttempt(name, on, btn) {
+  const live = currentAttempt(name);
+  if (!live || live.outcome !== 'active' || !on) return;
+
+  const next = new Date(on + 'T00:00:00');
+  next.setDate(next.getDate() + 1);
+  const nextDay = next.toISOString().slice(0, 10);
+
+  if (!confirm('End attempt ' + live.attempt + ' on ' + on + ' and start attempt ' +
+               (live.attempt + 1) + ' on ' + nextDay + '?
+
+No trade is changed or deleted. ' +
+               'They simply stop being counted as one run.')) return;
+
+  btn.disabled = true;
+
+  const ended = await supabase.from('prop_attempts')
+    .update({ outcome: 'failed', ended_on: on })
+    .eq('id', live.id);
+
+  if (ended.error) { btn.disabled = false; alert(ended.error.message); return; }
+  live.outcome = 'failed';
+  live.ended_on = on;
+
+  const started = await supabase.from('prop_attempts')
+    .insert({ account: name, attempt: live.attempt + 1, started_on: nextDay, outcome: 'active' })
+    .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
+    .single();
+
+  btn.disabled = false;
+  if (started.error) {
+    // The close landed and the open did not. Say so plainly rather than
+    // leaving somebody to wonder why there is no live attempt.
+    alert('Attempt ' + live.attempt + ' was closed, but the next one could not be started: ' +
+          started.error.message + '
+
+Use "Start attempt" below.');
+    render();
+    return;
+  }
+
+  attemptsByAccount.get(name).push(started.data);
+  render();
+}
+
 function render() {
   if (!names.length) {
     mount.innerHTML = '<div class="callout"><span class="callout-label">No accounts yet</span>' +
@@ -764,6 +862,10 @@ function render() {
 
   for (const b of mount.querySelectorAll('[data-end]')) {
     b.addEventListener('click', () => endAttempt(b.getAttribute('data-end'), b));
+  }
+  for (const b of mount.querySelectorAll('[data-split]')) {
+    b.addEventListener('click', () =>
+      splitAttempt(b.getAttribute('data-split'), b.getAttribute('data-on'), b));
   }
   for (const b of mount.querySelectorAll('[data-start]')) {
     b.addEventListener('click', () => startAttempt(b.getAttribute('data-start'), b));

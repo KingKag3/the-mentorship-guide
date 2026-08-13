@@ -699,6 +699,32 @@ a convention and a convention is no use to a screen reader.</p>
 <p class="field-note">The member&rsquo;s box appears only while the trade is shared, because that is
 exactly what the insert policy requires. An input Postgres would refuse is a lie told in HTML.</p>
 
+<h3>The reply editor, and why the database holds text</h3>
+
+<p><code>editor.js</code> is WYSIWYG on screen &mdash; bold is bold while you type &mdash; and its
+DOM is never saved. On send it is walked and turned into Markdown, keeping bold, italic, inline code,
+links, bullet and numbered lists and block quotes, and <strong>silently dropping everything
+else</strong>. On render that Markdown becomes HTML written by the same file, where every tag is one
+it emitted and every character a person typed has been through <code>escapeHtml</code>.</p>
+
+<p><strong>The reason is which way the trust runs.</strong> Lesson bodies are written by an admin and
+read by members; a reply is written by a <em>member</em> and read inside the admin page &mdash; the
+one session holding every grant on the site. Storing a member&rsquo;s HTML would put a stored XSS in
+front of the account that can change roles. Storing text means nothing in the table can ever become
+executable, whatever a future render forgets.</p>
+
+<p class="field-note">It is a whitelist by construction rather than a sanitiser. An unrecognised node
+contributes its text and nothing else, so there is no &ldquo;did we remember to strip that&rdquo;
+question &mdash; a pasted table, a styled span and a <code>script</code> tag all reduce to the words
+they contained. Link schemes are checked as <code>http</code> or <code>https</code> on the way in
+<em>and</em> on the way out, because a row could predate the check.</p>
+
+<p class="field-note">Colours, fonts and sizes are deliberately not offered. They would let one
+person&rsquo;s message override the page&rsquo;s own type scale, which is the thing the
+one-stylesheet rule exists to prevent. The rules below are written against
+<code>.rte-input</code> and <code>.reply-prose</code> together, so what is on screen while typing and
+what is on screen after saving cannot drift apart.</p>
+
 <div class="demo">
   <table>
     <tbody>
@@ -720,7 +746,18 @@ exactly what the insert policy requires. An input Postgres would refuse is a lie
               <p>The entry is fine. What cost you is the stop.</p>
             </div>
             <div class="reply-say">
-              <textarea rows="2" placeholder="Answer back"></textarea>
+              <div class="rte">
+                <div class="rte-tools" role="toolbar" aria-label="Formatting">
+                  <button type="button" class="rte-tool">B</button>
+                  <button type="button" class="rte-tool"><em>I</em></button>
+                  <button type="button" class="rte-tool">&lt;&gt;</button>
+                  <button type="button" class="rte-tool">🔗</button>
+                  <button type="button" class="rte-tool">&bull;</button>
+                  <button type="button" class="rte-tool">1.</button>
+                  <button type="button" class="rte-tool">&#10077;</button>
+                </div>
+                <div class="rte-input is-empty" data-placeholder="Answer back"></div>
+              </div>
               <p class="reply-actions">
                 <button type="button" class="secondary">Send</button>
                 <span class="field-note">Goes to the mentor and puts this trade back at the top of

@@ -381,6 +381,7 @@ import {
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager } from './app.js';
+import { mountEditor, mdToHtml } from './editor.js';
 
 renderAccountStrip();
 // The session list is rendered rather than written out, so the journal, the
@@ -958,6 +959,10 @@ function drawPage() {
   $('empty-row').hidden = false;
   $('reset-view').hidden = account === 'all' && sortKey === 'opened_at' && !sortAsc;
   syncBulk();
+
+  // After the table is in the document, never before: the editors attach to
+  // elements that only exist once innerHTML has been set.
+  mountSayEditors();
 }
 
 /* --- the controls -------------------------------------------------------- */
@@ -1173,7 +1178,11 @@ function replyRow(r) {
     return '<div class="reply' + (mine ? ' reply--mine' : '') + '">' +
       '<p class="reply-when">' + (mine ? 'You' : 'Mentor') + ' &mdash; ' +
         escapeHtml(new Date(v.created_at).toLocaleString()) + '</p>' +
-      '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
+      // mdToHtml, not escapeHtml. Every tag it emits is one editor.js wrote and
+      // every character of v.body goes through escapeHtml on the way - see the
+      // header of that file for why storing the HTML instead would put a stored
+      // XSS in the admin page, which is the one holding every grant.
+      '<div class="reply-prose">' + mdToHtml(v.body) + '</div>' +
     '</div>';
   }).join('');
 
@@ -1186,12 +1195,12 @@ function replyRow(r) {
       'are unsure about.</p>'
     : '';
 
+  // The editor is mounted after the table is in the document rather than
+  // written as markup here, because it needs a real element to attach to. This
+  // leaves the socket; mountSayEditors fills it.
   const box = r.shared_with_mentor
     ? '<div class="reply-say">' +
-        '<label class="sr-only" for="say-' + r.id + '">Reply about this trade</label>' +
-        '<textarea id="say-' + r.id + '" rows="2" data-say-for="' + r.id + '" ' +
-          'placeholder="' + (said.length ? 'Answer back' : 'Ask something about this trade') +
-          '"></textarea>' +
+        '<div data-say-for="' + r.id + '" data-say-empty="' + (said.length ? '0' : '1') + '"></div>' +
         '<p class="reply-actions">' +
           '<button type="button" class="secondary" data-send-say="' + r.id + '">Send</button>' +
           '<span class="field-note">Goes to the mentor and puts this trade back ' +
@@ -1203,6 +1212,33 @@ function replyRow(r) {
   return '<tr class="reply-tr"><td></td><td colspan="7">' +
     '<div class="reply-box">' + thread + empty + box + '</div>' +
     '</td></tr>';
+}
+
+/* One editor per open reply box, rebuilt whenever the table is.
+ *
+ * Held in a Map keyed by trade id so sendSay can ask for the text without
+ * going back through the DOM. The Map is cleared first: drawPage replaces the
+ * table's innerHTML, so every editor in it is already detached and keeping the
+ * old entries would mean saving from an element no longer on the page.
+ *
+ * A half-written draft is lost when the table redraws. That was true of the
+ * textarea this replaces and is not made worse here; the redraws are a send, a
+ * share toggle and a page change, and the first of those clears the box anyway.
+ */
+const sayEditors = new Map();
+
+function mountSayEditors() {
+  sayEditors.clear();
+  for (const host of $('list').querySelectorAll('[data-say-for]')) {
+    const id = host.getAttribute('data-say-for');
+    sayEditors.set(id, mountEditor(host, {
+      id: 'say-' + id,
+      label: 'Reply about this trade',
+      placeholder: host.getAttribute('data-say-empty') === '1'
+        ? 'Ask something about this trade'
+        : 'Answer back'
+    }));
+  }
 }
 
 /* Saying something back.
@@ -1217,13 +1253,15 @@ function replyRow(r) {
  * text, and nothing else on screen can have changed.
  */
 async function sendSay(btn) {
-  const id = Number(btn.getAttribute('data-send-say'));
-  const box = document.getElementById('say-' + id);
-  const body = (box && box.value || '').trim();
+  const key = btn.getAttribute('data-send-say');
+  const id = Number(key);
+  const editor = sayEditors.get(key);
+  const body = editor ? editor.getMarkdown() : '';
 
-  if (!body) { if (box) box.focus(); return; }
+  if (!body) { if (editor) editor.focus(); return; }
 
   btn.disabled = true;
+  editor.setDisabled(true);
   const was = btn.textContent;
   btn.textContent = 'Sending…';
 
@@ -1231,6 +1269,10 @@ async function sendSay(btn) {
 
   btn.disabled = false;
   btn.textContent = was;
+  // Re-enabled before the error branch, not after it. A failed send has to
+  // leave the words where they were typed - retyping a paragraph because the
+  // migration was missing is the sort of thing that stops somebody using it.
+  editor.setDisabled(false);
 
   if (error) {
     // Named rather than swallowed. The failure that will actually happen here
@@ -1250,7 +1292,9 @@ async function sendSay(btn) {
     return;
   }
 
-  if (box) box.value = '';
+  // drawPage rebuilds every editor from scratch, so clearing this one is
+  // belt and braces - it matters only if the reload below fails.
+  editor.clear();
   await loadReplies(rows);
   drawPage();
 }

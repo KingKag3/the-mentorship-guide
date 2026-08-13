@@ -11,13 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `trade-reviews-thread.sql` | Three policies letting a member write on their own shared trade | Without it the Send button under a trade fails with a row-level security violation. No schema change — `trade_reviews` already has everything the thread needs |
-
-**Until it is run, the journal's reply box will refuse every send.** The page names that case
-specifically rather than showing the raw Postgres wording, because *"new row violates row-level
-security policy"* reads like a bug rather than like a migration nobody has applied.
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
@@ -67,6 +61,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `trade-reviews-thread.sql` | 13 Aug 2026 | Three policies, no schema change, letting a member write on their own trade while it is shared. **Not independently confirmed** — the proof is a Send under a shared trade in the journal that does not report a row-level security violation. The refusals matter more than the success and cannot be checked from the SQL editor at all, because RLS does not apply to the table owner: see the four things to watch in `HANDOVER.md` |
 | `trade-reviews.sql` | 12 Aug 2026 | The mentor's answer to a shared trade, in its own table. **Confirmed from outside the same day**: signed out, with the publishable key only, `trade_reviews` answers `200 []` — the same signature as `trades`, which is a table that exists behind a policy that holds. A table that does not exist answers `404 PGRST205` and names itself, which is exactly the error the reply box was reporting beforehand. What that does *not* prove is the policies: an admin writing a reply and the member reading it back needs two signed-in sessions, and is in the **Untested** section of `HANDOVER.md` |
 | `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Verified by attack the same day**: one admin, one path string, minutes apart — a `signedUrl` while the trade was shared, `Object not found` once the member unticked it. Nothing changed in between but their checkbox. `HANDOVER.md` has the evidence and the five wrong-looking errors that fooled four earlier attempts |
 | `trade-chart-url.sql` | 12 Aug 2026 | Adds `chart_url` to `trades`. **Confirmed by the result**: a chart renders on the Review tab, and nothing but this column can produce one. It also unblocked saving from the journal form at all — `readForm` sends the key on every save, so the form had never once saved successfully before this |

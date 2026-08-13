@@ -354,10 +354,8 @@ Be honest about this list before trusting anything below it.
   absent one, a missing `updated_at`, and a two-reply list proving the newest-first order is what
   gets compared. All seven behave as intended.
 
-- **`supabase/trade-reviews-thread.sql` — written 13 August 2026, never run.** Three policies, no
-  schema change, letting a member write on their own trade while it is shared. Until it is applied
-  the Send button under a trade fails every time; the journal names that case rather than showing
-  the raw *"new row violates row-level security policy"*, which reads like a bug.
+- **`supabase/trade-reviews-thread.sql` — run on 13 August 2026, behaviour not yet observed.** Three
+  policies, no schema change, letting a member write on their own trade while it is shared.
 
   `isWaiting()` was lifted out of `admin.html` again and run against nine fixtures covering every
   order a thread can arrive in, plus a mentor writing on their own shared trade. All nine behave as
@@ -366,7 +364,8 @@ Be honest about this list before trusting anything below it.
   member's reply was the newest row, so it marked their own question answered and the mentor never
   saw it.
 
-  **Four things to watch the first time it runs**, each of which fails quietly rather than loudly:
+  **Four things to watch the first time somebody writes**, each of which fails quietly rather than
+  loudly:
 
   1. A member writing on their own shared trade. Must succeed.
   2. A member writing on a trade they have **unshared**. Must be refused — the box is hidden, which
@@ -375,6 +374,20 @@ Be honest about this list before trusting anything below it.
      and it cannot be checked from the SQL editor, because RLS does not apply to the table owner.
   4. Whether their reply actually puts the trade back in the mentor's queue, which depends on
      `created_at` landing after the mentor's message on the same server clock.
+
+- **`editor.js` — the reply editor, never used against a live database.** Its two conversions *have*
+  been exercised: 57 checks in a real browser covering formatting, ten hostile inputs, the whitelist
+  serialiser, and a Markdown → HTML → Markdown round trip. The editor was also driven the way a
+  person drives it — selecting text and pressing the toolbar — which is what caught the one real bug
+  found: Chrome leaves `<p><ul>…</ul></p>` after bulleting two paragraphs, and reading that as a
+  paragraph ran the items together into `entry earlystop too tight`. Fixed and covered by a case.
+
+  What that does **not** cover is a message making the round trip through Postgres. Worth one look:
+  a reply containing a `**bold**` word, a bullet list and a link, sent and then read back on the
+  other side. `body` has a `length(btrim(body)) > 0` check, and the editor sends Markdown, so an
+  empty-but-formatted message — a bullet with nothing in it — is the shape most likely to be
+  refused. The Send button already refuses to send an empty editor, which should mean the database
+  never sees one.
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

@@ -3472,6 +3472,117 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   border-top: 1px solid var(--line-lo);
 }
 
+/* ---------------------------------------------------------------
+   The reply editor, and the prose it produces
+
+   Two halves of one thing, and they have to agree. What .rte-input
+   shows while typing is what .reply-prose shows after saving, so
+   every rule below is written for both. If they drift, the editor
+   stops being WYSIWYG and becomes a preview of something else.
+   --------------------------------------------------------------- */
+
+.rte {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.rte-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--line-lo);
+}
+
+.rte-tool {
+  font: inherit;
+  font-size: var(--step--1);
+  line-height: 1;
+  min-width: 30px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rte-tool:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+  border-color: var(--line-lo);
+}
+
+/* The toolbar is reachable by keyboard, so it has to say where focus is. The
+   default outline is suppressed on buttons elsewhere on this site, which is
+   fine for a labelled control and not fine for a row of glyphs. */
+.rte-tool:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.rte-tool:disabled { opacity: 0.4; cursor: default; }
+
+.rte-input {
+  min-height: 4.5em;
+  max-height: 22em;
+  overflow-y: auto;
+  padding: var(--s-3);
+  font-size: var(--step-0);
+  line-height: 1.55;
+}
+
+.rte-input:focus { outline: none; }
+.rte:focus-within { border-color: var(--accent-dk); }
+
+/* A contenteditable that has been typed in and cleared is not :empty - it
+   holds a stray <br> - so the placeholder is driven by a class the editor
+   maintains rather than by a selector that would only work once. */
+.rte-input.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Shared by what is being typed and what was saved. Written once against both
+   selectors so the two cannot come apart. */
+.rte-input > *:first-child,
+.reply-prose > *:first-child { margin-top: 0; }
+
+.rte-input > *:last-child,
+.reply-prose > *:last-child { margin-bottom: 0; }
+
+.rte-input p,
+.reply-prose p { margin: 0 0 var(--s-2); }
+
+.rte-input ul, .rte-input ol,
+.reply-prose ul, .reply-prose ol { margin: 0 0 var(--s-2); padding-left: 1.4em; }
+
+.rte-input li,
+.reply-prose li { margin: 0 0 2px; }
+
+.rte-input blockquote,
+.reply-prose blockquote {
+  margin: 0 0 var(--s-2);
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.rte-input code,
+.reply-prose code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--inset);
+}
+
+/* Inside .reply--mine the block already sits on --paper, so --inset would be
+   the same colour as its surroundings and the code span would vanish. */
+.reply--mine .reply-prose code { background: var(--hover); }
+
 /* In the journal the reply is a row of its own under the trade. The empty
    first cell keeps it clear of the select column, so the checkboxes still read
    as a single line down the table. */

@@ -660,3 +660,39 @@ takes the screenshot back as well as the row.
 
 **The standing rule this leaves:** in this project, a policy that is meant to take something away
 must say `as restrictive`. A permissive one is always an addition, however narrowly it reads.
+
+---
+
+## 2026-08-13 — The reply editor stores Markdown, not HTML, and does not reuse Quill
+
+**Decision:** a small hand-written WYSIWYG (`editor.js`) for mentor replies and member questions,
+storing Markdown in `trade_reviews.body`.
+
+**Instead of:** the pattern this repo already has. `admin.html` loads Quill from a CDN for lesson
+bodies, stores HTML in `lessons.body_html`, and `lesson.html` runs it through DOMPurify on render.
+Reusing that would have been the consistent choice, and consistency is worth something.
+
+**Why not:** the direction of trust is the opposite one, and that changes the answer.
+
+A lesson is written by an admin and read by members. Sanitising it protects members from an account
+that is already trusted with more than the lesson body. A reply is written by a **member** and read
+inside the admin page — the one session that can read every shared trade, write as the mentor, and
+change roles. A stored XSS there is not a defaced page; it is the whole site.
+
+Storing Markdown removes the class rather than filtering it. The column holds text, so nothing in the
+table can become executable however a future render is written. `editor.js` is a whitelist by
+construction rather than a blacklist: unrecognised nodes contribute their text and nothing else, so
+there is no list of dangerous things to keep current. And plain-text replies written before any of
+this render unchanged, which a JSON document model would not have managed.
+
+**The costs, stated rather than glossed over.** Two rich-text mechanisms now exist in one repo, and
+somebody will eventually have to decide whether lessons should move too. The reply editor supports
+seven things and no images. `document.execCommand` is deprecated — it is the only way to get WYSIWYG
+without a framework, and if it is ever removed only `mountEditor` changes, because nothing downstream
+reads that DOM except the serialiser.
+
+**The rule this leaves:** rich text written by one class of user and rendered to a more privileged
+one is stored as text. Rich text flowing the other way may keep the Quill and DOMPurify pattern.
+
+**Still open:** whether `lessons.body_html` should follow. It is admin-authored, so the risk is far
+lower, but "admin-authored" is an assumption about accounts rather than a property of the schema.

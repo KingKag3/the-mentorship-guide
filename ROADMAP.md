@@ -324,6 +324,114 @@ should not start at the end of a long session.
 
 ---
 
+## Phase 5 — the community layer
+
+Three pieces asked for on 13 August 2026. They are listed in dependency order, which is also
+cheapest-first: **5.1 stands alone, 5.3 needs 5.2, and 5.2 is the expensive one.** None is started.
+
+### 5.1 Who is still turning up — attrition on the admin side
+
+**The honest answer to "can we do this today" is no, and the reason is worth knowing.** `profiles`
+carries `created_at` and nothing else about a member's life. Supabase does record
+`auth.users.last_sign_in_at`, but reading `auth.users` needs the `service_role` key, and a static
+site has nowhere to keep one — the same wall the admin password-reset feature hit, recorded in
+`supabase/RUN-THESE.md`. So the site has to record this itself.
+
+**Two levels, and the first is worth having on its own.**
+
+*Level one — `profiles.last_seen_at`.* One column, one policy letting a member update their own, and
+a throttled write from `app.js` on page load. It answers the only question attrition really asks:
+who has stopped coming, and when did they stop. An admin list sorted by that column, with the gap in
+days beside each name, is most of the value of this whole item.
+
+Throttle it to one write per member per day, held in `localStorage`. Fifty members opening six pages
+a day is three hundred pointless writes otherwise, and the number that matters is a date.
+
+*Level two — a `member_activity` table*, one row per member per day, recording which tools were
+opened. That is what answers the more useful questions: do the members who use the journal stay
+longer than the ones who only read lessons, and where in the first fortnight do people fall away.
+It is a cohort table, so it wants a chart rather than a list, and it should not be started until
+level one has been running long enough to have something to chart.
+
+**Three things to be straight about before building either.**
+
+- **It is self-reported.** The client writes the timestamp, so it measures a browser opening a page.
+  Somebody who leaves a tab open for a week looks identical to somebody reading every day. Good
+  enough for attrition, useless for anything that would justify charging differently.
+- **It measures attendance, not learning.** A member who stopped opening the site because the
+  material worked and they are now trading it looks exactly like one who gave up.
+- **It is member tracking, and it should say so.** Members-only, never the public concept pages, and
+  the account page should be able to say plainly what is recorded. The project has been careful
+  about a member's screenshots being private; their attendance deserves the same clarity.
+
+### 5.2 Mentors as a role, questions directed at one, and a tier list
+
+**This is the expensive one, and the cost is not the feature — it is the role.**
+
+`profiles.role` is a CHECK constraint over `('pending', 'member', 'admin')`, and `is_admin()` is
+called **36 times across 12 migration files**. Adding `mentor` means altering that constraint and
+then making 36 separate decisions: does a mentor get this grant, or not? Some are obvious — a mentor
+writes replies, a mentor does not change roles. Others are not, and each wrong answer is either a
+mentor who cannot do their job or a mentor who can read something they should not.
+
+**Do that audit as its own piece of work, before any feature is built on top of it.** Write
+`is_mentor()` beside `is_admin()`, go through all 36 call sites in one pass, and record the ones
+that were arguable in `DECISIONS.md`. A role added feature-by-feature is a role nobody can describe.
+
+**Directing a question.** Today `trades.shared_with_mentor` is a boolean and the Review tab is a
+pool. Directing it means naming a person. Put that on `trades` as a nullable `asked_of` — the member
+owns that row and writes it themselves, so it does not touch the promise that nobody edits your
+journal but you. `trade_reviews` already carries `author_id`, so a mentor's answer needs no schema
+change at all, only a policy that lets a mentor write where an admin can.
+
+Keep the pool. A question addressed to nobody in particular should still reach whoever is free, or
+the quiet mentors get no questions and the busy ones get all of them.
+
+**Stars, titles and a tier list — the part that needs thinking about, not just building.**
+
+The schema is easy: a rating per answer, an aggregate per mentor. The design is not, and there are
+two problems worth naming before anyone writes the table.
+
+- **A public leaderboard rewards the wrong thing.** Ranking by answers given rewards volume; ranking
+  by rating rewards agreeable answers. The most valuable critique a mentor can write is the one that
+  tells somebody their setup does not work, and that is not what gets five stars. If a tier list is
+  built, rank on something that cannot be farmed — answers that the member later marked as having
+  changed what they did, say — rather than on a thumbs-up.
+- **It changes what the site is.** `CLAUDE.md` draws a hard line at *record and analyse, never
+  signal*, and the footer on every page says educational content, not advice. A ranked marketplace of
+  people giving trading opinions for status is closer to the other side of that line than anything
+  currently here. Not a reason to refuse it — it is a reason to decide deliberately and write the
+  decision down, rather than arrive there one feature at a time.
+
+**Suggested order:** the role audit, then mentor replies, then directing a question, then ratings.
+The first three are useful without the fourth.
+
+### 5.3 Profile images, and role flags under them
+
+**Needs 5.2 first** — the flags are the roles, so there is nothing to draw until the roles exist.
+
+The image half is small and has one genuinely new problem in it. Every member-uploaded image on this
+site so far is *private*: journal screenshots are readable by their owner and by a mentor on a shared
+trade, which is what `supabase/journal-media-privacy.sql` was for. An avatar is the opposite by
+design — it appears beside a name in every thread, to everybody.
+
+- **Storage:** a separate prefix with its own policies. Readable by any signed-in member, writable
+  only by the owner. Do not reuse the `journal/` rules; they exist to do the opposite thing, and a
+  policy that is meant to take something away must say `as restrictive` — see `DECISIONS.md`,
+  12 August.
+- **Moderation is the new problem.** The first image a member uploads that other members see is the
+  first time somebody can put something objectionable next to their own name across the whole site.
+  Decide the answer in advance: generated initials as the default, and either upload-behind-approval
+  or accept-and-remove-fast. Either is fine; discovering the question later is not.
+- **Sizing:** `compressImage()` in `app.js` already exists for journal screenshots and should be
+  reused rather than reinvented, at a much smaller bound — an avatar is 128px, and nobody needs a
+  four-megabyte one.
+
+The flags themselves are the easy half: a `.tag` variant per role beside the name, using the existing
+token set, added to `design.html` like every other component.
+
+---
+
 ## Not doing
 
 - **Live charts.** TradingView is better at this than we will ever be, and the data licensing alone

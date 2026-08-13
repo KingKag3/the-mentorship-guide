@@ -77,11 +77,16 @@
   <p>Every trade a member ticked <em>share with mentor</em> on, newest first. They chose to send
   it; unticking it on their side takes it out of this list again.</p>
 
-  <p class="field-note">Read-only. The admin policy on <code>trades</code> is select-only and this
-  page does not write to it &mdash; a critique belongs in its own table, not as a second author on
-  somebody else&rsquo;s journal. Copy a trade out for now and reply wherever you already talk.</p>
+  <p class="field-note">A reply is written to <code>trade_reviews</code>, never to
+  <code>trades</code>. The admin policy there is still select-only &mdash; a critique belongs in its
+  own table, not as a second author on somebody else&rsquo;s journal, and the member&rsquo;s tick
+  stays theirs. Answering takes a trade out of this queue; the member editing it afterwards puts it
+  back.</p>
 
   <p class="stat-note" id="review-count">&nbsp;</p>
+
+  <p class="field-note"><label><input type="checkbox" id="review-answered"> Show trades already
+  answered</label></p>
 
   <div id="review-pager-top"></div>
   <div id="review-list"></div>
@@ -455,6 +460,12 @@ let shotUrls = new Map();
 let reviewPage = 1;
 let reviewPer = pageSize('review', 10, CARD_SIZES);
 
+// Replies, keyed by trade id, newest first within each. Held separately from
+// sharedTrades because they arrive from a different table under different
+// policies, and because a failed reply load should cost the queue nothing.
+let reviewsByTrade = new Map();
+let showAnswered = false;
+
 const me = await requireRole(['admin']);
 
 if (me) {
@@ -532,7 +543,7 @@ if (me) {
 async function loadShared() {
   const { data, error } = await supabase
     .from('trades')
-    .select('id, user_id, opened_at, closed_at, symbol, direction, contracts, ' +
+    .select('id, user_id, opened_at, closed_at, updated_at, symbol, direction, contracts, ' +
             'entry, stop, target, exit_price, points, fees, net_pnl, r_multiple, outcome, ' +
             'model, session_kz, pd_array, liquidity, bias, agreed_with_bias, ' +
             'checklist_done, management, notes, screenshot_path, chart_url')
@@ -546,7 +557,53 @@ async function loadShared() {
   }
 
   sharedTrades = data || [];
+  await loadReviews();
   await renderShared();
+}
+
+/**
+ * Replies for whatever is currently shared.
+ *
+ * A failure here is deliberately not fatal. The queue without replies is a
+ * worse page than the queue with them, but it is still the page - and the
+ * common cause of a failure is the migration not having been run, which should
+ * not take the Review tab down with it.
+ */
+async function loadReviews() {
+  reviewsByTrade = new Map();
+  if (!sharedTrades.length) return;
+
+  const { data, error } = await supabase
+    .from('trade_reviews')
+    .select('id, trade_id, author_id, body, created_at')
+    .in('trade_id', sharedTrades.map((t) => t.id))
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    document.getElementById('review-count').textContent =
+      'Replies could not be loaded: ' + error.message;
+    return;
+  }
+
+  for (const row of data || []) {
+    if (!reviewsByTrade.has(row.trade_id)) reviewsByTrade.set(row.trade_id, []);
+    reviewsByTrade.get(row.trade_id).push(row);
+  }
+}
+
+/**
+ * Is this trade still waiting on the mentor?
+ *
+ * Derived rather than stored, which is what keeps this page out of the trades
+ * table. Answered means a reply written since the last time the owner touched
+ * the trade, so a member who edits one after being answered puts it back in
+ * the queue by doing so - no flag to reset and nobody having to remember.
+ */
+function isWaiting(t) {
+  const replies = reviewsByTrade.get(t.id);
+  if (!replies || !replies.length) return true;
+  const newest = replies[0].created_at;          // ordered newest first
+  return !t.updated_at || new Date(newest) < new Date(t.updated_at);
 }
 
 /** Whoever sent it. `profiles` is already loaded for the Accounts tab. */
@@ -702,22 +759,60 @@ function reviewCard(r) {
     (r.notes ? '<p class="review-note">' + escapeHtml(r.notes) + '</p>' : '') +
 
     reviewChart(r, url) +
+    replyBlock(r) +
   '</article>';
+}
+
+/**
+ * What has been said, and somewhere to say the next thing.
+ *
+ * Replies are shown oldest first even though they arrive newest first, because
+ * this reads as a conversation rather than as a log, and there will rarely be
+ * more than two.
+ */
+function replyBlock(r) {
+  const replies = (reviewsByTrade.get(r.id) || []).slice().reverse();
+
+  const said = replies.map((v) =>
+    '<div class="reply">' +
+      '<p class="reply-when">' + escapeHtml(new Date(v.created_at).toLocaleString()) +
+        (isWaiting(r) ? ' &mdash; the trade has been edited since' : '') + '</p>' +
+      '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
+    '</div>').join('');
+
+  return '<div class="reply-box">' + said +
+    '<label class="sr-only" for="reply-' + r.id + '">Reply to this trade</label>' +
+    '<textarea id="reply-' + r.id + '" rows="3" data-reply-for="' + r.id + '" ' +
+      'placeholder="' + (replies.length ? 'Add to this' : 'What you would tell them') + '"></textarea>' +
+    '<p class="reply-actions">' +
+      '<button type="button" class="secondary" data-send-reply="' + r.id + '">' +
+        (replies.length ? 'Add reply' : 'Send reply') + '</button>' +
+      '<span class="field-note">Goes to their journal, and takes this trade out of the queue.</span>' +
+    '</p>' +
+  '</div>';
 }
 
 async function renderShared() {
   const list = document.getElementById('review-list');
   const badge = document.getElementById('review-badge');
 
-  badge.hidden = sharedTrades.length === 0;
-  badge.textContent = String(sharedTrades.length);
+  // The badge counts what is owed, not what is visible. An answered trade left
+  // on screen by the checkbox is not work waiting to be done.
+  const waiting = sharedTrades.filter(isWaiting);
+  const shown = showAnswered ? sharedTrades : waiting;
 
-  if (!sharedTrades.length) {
+  badge.hidden = waiting.length === 0;
+  badge.textContent = String(waiting.length);
+
+  if (!shown.length) {
     document.getElementById('review-count').textContent = '';
-    list.innerHTML =
-      '<div class="callout"><span class="callout-label">Nothing waiting</span>' +
-      '<p>No member has shared a trade yet. The tick is on the journal form, ' +
-      'beside the notes field.</p></div>';
+    list.innerHTML = sharedTrades.length
+      ? '<div class="callout"><span class="callout-label">All answered</span>' +
+        '<p>Every shared trade has a reply written since it was last edited. ' +
+        'Tick <em>show trades already answered</em> to read them back.</p></div>'
+      : '<div class="callout"><span class="callout-label">Nothing waiting</span>' +
+        '<p>No member has shared a trade yet. The tick is on the journal form, ' +
+        'beside the notes field.</p></div>';
     renderPager('#review-pager-top', { ...pageSlice([], 1, reviewPer), per: reviewPer },
       () => {}, CARD_SIZES);
     renderPager('#review-pager-bottom', { ...pageSlice([], 1, reviewPer), per: reviewPer },
@@ -725,17 +820,21 @@ async function renderShared() {
     return;
   }
 
-  const state = { ...pageSlice(sharedTrades, reviewPage, reviewPer), per: reviewPer };
+  const state = { ...pageSlice(shown, reviewPage, reviewPer), per: reviewPer };
   reviewPage = state.page;
 
   // Signed for this page only. They expire, and a session left open on page one
   // should not be handing out live URLs for four hundred screenshots.
   shotUrls = await signedUrlMap(state.rows.map((r) => r.screenshot_path));
 
-  const people = new Set(sharedTrades.map((r) => r.user_id)).size;
+  const people = new Set(shown.map((r) => r.user_id)).size;
+  const answered = sharedTrades.length - waiting.length;
   document.getElementById('review-count').textContent =
-    sharedTrades.length + (sharedTrades.length === 1 ? ' trade' : ' trades') +
-    ' from ' + people + (people === 1 ? ' member' : ' members');
+    shown.length + (shown.length === 1 ? ' trade' : ' trades') +
+    ' from ' + people + (people === 1 ? ' member' : ' members') +
+    (answered && !showAnswered
+      ? ' — ' + answered + ' already answered, hidden'
+      : '');
 
   list.innerHTML = state.rows.map(reviewCard).join('');
 
@@ -763,10 +862,63 @@ async function renderShared() {
   renderPager('#review-pager-bottom', state, onPage, CARD_SIZES);
 }
 
-/* Plain text, because the reply happens somewhere this site does not reach yet.
- * Until a critique table exists, the useful thing is getting the trade out in a
- * shape that can be pasted into Discord and answered line by line. */
+document.getElementById('review-answered').addEventListener('change', (e) => {
+  showAnswered = e.target.checked;
+  reviewPage = 1;
+  renderShared();
+});
+
+/* Writing a reply.
+ *
+ * author_id is left to its default rather than sent: the column defaults to
+ * auth.uid() and the insert policy checks it equals auth.uid(), so a client
+ * that sends nothing is correct by construction and a client that lies is
+ * refused by Postgres. Sending it from here would only add a way to be wrong.
+ *
+ * The whole queue is reloaded afterwards rather than the one card patched.
+ * Whether a trade is still waiting depends on its updated_at against the reply
+ * just written, and that comparison is worth doing against what the database
+ * actually holds rather than against what this page assumed. */
+async function sendReply(btn) {
+  const id = Number(btn.getAttribute('data-send-reply'));
+  const box = document.getElementById('reply-' + id);
+  const body = (box && box.value || '').trim();
+
+  if (!body) {
+    flash(btn, 'nothing to send');
+    if (box) box.focus();
+    return;
+  }
+
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Sending…';
+
+  const { error } = await supabase
+    .from('trade_reviews')
+    .insert({ trade_id: id, body });
+
+  btn.disabled = false;
+  btn.textContent = was;
+
+  if (error) {
+    // Named rather than swallowed: the likely cause on first use is the
+    // migration not having been run, and that is a fixable thing to be told.
+    document.getElementById('review-count').innerHTML =
+      dbError(error, 'Could not save the reply');
+    return;
+  }
+
+  if (box) box.value = '';
+  await loadShared();
+}
+
+/* Copying a trade out stays, because plenty of conversation still happens
+ * somewhere this site does not reach. */
 document.getElementById('review-list').addEventListener('click', async (e) => {
+  const send = e.target.closest && e.target.closest('[data-send-reply]');
+  if (send) { await sendReply(send); return; }
+
   const tv = e.target.closest && e.target.closest('[data-tv-trade]');
   if (tv) {
     const one = sharedTrades.find((t) => String(t.id) === tv.getAttribute('data-tv-trade'));

@@ -3353,6 +3353,61 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   border-radius: var(--radius);
 }
 
+/* The mentor's reply, on the admin card and again in the member's journal.
+
+   Indented from the trade rather than boxed against it: it is an answer to the
+   thing above it, and the same shape reads correctly in both places even though
+   one of them can type into it and the other cannot. */
+
+.reply-box { margin: var(--s-4) 0 0; }
+
+.reply {
+  margin: 0 0 var(--s-3);
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border-left: 3px solid var(--brand-500);
+  border-radius: var(--radius);
+}
+
+.reply p { margin: 0; }
+
+.reply-when {
+  font-family: var(--serif);
+  font-size: var(--step--1);
+  color: var(--muted);
+  margin-bottom: var(--s-1) !important;
+}
+
+.reply-box textarea { width: 100%; }
+
+/* In the journal the reply is a row of its own under the trade. The empty
+   first cell keeps it clear of the select column, so the checkboxes still read
+   as a single line down the table. */
+.reply-tr > td { padding-top: 0; border-top: 0; }
+.reply-tr .reply { margin-bottom: var(--s-2); }
+
+.reply-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin: var(--s-2) 0 0;
+}
+
+/* Labels that a screen reader needs and the page does not have room for. The
+   textarea's placeholder is a prompt, not a name, and it disappears on typing. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Per-platform export instructions. A definition list because that is what it
    is — a platform, and what to click in it. */
 

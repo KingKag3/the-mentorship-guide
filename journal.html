@@ -739,6 +739,9 @@ $('cancel-btn').addEventListener('click', () => {
 let rows = [];
 let shotUrls = new Map();
 
+// Mentor replies, keyed by trade id, oldest first so they read in order.
+let replies = new Map();
+
 async function load() {
   const { data, error } = await supabase
     .from('trades')
@@ -812,7 +815,38 @@ async function load() {
   // put a network round trip in front of a button press.
   shotUrls = await signedUrlMap(rows.map((r) => r.screenshot_path));
 
+  await loadReplies(rows);
+
   drawPage();
+}
+
+/* What the mentor wrote back.
+ *
+ * Read-only here, and it has to be: the policies on trade_reviews let a member
+ * read replies on their own trades and write nothing at all. The reply arrives
+ * through the trade rather than through a user column, so this needs no filter
+ * beyond the ids - RLS returns exactly the ones that are ours.
+ *
+ * A failure is not fatal. Somebody's journal is still their journal without the
+ * critique attached, and the likely cause on first run is a migration that has
+ * not been applied yet.
+ */
+async function loadReplies(rows) {
+  replies = new Map();
+  if (!rows.length) return;
+
+  const { data, error } = await supabase
+    .from('trade_reviews')
+    .select('trade_id, body, created_at')
+    .in('trade_id', rows.map((r) => r.id))
+    .order('created_at', { ascending: true });
+
+  if (error) return;
+
+  for (const row of data || []) {
+    if (!replies.has(row.trade_id)) replies.set(row.trade_id, []);
+    replies.get(row.trade_id).push(row);
+  }
 }
 
 /* The page being read, and how many rows it holds.
@@ -1105,7 +1139,31 @@ function renderRow(r, shotUrl) {
       '<button class="link-button" data-edit="' + r.id + '">edit</button>' +
       '<button class="btn-danger" data-del="' + r.id + '">delete</button>' +
       '</td>' +
-  '</tr>';
+  '</tr>' + replyRow(r);
+}
+
+/* The mentor's answer, under the trade it is about.
+ *
+ * Its own full-width row rather than a cell, because a critique is prose and
+ * the widest column here is forty characters. It sits directly beneath the
+ * trade so there is never a question about which one is being talked about.
+ *
+ * Nothing here can be typed into. Replies are written from the admin page and
+ * the policies on trade_reviews give a member read and nothing else, so an
+ * input would be a lie about what the database will accept.
+ */
+function replyRow(r) {
+  const said = replies.get(r.id);
+  if (!said || !said.length) return '';
+
+  return '<tr class="reply-tr"><td></td><td colspan="7">' +
+    said.map((v) =>
+      '<div class="reply">' +
+        '<p class="reply-when">Mentor &mdash; ' +
+          escapeHtml(new Date(v.created_at).toLocaleString()) + '</p>' +
+        '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
+      '</div>').join('') +
+    '</td></tr>';
 }
 
 $('list').addEventListener('change', (e) => {

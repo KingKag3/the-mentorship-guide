@@ -11,7 +11,9 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why now |
+| --- | --- | --- |
+| `trade-reviews.sql` | A `trade_reviews` table so the mentor can answer a shared trade, and the Review tab can clear it from the queue without writing to `trades` | The Review tab already renders the reply box. Until this runs, sending one fails and the page says which file to run; the queue still lists and reads correctly, because the reply load is deliberately non-fatal |
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

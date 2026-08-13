@@ -330,6 +330,25 @@ Be honest about this list before trusting anything below it.
   this list.** The record of what was actually observed is under **Verified by attack** below. It
   stays named here because four earlier attempts to test it produced errors that looked like passes,
   and anybody re-checking it should read that section before trusting a red console line.
+- **`supabase/trade-reviews.sql` and the whole reply feature, written 12 August 2026.** The migration
+  has not been run, so nothing here has touched a database: not the insert, not the five policies,
+  not the member's read of a reply on their own trade. The Review tab renders the reply box and
+  sending one will fail until the file is applied — the failure names the file, and the queue itself
+  still lists and reads correctly, because the reply load is deliberately non-fatal.
+
+  What *was* verified on 12 August 2026, in a browser against the shipped source rather than a
+  retyping of it: `admin.html`, `journal.html` and `design.html` all parse, and `isWaiting()` was
+  lifted out of `admin.html` and run against seven fixtures — no replies, answered after the last
+  edit, edited after being answered, answered at the same instant, an empty array rather than an
+  absent one, a missing `updated_at`, and a two-reply list proving the newest-first order is what
+  gets compared. All seven behave as intended.
+
+  That covers the arithmetic of the queue and nothing else. **The three things to watch when it is
+  first run**, because each fails quietly rather than loudly: whether a member can read a reply on
+  their own trade at all (a policy that is too tight shows an empty journal, not an error); whether
+  a member can write one (they must not, and the UI simply has no input, which is not a defence);
+  and whether replying actually clears the trade from the queue, which depends on `created_at`
+  landing after the trade's `updated_at` on the same server clock.
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

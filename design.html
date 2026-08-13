@@ -654,7 +654,59 @@ and whether a planned move was taken in full.</p>
     did not want to give it back again.</p>
     <p class="review-shot"><a href="https://www.tradingview.com/x/m7azfyek/">Chart on
     TradingView</a></p>
+
+    <div class="reply-box">
+      <div class="reply">
+        <p class="reply-when">14 August 2026, 09:12</p>
+        <p>The entry is fine. What cost you is the stop &mdash; it sat inside the range you had
+        just marked, so it was going to be taken whichever way this went.</p>
+      </div>
+      <label class="sr-only" for="design-reply">Reply to this trade</label>
+      <textarea id="design-reply" rows="3" placeholder="Add to this"></textarea>
+      <p class="reply-actions">
+        <button type="button" class="secondary">Add reply</button>
+        <span class="field-note">Goes to their journal, and takes this trade out of the queue.</span>
+      </p>
+    </div>
   </article>
+</div>
+
+<h3>The reply, and why it is a table rather than a column</h3>
+
+<p>A mentor needs somewhere to answer and a way to clear a trade off the queue. The obvious version
+of the second is letting an admin untick <code>shared_with_mentor</code>, which is exactly what
+<code>trades.sql</code> refuses &mdash; nobody edits your journal but you, and a well-meant exception
+is still an exception.</p>
+
+<p>So a reply is a row in <code>trade_reviews</code>, owned by whoever wrote it, and the queue is
+<em>derived</em>: a shared trade is waiting if nobody has answered it since the last time its owner
+touched it. Nothing writes to <code>trades</code>. The reopen rule comes free with that &mdash; a
+member who edits a trade after being answered puts it back in the queue by doing so, because
+<code>updated_at</code> moves past the reply.</p>
+
+<p class="field-note">Members read replies on their own trades and can write none. The same
+<code>.reply</code> block renders in the journal under the trade it answers, without the textarea,
+because an input there would be a lie about what the database will accept.</p>
+
+<div class="demo">
+  <table>
+    <tbody>
+      <tr>
+        <td>12/08/2026</td>
+        <td><span class="tag bear">short</span> NQ &times;1 <span class="tag time">shared</span></td>
+        <td><span class="tag bull">+1.20R</span></td>
+      </tr>
+      <tr class="reply-tr">
+        <td></td>
+        <td colspan="2">
+          <div class="reply">
+            <p class="reply-when">Mentor &mdash; 14 August 2026, 09:12</p>
+            <p>The entry is fine. What cost you is the stop.</p>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 
 <h3>Chart links, not uploads</h3>

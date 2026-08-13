@@ -386,15 +386,82 @@ function inlineOf(node) {
  * The editor itself
  * ========================================================================== */
 
+/* Icons rather than characters.
+ *
+ * The first version used B, I, <> and two emoji. Emoji are the problem: they
+ * are drawn by the operating system, so the toolbar was a serif B beside a
+ * full-colour Apple link and a typographic quote mark - three different design
+ * languages in seven buttons, at three different optical sizes.
+ *
+ * These are line icons in the same 24-unit box, stroked in currentColor at the
+ * same width as the masthead's sun and moon, so the row reads as one set and
+ * follows the theme without a second colour being named.
+ */
+const ICON = (paths) =>
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+
 const TOOLS = [
-  ['bold',          'B',  'Bold',          'Ctrl+B'],
-  ['italic',        'I',  'Italic',        'Ctrl+I'],
-  ['code',          '<>', 'Code',          ''],
-  ['link',          '🔗', 'Link',          'Ctrl+K'],
-  ['insertUnorderedList', '•', 'Bullets',  ''],
-  ['insertOrderedList',   '1.', 'Numbers', ''],
-  ['formatBlock',   '❝',  'Quote',         '']
+  ['bold', 'Bold', 'Ctrl+B',
+   ICON('<path d="M6 4h7a4 4 0 0 1 0 8H6z"/><path d="M6 12h8a4 4 0 0 1 0 8H6z"/>')],
+  ['italic', 'Italic', 'Ctrl+I',
+   ICON('<line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/>' +
+        '<line x1="15" y1="4" x2="9" y2="20"/>')],
+  ['code', 'Code', '',
+   ICON('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>')],
+  ['link', 'Link', 'Ctrl+K',
+   ICON('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+        '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>')],
+  ['sep'],
+  ['insertUnorderedList', 'Bullets', '',
+   ICON('<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/>' +
+        '<line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/>' +
+        '<circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/>' +
+        '<circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/>')],
+  ['insertOrderedList', 'Numbers', '',
+   ICON('<line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/>' +
+        '<line x1="10" y1="18" x2="20" y2="18"/><path d="M4 5.5 5.2 5v3.4"/>' +
+        '<path d="M3.6 11.2a1.2 1.2 0 0 1 2 .8c0 .9-2 1.4-2 2.4h2.2"/>' +
+        '<path d="M3.7 17h1.9l-1.2 1.3a1.1 1.1 0 1 1-.7 1.9"/>')],
+  ['formatBlock', 'Quote', '',
+   ICON('<path d="M9 7H5.5A1.5 1.5 0 0 0 4 8.5v3A1.5 1.5 0 0 0 5.5 13H8v1.5A2.5 2.5 0 0 1 5.5 17"/>' +
+        '<path d="M20 7h-3.5A1.5 1.5 0 0 0 15 8.5v3a1.5 1.5 0 0 0 1.5 1.5H19v1.5a2.5 2.5 0 0 1-2.5 2.5"/>')]
 ];
+
+/* Which buttons can light up.
+ *
+ * A toolbar that never shows state is a row of guesses - there is no way to
+ * tell whether the caret is already inside a bullet without reading the text.
+ *
+ * The lists are asked of queryCommandState, which is right for them. Bold and
+ * italic are NOT, and that is worth saying because the first version used it
+ * and was wrong: queryCommandState reads the COMPUTED style, and this site
+ * styles every blockquote italic. So putting the caret in a quote lit the
+ * italic button, on text the serialiser would never record as italic.
+ *
+ * The toolbar has one job - to show what will be saved - so bold and italic are
+ * decided the same way toMarkdown decides them: by the tags and inline styles
+ * actually wrapping the caret. When the two disagree the toolbar is the one
+ * that is wrong, because the serialiser is what the database sees. */
+const STATE_CMD = new Set(['insertUnorderedList', 'insertOrderedList']);
+
+/** Does an ancestor of `node`, up to `stop`, carry this emphasis? */
+function emphasised(node, kind, stop) {
+  let el = node && (node.nodeType === 1 ? node : node.parentElement);
+  while (el && el !== stop) {
+    const tag = el.nodeName.toLowerCase();
+    const style = el.style || {};
+    if (kind === 'bold') {
+      const weight = String(style.fontWeight || '');
+      if (tag === 'b' || tag === 'strong' || weight === 'bold' || weight === 'bolder' ||
+          (/^\d+$/.test(weight) && Number(weight) >= 600)) return true;
+    } else {
+      if (tag === 'i' || tag === 'em' || style.fontStyle === 'italic') return true;
+    }
+    el = el.parentElement;
+  }
+  return false;
+}
 
 /**
  * Replace `host` with a toolbar and an editable area.
@@ -411,10 +478,13 @@ export function mountEditor(host, opts = {}) {
   host.classList.add('rte');
   host.innerHTML =
     '<div class="rte-tools" role="toolbar" aria-label="Formatting">' +
-      TOOLS.map(([cmd, glyph, name, key]) =>
-        '<button type="button" class="rte-tool" data-cmd="' + cmd + '" ' +
-          'title="' + escapeHtml(name + (key ? ' (' + key + ')' : '')) + '" ' +
-          'aria-label="' + escapeHtml(name) + '">' + glyph + '</button>').join('') +
+      TOOLS.map(([cmd, name, key, icon]) =>
+        cmd === 'sep'
+          ? '<span class="rte-sep" aria-hidden="true"></span>'
+          : '<button type="button" class="rte-tool" data-cmd="' + cmd + '" ' +
+            'title="' + escapeHtml(name + (key ? ' (' + key + ')' : '')) + '" ' +
+            'aria-label="' + escapeHtml(name) + '" aria-pressed="false">' +
+            icon + '</button>').join('') +
     '</div>' +
     '<div class="rte-input" id="' + escapeHtml(id) + '" contenteditable="true" ' +
       'role="textbox" aria-multiline="true" aria-label="' + escapeHtml(label) + '" ' +
@@ -484,6 +554,7 @@ export function mountEditor(host, opts = {}) {
 
     document.execCommand(cmd, false, null);
     syncEmpty();
+    syncState();
   };
 
   host.querySelector('.rte-tools').addEventListener('mousedown', (e) => {
@@ -516,7 +587,49 @@ export function mountEditor(host, opts = {}) {
     syncEmpty();
   });
 
-  input.addEventListener('input', syncEmpty);
+  /* Light up whatever the caret is already inside.
+   *
+   * selectionchange is a document-level event - there is no element-level
+   * equivalent - so this fires for every selection anywhere on the page and
+   * has to check the caret is ours before doing anything.
+   *
+   * It also has to remove itself. drawPage replaces the table's innerHTML on
+   * every send, share toggle and page change, so a listener that outlived its
+   * editor would accumulate one per redraw, each holding a detached element
+   * alive. isConnected is the cheapest reliable test for "my editor is no
+   * longer on the page".
+   */
+  const syncState = () => {
+    if (!input.isConnected) {
+      document.removeEventListener('selectionchange', syncState);
+      return;
+    }
+    const sel = window.getSelection();
+    const inside = sel && sel.anchorNode && input.contains(
+      sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentNode);
+
+    for (const btn of host.querySelectorAll('.rte-tool')) {
+      const cmd = btn.getAttribute('data-cmd');
+      let on = false;
+      if (inside) {
+        if (STATE_CMD.has(cmd)) {
+          try { on = document.queryCommandState(cmd); } catch (err) { on = false; }
+        } else if (cmd === 'bold' || cmd === 'italic') {
+          on = emphasised(sel.anchorNode, cmd, input);
+        } else if (cmd === 'formatBlock') {
+          on = !!closestIn(sel.anchorNode, 'blockquote', input);
+        } else if (cmd === 'code') {
+          on = !!closestIn(sel.anchorNode, 'code', input);
+        }
+      }
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  };
+
+  document.addEventListener('selectionchange', syncState);
+
+  input.addEventListener('input', () => { syncEmpty(); syncState(); });
   input.addEventListener('blur', syncEmpty);
   syncEmpty();
 

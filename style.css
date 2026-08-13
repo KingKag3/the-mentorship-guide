@@ -3483,58 +3483,90 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .rte {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: calc(var(--radius) + 3px);
   background: var(--paper);
+  overflow: hidden;                 /* so the toolbar's corners follow the box */
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* The whole control lifts on focus rather than only the caret appearing. A
+   contenteditable has no native focus ring, so without this there is nothing
+   at all to say which of several reply boxes on a page is the live one. */
+.rte:focus-within {
+  border-color: var(--accent-dk);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .rte-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 4px;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 6px;
+  background: var(--inset);
   border-bottom: 1px solid var(--line-lo);
 }
 
+/* A hairline between the text tools and the block tools. Seven identical
+   buttons in a row is a wall; two groups of four and three is a sentence. */
+.rte-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: var(--line);
+}
+
 .rte-tool {
-  font: inherit;
-  font-size: var(--step--1);
-  line-height: 1;
-  min-width: 30px;
-  padding: 6px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--radius);
   color: var(--muted);
   cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.rte-tool:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--fg);
-  border-color: var(--line-lo);
+/* 17px inside a 30px button. The icons are drawn in a 24-unit box at stroke 2,
+   so this lands them at roughly 1.4px on screen - the same optical weight as
+   the masthead icons rather than the heavy look 24px would give. */
+.rte-tool svg { width: 17px; height: 17px; display: block; }
+
+.rte-tool:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
+
+/* Pressed means the caret is already inside this formatting, which is a state
+   and not a hover. It gets the accent so it cannot be confused with the
+   pointer being nearby. */
+.rte-tool.is-on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-dk);
 }
 
 /* The toolbar is reachable by keyboard, so it has to say where focus is. The
    default outline is suppressed on buttons elsewhere on this site, which is
-   fine for a labelled control and not fine for a row of glyphs. */
+   fine for a labelled control and not fine for a row of icons. */
 .rte-tool:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -1px;
+  outline-offset: -2px;
 }
 
-.rte-tool:disabled { opacity: 0.4; cursor: default; }
+.rte-tool:disabled { opacity: 0.35; cursor: default; }
 
 .rte-input {
   min-height: 4.5em;
   max-height: 22em;
   overflow-y: auto;
-  padding: var(--s-3);
-  font-size: var(--step-0);
-  line-height: 1.55;
+  padding: var(--s-3) var(--s-4);
+  font-family: var(--sans);
+  font-size: var(--step--1);
+  line-height: 1.6;
 }
 
 .rte-input:focus { outline: none; }
-.rte:focus-within { border-color: var(--accent-dk); }
 
 /* A contenteditable that has been typed in and cleared is not :empty - it
    holds a stray <br> - so the placeholder is driven by a class the editor
@@ -3589,12 +3621,21 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .reply-tr > td { padding-top: 0; border-top: 0; }
 .reply-tr .reply { margin-bottom: var(--s-2); }
 
+/* Button first, then the note, and the note is allowed to shrink.
+   `min-width: 0` on a flex child is the difference between a sentence wrapping
+   inside the row and the row growing wider than the table cell it sits in. */
 .reply-actions {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   flex-wrap: wrap;
-  margin: var(--s-2) 0 0;
+  margin: var(--s-3) 0 0;
+}
+
+.reply-actions .field-note {
+  margin: 0;
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 /* Labels that a screen reader needs and the page does not have room for. The

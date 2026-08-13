@@ -375,19 +375,32 @@ Be honest about this list before trusting anything below it.
   4. Whether their reply actually puts the trade back in the mentor's queue, which depends on
      `created_at` landing after the mentor's message on the same server clock.
 
-- **`editor.js` — the reply editor, never used against a live database.** Its two conversions *have*
-  been exercised: 57 checks in a real browser covering formatting, ten hostile inputs, the whitelist
-  serialiser, and a Markdown → HTML → Markdown round trip. The editor was also driven the way a
-  person drives it — selecting text and pressing the toolbar — which is what caught the one real bug
-  found: Chrome leaves `<p><ul>…</ul></p>` after bulleting two paragraphs, and reading that as a
-  paragraph ran the items together into `entry earlystop too tight`. Fixed and covered by a case.
+- **`editor.js` — now Editor.js, never used against a live database.** The reply box is
+  `codex-team/editor.js`, pinned at 2.31.6, loaded from esm.sh and mounted on first click.
+  `trade_reviews.body` holds its JSON document.
 
-  What that does **not** cover is a message making the round trip through Postgres. Worth one look:
-  a reply containing a `**bold**` word, a bullet list and a link, sent and then read back on the
-  other side. `body` has a `length(btrim(body)) > 0` check, and the editor sends Markdown, so an
-  empty-but-formatted message — a bullet with nothing in it — is the shape most likely to be
-  refused. The Send button already refuses to send an empty editor, which should mean the database
-  never sees one.
+  Verified in a browser: 25 checks over `renderBody()` — Editor.js documents, the plain-text and
+  Markdown bodies that predate it, and ten hostile documents of the kind a member could post
+  straight to PostgREST with their own key. Nothing banned survives; no `on*` or `style` attribute
+  is copied; a `javascript:` href loses the link and keeps the words. Then the real editor was
+  mounted, typed into, saved, and the saved JSON rendered back — bold, a link and an inline code
+  span all round-tripped. Dark theme measured at 12.2:1 on the text, with the popover and inline
+  toolbar following the theme rather than staying white.
+
+  Two layout faults were found by measuring and fixed: the box collapsed from 67px to 29px when the
+  editor replaced the placeholder, and Editor.js positions its plus and drag handles at −52px
+  relative to the block, which put them outside the box and onto the journal's checkbox column.
+
+  **What has never happened:** a message going through Postgres. Worth one send containing a bold
+  word, a bullet list and a link, read back on the other side. The body is now JSON rather than a
+  sentence, so the check `length(btrim(body)) > 0` will pass on a document that renders as nothing —
+  `getBody()` guards that by rendering the document and refusing to send when no text comes out, and
+  that guard is the thing to watch.
+
+  **The other thing that has never happened is a slow connection.** The library is eight requests
+  from a CDN. If esm.sh is unreachable the box says so in place and the page still works; that path
+  has been written but not seen.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

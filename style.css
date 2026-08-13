@@ -3485,116 +3485,156 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) + 3px);
   background: var(--paper);
-  overflow: hidden;                 /* so the toolbar's corners follow the box */
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 /* The whole control lifts on focus rather than only the caret appearing. A
-   contenteditable has no native focus ring, so without this there is nothing
+   rich-text surface has no native focus ring, so without this there is nothing
    at all to say which of several reply boxes on a page is the live one. */
 .rte:focus-within {
   border-color: var(--accent-dk);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
-.rte-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1px;
-  padding: 5px 6px;
-  background: var(--inset);
-  border-bottom: 1px solid var(--line-lo);
-}
+.rte.is-disabled { opacity: 0.55; pointer-events: none; }
 
-/* A hairline between the text tools and the block tools. Seven identical
-   buttons in a row is a wall; two groups of four and three is a sentence. */
-.rte-sep {
-  width: 1px;
-  height: 18px;
-  margin: 0 5px;
-  background: var(--line);
-}
+/* ---------------------------------------------------------------
+   The surface before the editor exists
 
-.rte-tool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 28px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius);
-  color: var(--muted);
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
+   Editor.js and its three tools are eight requests. A page with ten
+   review cards, or fifty journal rows, cannot mount one per box on
+   render - so a box starts as this, which is only a box, and swaps
+   for the real editor on the first click.
 
-/* 17px inside a 30px button. The icons are drawn in a 24-unit box at stroke 2,
-   so this lands them at roughly 1.4px on screen - the same optical weight as
-   the masthead icons rather than the heavy look 24px would give. */
-.rte-tool svg { width: 17px; height: 17px; display: block; }
+   It has to be the same height and the same type as what replaces
+   it. If the page moves when the editor appears, the lazy load stops
+   being invisible and starts being a glitch.
+   --------------------------------------------------------------- */
 
-.rte-tool:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
-
-/* Pressed means the caret is already inside this formatting, which is a state
-   and not a hover. It gets the accent so it cannot be confused with the
-   pointer being nearby. */
-.rte-tool.is-on {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent-dk);
-}
-
-/* The toolbar is reachable by keyboard, so it has to say where focus is. The
-   default outline is suppressed on buttons elsewhere on this site, which is
-   fine for a labelled control and not fine for a row of icons. */
-.rte-tool:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.rte-tool:disabled { opacity: 0.35; cursor: default; }
-
-.rte-input {
-  min-height: 4.5em;
-  max-height: 22em;
-  overflow-y: auto;
-  padding: var(--s-3) var(--s-4);
+/* Both surfaces share these, because the swap has to be invisible. Measured
+   rather than guessed: the shell was 67px and the editor 29px, so the page
+   jumped by half the box the first time anyone clicked. */
+.rte-shell,
+.rte-body {
+  min-height: 62px;
+  /* 56px down the left is not decoration. Editor.js positions its plus and
+     drag handles relative to the block, at -52px - measured, not assumed - so
+     with no gutter they render OUTSIDE the box entirely, which in the journal
+     puts them on top of the row's checkbox. The padding is what brings them
+     inside. */
+  padding: var(--s-3) var(--s-4) var(--s-3) 56px;
   font-family: var(--sans);
   font-size: var(--step--1);
   line-height: 1.6;
 }
 
-.rte-input:focus { outline: none; }
+.rte-shell { cursor: text; }
 
-/* A contenteditable that has been typed in and cleared is not :empty - it
-   holds a stray <br> - so the placeholder is driven by a class the editor
-   maintains rather than by a selector that would only work once. */
-.rte-input.is-empty::before {
-  content: attr(data-placeholder);
-  color: var(--muted);
-  pointer-events: none;
+.rte-shell:focus { outline: none; }
+.rte-hint { color: var(--muted); }
+
+/* Between the click and the editor appearing. Usually invisible, because
+   warmEditor() has normally already put the modules in cache - but on a cold
+   or slow connection this is the difference between waiting and wondering. */
+.rte-shell.is-waiting .rte-hint::after {
+  content: " loading the editor...";
+  color: var(--ink-400);
 }
 
-/* Shared by what is being typed and what was saved. Written once against both
-   selectors so the two cannot come apart. */
-.rte-input > *:first-child,
+/* ---------------------------------------------------------------
+   Editor.js
+
+   The library injects its own stylesheet, written for a full-width
+   document editor on a white page. Three things have to be undone
+   for it to sit inside a reply box, and all three are layout rather
+   than taste:
+
+   - its content column is capped at 650px and centred, which inside
+     a 700px table cell puts the text in the middle with a gutter
+     either side;
+   - it reserves the left margin for the plus and drag handles, which
+     land outside the box unless room is made for them;
+   - its own colours are literals, so the dark theme gets a white
+     popover.
+   --------------------------------------------------------------- */
+
+.rte .codex-editor { z-index: auto; }
+
+/* Full width, and room down the left for the plus and drag handles. */
+.rte .ce-block__content,
+.rte .ce-toolbar__content {
+  max-width: none;
+  margin: 0;
+}
+
+.rte .codex-editor__redactor { padding-bottom: 0 !important; }
+
+.rte .ce-block { font-family: var(--sans); font-size: var(--step--1); line-height: 1.6; }
+.rte .ce-paragraph { padding: 0; }
+
+/* The handles sit in the padding rather than over the first character. */
+.rte .ce-toolbar__actions { padding-right: 0; }
+.rte .codex-editor--narrow .ce-toolbar__actions { margin-right: 0; }
+
+/* Editor.js 2.30+ reads these for its popovers, toolbars and buttons. Setting
+   them is how the library follows the theme without any rule here having to
+   restyle its internals - which would break on the next version. */
+.rte .codex-editor {
+  --color-background-item-hover: var(--hover);
+  --color-background-item-focus: var(--hover);
+  --color-text-primary: var(--fg);
+  --color-text-secondary: var(--muted);
+  --color-border-icon: var(--line);
+  --color-line-gray: var(--line-lo);
+  --color-background-item-confirm: var(--accent);
+  --color-background-item-confirm-hover: var(--accent-dk);
+}
+
+.rte .ce-popover,
+.rte .ce-inline-toolbar,
+.rte .ce-conversion-toolbar {
+  background: var(--paper);
+  border-color: var(--line);
+  color: var(--fg);
+}
+
+.rte .ce-popover__item-icon,
+.rte .ce-inline-tool,
+.rte .ce-toolbar__plus,
+.rte .ce-toolbar__settings-btn {
+  color: var(--fg);
+  background: transparent;
+}
+
+.rte .ce-toolbar__plus:hover,
+.rte .ce-toolbar__settings-btn:hover,
+.rte .ce-inline-tool:hover { background: var(--hover); }
+
+.rte .ce-inline-tool--active { color: var(--accent-dk); }
+
+/* ---------------------------------------------------------------
+   The prose itself, while typing and after saving
+
+   Written against both selectors together so the two cannot drift.
+   What the editor shows and what the thread shows are the same
+   thing; if they disagree the editor has stopped being WYSIWYG.
+   --------------------------------------------------------------- */
+
+.rte-body > *:first-child,
 .reply-prose > *:first-child { margin-top: 0; }
 
-.rte-input > *:last-child,
+.rte-body > *:last-child,
 .reply-prose > *:last-child { margin-bottom: 0; }
 
-.rte-input p,
 .reply-prose p { margin: 0 0 var(--s-2); }
 
-.rte-input ul, .rte-input ol,
+.rte .cdx-list,
 .reply-prose ul, .reply-prose ol { margin: 0 0 var(--s-2); padding-left: 1.4em; }
 
-.rte-input li,
+.rte .cdx-list__item,
 .reply-prose li { margin: 0 0 2px; }
 
-.rte-input blockquote,
+.rte .cdx-quote,
 .reply-prose blockquote {
   margin: 0 0 var(--s-2);
   padding-left: var(--s-3);
@@ -3602,13 +3642,36 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   color: var(--muted);
 }
 
-.rte-input code,
+/* The quote tool's caption, and the same line rendered back in a thread. */
+.rte .cdx-quote__caption,
+.reply-prose blockquote footer {
+  font-size: var(--step--2);
+  color: var(--ink-400);
+  font-style: normal;
+}
+
+.rte .inline-code,
+.rte .ce-code,
 .reply-prose code {
   font-family: var(--mono);
   font-size: 0.88em;
   padding: 1px 4px;
   border-radius: 3px;
   background: var(--inset);
+  color: inherit;
+}
+
+.reply-prose mark {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+
+/* On a phone a 56px gutter is a sixth of the screen given to two buttons.
+   Editor.js drops its own handles into a narrow layout below this width, so the
+   gutter comes back to ordinary padding and the text gets the room. */
+@media (max-width: 620px) {
+  .rte-shell,
+  .rte-body { padding-left: var(--s-4); }
 }
 
 /* Inside .reply--mine the block already sits on --paper, so --inset would be

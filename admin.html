@@ -438,9 +438,13 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
-import { mountEditor, mdToHtml } from './editor.js';
+import { mountEditor, renderBody, warmEditor } from './editor.js';
 
 renderAccountStrip();
+
+// Fetch the reply editor during an idle moment, so the first click on a reply
+// box is instant rather than a two-second wait for a CDN. Nothing waits on it.
+warmEditor();
 
 // ALL module state lives here, above the init block.
 //
@@ -825,10 +829,12 @@ function replyBlock(r) {
       '<p class="reply-when">' + escapeHtml(mine ? 'You' : sharedBy(r.user_id)) + ' &mdash; ' +
         escapeHtml(new Date(v.created_at).toLocaleString()) +
         (stale ? ' &mdash; the trade has been edited since' : '') + '</p>' +
-      // mdToHtml, not escapeHtml. This page matters most: a member's words are
-      // rendered here, inside the session that holds every grant on the site.
-      // Nothing user-written reaches innerHTML as markup - see editor.js.
-      '<div class="reply-prose">' + mdToHtml(v.body) + '</div>' +
+      // renderBody, not escapeHtml. This page matters most: a member's words
+      // are rendered here, inside the session that holds every grant on the
+      // site, and the inline formatting inside an Editor.js block is an HTML
+      // fragment their own browser posted. Nothing user-written reaches
+      // innerHTML as markup - see the whitelist in editor.js.
+      '<div class="reply-prose">' + renderBody(v.body) + '</div>' +
     '</div>';
   }).join('');
 
@@ -900,7 +906,13 @@ async function renderShared() {
   // After the cards are in the document. Cleared first because innerHTML above
   // has already detached every editor from the previous page - keeping them
   // would mean reading text from an element nobody can see.
+  // Destroyed, not just dropped. Editor.js appends its inline toolbar and
+  // block menu to the body rather than to its own holder, so replacing
+  // innerHTML above leaves those behind - one set per page turn, still
+  // listening.
+  for (const old of replyEditors.values()) old.destroy();
   replyEditors.clear();
+
   for (const host of list.querySelectorAll('[data-reply-for]')) {
     const id = host.getAttribute('data-reply-for');
     replyEditors.set(id, mountEditor(host, {
@@ -957,11 +969,16 @@ async function sendReply(btn) {
   const key = btn.getAttribute('data-send-reply');
   const id = Number(key);
   const editor = replyEditors.get(key);
-  const body = editor ? editor.getMarkdown() : '';
+  if (!editor) return;
+
+  // Awaited: the editor may still be loading, and getBody waits for it rather
+  // than reporting an empty box that is only empty because it has not appeared
+  // yet.
+  const body = await editor.getBody();
 
   if (!body) {
     flash(btn, 'nothing to send');
-    if (editor) editor.focus();
+    editor.focus();
     return;
   }
 

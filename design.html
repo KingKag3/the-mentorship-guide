@@ -699,31 +699,50 @@ a convention and a convention is no use to a screen reader.</p>
 <p class="field-note">The member&rsquo;s box appears only while the trade is shared, because that is
 exactly what the insert policy requires. An input Postgres would refuse is a lie told in HTML.</p>
 
-<h3>The reply editor, and why the database holds text</h3>
+<h3>The reply editor, and why the database holds a document</h3>
 
-<p><code>editor.js</code> is WYSIWYG on screen &mdash; bold is bold while you type &mdash; and its
-DOM is never saved. On send it is walked and turned into Markdown, keeping bold, italic, inline code,
-links, bullet and numbered lists and block quotes, and <strong>silently dropping everything
-else</strong>. On render that Markdown becomes HTML written by the same file, where every tag is one
-it emitted and every character a person typed has been through <code>escapeHtml</code>.</p>
+<p>The reply box is <a href="https://github.com/codex-team/editor.js" target="_blank"
+rel="noopener">Editor.js</a>, loaded from a CDN as ES modules the same way Supabase and Quill already
+are &mdash; still no build step and no <code>node_modules</code>. It saves a JSON document rather
+than an HTML string, and <code>renderBody()</code> in <code>editor.js</code> decides what tags that
+document is allowed to become.</p>
 
 <p><strong>The reason is which way the trust runs.</strong> Lesson bodies are written by an admin and
 read by members; a reply is written by a <em>member</em> and read inside the admin page &mdash; the
 one session holding every grant on the site. Storing a member&rsquo;s HTML would put a stored XSS in
-front of the account that can change roles. Storing text means nothing in the table can ever become
-executable, whatever a future render forgets.</p>
+front of the account that can change roles.</p>
 
-<p class="field-note">It is a whitelist by construction rather than a sanitiser. An unrecognised node
-contributes its text and nothing else, so there is no &ldquo;did we remember to strip that&rdquo;
-question &mdash; a pasted table, a styled span and a <code>script</code> tag all reduce to the words
-they contained. Link schemes are checked as <code>http</code> or <code>https</code> on the way in
-<em>and</em> on the way out, because a row could predate the check.</p>
+<p class="field-note"><strong>Editor.js being well behaved is not the guarantee.</strong> It stores
+the inline formatting inside a block as an HTML fragment &mdash;
+<code>{ "text": "the &lt;b&gt;stop&lt;/b&gt;" }</code> &mdash; and Editor.js is not what sends the
+row. The browser is, and the member owns the browser: anyone can post
+<code>{"blocks":[{"type":"paragraph","data":{"text":"&lt;img src=x onerror=&hellip;&gt;"}}]}</code>
+straight to PostgREST with their own key. So the fragment is parsed into an inert
+<code>&lt;template&gt;</code> and re-emitted through a whitelist &mdash; tag in, tag out, no
+attributes copied &mdash; and the whitelist, not the editor, is what makes it safe.</p>
+
+<p class="field-note">It loads late, and that is a capacity decision rather than a nicety. The
+library and its three tools are eight requests. The Review tab shows ten cards and the journal shows
+fifty rows, so mounting one editor per box on render would be most of a minute of work to display a
+page nobody may type on. A box starts as a plain surface that only looks like the editor; the real
+one is mounted on the first click, and the modules are fetched during an idle moment so that click is
+usually instant. <strong>Both surfaces share a <code>min-height</code> and a left gutter</strong>,
+because a box that changes size when the editor arrives turns a lazy load into a glitch.</p>
+
+<p class="field-note">The 56px gutter is not decoration: Editor.js positions its plus and drag
+handles at &minus;52px relative to the block, so without it they render <em>outside</em> the box and
+land on the journal&rsquo;s checkbox column. It drops back to ordinary padding below 620px, where a
+sixth of the screen is too much to give two buttons.</p>
 
 <p class="field-note">Colours, fonts and sizes are deliberately not offered. They would let one
 person&rsquo;s message override the page&rsquo;s own type scale, which is the thing the
-one-stylesheet rule exists to prevent. The rules below are written against
-<code>.rte-input</code> and <code>.reply-prose</code> together, so what is on screen while typing and
-what is on screen after saving cannot drift apart.</p>
+one-stylesheet rule exists to prevent. The prose rules are written against the editor and
+<code>.reply-prose</code> together, so what is on screen while typing and what is on screen after
+saving cannot drift apart.</p>
+
+<p class="field-note">Replies written before this &mdash; plain text, then Markdown &mdash; still
+render. <code>renderBody()</code> looks at what it was given rather than assuming, and the Markdown
+reader is kept for exactly that reason.</p>
 
 <div class="demo">
   <table>
@@ -747,16 +766,7 @@ what is on screen after saving cannot drift apart.</p>
             </div>
             <div class="reply-say">
               <div class="rte">
-                <div class="rte-tools" role="toolbar" aria-label="Formatting">
-                  <button type="button" class="rte-tool">B</button>
-                  <button type="button" class="rte-tool"><em>I</em></button>
-                  <button type="button" class="rte-tool">&lt;&gt;</button>
-                  <button type="button" class="rte-tool">🔗</button>
-                  <button type="button" class="rte-tool">&bull;</button>
-                  <button type="button" class="rte-tool">1.</button>
-                  <button type="button" class="rte-tool">&#10077;</button>
-                </div>
-                <div class="rte-input is-empty" data-placeholder="Answer back"></div>
+                <div class="rte-shell"><span class="rte-hint">Answer back</span></div>
               </div>
               <p class="reply-actions">
                 <button type="button" class="btn-secondary">Send</button>

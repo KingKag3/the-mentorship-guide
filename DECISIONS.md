@@ -696,3 +696,49 @@ one is stored as text. Rich text flowing the other way may keep the Quill and DO
 
 **Still open:** whether `lessons.body_html` should follow. It is admin-authored, so the risk is far
 lower, but "admin-authored" is an assumption about accounts rather than a property of the schema.
+
+---
+
+## 2026-08-13 (later) — Editor.js replaces the hand-written editor, and the rule survives it
+
+**Decision:** the reply box is `codex-team/editor.js`, pinned, loaded from a CDN as ES modules and
+mounted on first click. `trade_reviews.body` holds its JSON document.
+
+**This supersedes the entry above it, on the same day.** That entry said the reply editor was
+hand-written and stored Markdown. The hand-written part is gone; the reason it existed is not.
+
+**What did not change, and is the point.** The rule was never "store Markdown". It was: *rich text
+written by one class of user and rendered to a more privileged one must not reach `innerHTML` as
+markup.* Editor.js satisfies that better than Markdown did, because it saves structured data instead
+of a string, and this file decides what tags that data may become.
+
+**What is new, and worth being clear-eyed about.** Editor.js stores the inline formatting inside a
+block as an HTML fragment: `{ "text": "the <b>stop</b>" }`. It is tempting to treat that as safe
+because Editor.js only ever writes `<b>`, `<i>`, `<a>`, `<code>` and `<mark>` into it — and that
+reasoning is wrong. **Editor.js is not what sends the row.** The browser is, and the member owns the
+browser: anybody can post a block whose `text` is `<img src=x onerror=…>` straight to PostgREST with
+their own publishable key. So the fragment is parsed into an inert `<template>` and re-emitted
+through a whitelist, tag in and tag out, with no attributes copied. The whitelist is the guarantee.
+The library is a convenience.
+
+**Why it loads late.** The library and its three tools are eight requests and about two seconds to
+`isReady` cold. The Review tab renders ten cards and the journal fifty rows, each with a box. One
+editor per box on render is most of a minute spent building controls nobody may use. A box is a
+plain surface until it is clicked; the modules are fetched on idle so that click is normally
+instant. Both surfaces share a `min-height` and a left gutter, because a box that resizes when the
+editor arrives turns a lazy load into a glitch — measured at 67px against 29px before that was
+fixed.
+
+**The version is pinned rather than ranged.** A `^2.31` would let a CDN serve this site a different
+editor on any morning with no diff and no commit. Pinning is how a project with no lockfile gets the
+property a lockfile provides.
+
+**The costs.** Editor.js is a block editor built for documents, and a reply about one trade is not a
+document — every paragraph is a block with its own handles, which is heavier than a chat box wants
+to be. The site now depends on a CDN for a member-facing control, where before it depended on one
+only for Supabase. And there are still two rich-text mechanisms here: lessons remain Quill and
+DOMPurify.
+
+**Still open:** whether lessons should move to Editor.js too, which would leave one editor rather
+than two. That is a larger change — `lessons.body_html` holds HTML and would need converting — and
+it is not blocking anything.

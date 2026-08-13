@@ -80,8 +80,9 @@
   <p class="field-note">A reply is written to <code>trade_reviews</code>, never to
   <code>trades</code>. The admin policy there is still select-only &mdash; a critique belongs in its
   own table, not as a second author on somebody else&rsquo;s journal, and the member&rsquo;s tick
-  stays theirs. Answering takes a trade out of this queue; the member editing it afterwards puts it
-  back.</p>
+  stays theirs. Answering takes a trade out of this queue. <strong>Three things put it
+  back:</strong> the member editing the trade, the member answering your reply, or a question they
+  asked before you had written anything. A trade is waiting whenever the last word was theirs.</p>
 
   <p class="stat-note" id="review-count">&nbsp;</p>
 
@@ -592,18 +593,47 @@ async function loadReviews() {
 }
 
 /**
+ * Who wrote a message.
+ *
+ * The author against the trade's owner, and nothing else. Looking the author's
+ * role up in `profiles` would be wrong in a way that is invisible until it
+ * happens: a role is current and a message is history, so promoting a member
+ * to admin would turn every question they had ever asked into an answer from
+ * the mentor. This comparison cannot go stale, because neither side of it
+ * changes.
+ *
+ * A mentor writing on their own shared trade reads as the member. On that
+ * trade they are.
+ */
+function fromMember(msg, t) {
+  return msg.author_id === t.user_id;
+}
+
+/**
  * Is this trade still waiting on the mentor?
  *
  * Derived rather than stored, which is what keeps this page out of the trades
- * table. Answered means a reply written since the last time the owner touched
- * the trade, so a member who edits one after being answered puts it back in
- * the queue by doing so - no flag to reset and nobody having to remember.
+ * table. Three ways in, and the second is the one that made this a thread:
+ *
+ *   a) nobody has written anything;
+ *   b) the newest message is from the member - they had the last word, whether
+ *      that is the first question or an answer to a reply;
+ *   c) the newest MENTOR message predates the trade's updated_at - the original
+ *      rule, so editing a trade after it was answered still reopens it.
+ *
+ * Without (b) a member's reply would mark their own question answered, because
+ * it would be the newest row in trade_reviews and the old rule looked no
+ * further than that. The question would never appear in the queue and nothing
+ * on this page would show it had been asked.
  */
 function isWaiting(t) {
-  const replies = reviewsByTrade.get(t.id);
-  if (!replies || !replies.length) return true;
-  const newest = replies[0].created_at;          // ordered newest first
-  return !t.updated_at || new Date(newest) < new Date(t.updated_at);
+  const msgs = reviewsByTrade.get(t.id);            // ordered newest first
+  if (!msgs || !msgs.length) return true;
+  if (fromMember(msgs[0], t)) return true;
+
+  const newestMentor = msgs.find((m) => !fromMember(m, t));
+  if (!newestMentor) return true;
+  return !t.updated_at || new Date(newestMentor.created_at) < new Date(t.updated_at);
 }
 
 /** Whoever sent it. `profiles` is already loaded for the Accounts tab. */
@@ -766,28 +796,47 @@ function reviewCard(r) {
 /**
  * What has been said, and somewhere to say the next thing.
  *
- * Replies are shown oldest first even though they arrive newest first, because
- * this reads as a conversation rather than as a log, and there will rarely be
- * more than two.
+ * Shown oldest first even though they arrive newest first, because this reads
+ * as a conversation rather than as a log.
+ *
+ * The member's own messages are labelled by name and sit on the other side of
+ * the block. On a page where every card is somebody else's trade, an unlabelled
+ * thread of two voices is unreadable - and the mentor's whole job here is to
+ * answer the last thing said, so which one that is has to be obvious.
  */
 function replyBlock(r) {
-  const replies = (reviewsByTrade.get(r.id) || []).slice().reverse();
+  const msgs = (reviewsByTrade.get(r.id) || []).slice().reverse();
+  const edited = r.updated_at ? new Date(r.updated_at) : null;
 
-  const said = replies.map((v) =>
-    '<div class="reply">' +
-      '<p class="reply-when">' + escapeHtml(new Date(v.created_at).toLocaleString()) +
-        (isWaiting(r) ? ' &mdash; the trade has been edited since' : '') + '</p>' +
+  const said = msgs.map((v) => {
+    const mine = !fromMember(v, r);
+    // Only on the mentor's own messages, and only on the ones that actually
+    // predate the edit. It used to be appended to every message in the thread
+    // whenever the trade was waiting, which said the member had edited since
+    // a message they had not yet written.
+    const stale = mine && edited && new Date(v.created_at) < edited;
+    return '<div class="reply' + (mine ? ' reply--mine' : '') + '">' +
+      '<p class="reply-when">' + escapeHtml(mine ? 'You' : sharedBy(r.user_id)) + ' &mdash; ' +
+        escapeHtml(new Date(v.created_at).toLocaleString()) +
+        (stale ? ' &mdash; the trade has been edited since' : '') + '</p>' +
       '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
-    '</div>').join('');
+    '</div>';
+  }).join('');
+
+  const answered = msgs.length && !fromMember(msgs[msgs.length - 1], r);
 
   return '<div class="reply-box">' + said +
     '<label class="sr-only" for="reply-' + r.id + '">Reply to this trade</label>' +
     '<textarea id="reply-' + r.id + '" rows="3" data-reply-for="' + r.id + '" ' +
-      'placeholder="' + (replies.length ? 'Add to this' : 'What you would tell them') + '"></textarea>' +
+      'placeholder="' + (msgs.length ? 'Add to this' : 'What you would tell them') + '"></textarea>' +
     '<p class="reply-actions">' +
       '<button type="button" class="secondary" data-send-reply="' + r.id + '">' +
-        (replies.length ? 'Add reply' : 'Send reply') + '</button>' +
-      '<span class="field-note">Goes to their journal, and takes this trade out of the queue.</span>' +
+        (msgs.length ? 'Add reply' : 'Send reply') + '</button>' +
+      '<span class="field-note">' +
+        (answered
+          ? 'They can answer back, which puts this trade in the queue again.'
+          : 'Goes to their journal, and takes this trade out of the queue.') +
+      '</span>' +
     '</p>' +
   '</div>';
 }
@@ -808,8 +857,9 @@ async function renderShared() {
     document.getElementById('review-count').textContent = '';
     list.innerHTML = sharedTrades.length
       ? '<div class="callout"><span class="callout-label">All answered</span>' +
-        '<p>Every shared trade has a reply written since it was last edited. ' +
-        'Tick <em>show trades already answered</em> to read them back.</p></div>'
+        '<p>On every shared trade the last word is yours, written since the trade ' +
+        'was last edited. Tick <em>show trades already answered</em> to read them ' +
+        'back &mdash; a member replying to any of them brings it back here.</p></div>'
       : '<div class="callout"><span class="callout-label">Nothing waiting</span>' +
         '<p>No member has shared a trade yet. The tick is on the journal form, ' +
         'beside the notes field.</p></div>';

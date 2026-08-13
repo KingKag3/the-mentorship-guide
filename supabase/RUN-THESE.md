@@ -11,7 +11,13 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `trade-reviews-thread.sql` | Three policies letting a member write on their own shared trade | Without it the Send button under a trade fails with a row-level security violation. No schema change — `trade_reviews` already has everything the thread needs |
+
+**Until it is run, the journal's reply box will refuse every send.** The page names that case
+specifically rather than showing the raw Postgres wording, because *"new row violates row-level
+security policy"* reads like a bug rather than like a migration nobody has applied.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

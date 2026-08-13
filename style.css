@@ -3433,6 +3433,26 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .reply p { margin: 0; }
 
+/* Your own message, whichever side of the conversation you are on.
+
+   Both pages set .reply--mine against the READER, not against a role: in the
+   journal it is the member's question, on the admin page it is the mentor's
+   answer. So the two voices are told apart the same way in both places without
+   either page needing to know which one it is.
+
+   Indent plus a quieter edge rather than a second colour. A red left rule
+   already means "the mentor said this" everywhere else on the site, and a
+   green one opposite it would read as a win.
+
+   The name is written out as well. Indentation alone is a convention, and a
+   convention is no use to a screen reader or to somebody meeting the page for
+   the first time. */
+.reply--mine {
+  margin-left: var(--s-5);
+  background: var(--surface-1);
+  border-left-color: var(--border-lo);
+}
+
 .reply-when {
   font-family: var(--serif);
   font-size: var(--step--1);
@@ -3441,6 +3461,16 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .reply-box textarea { width: 100%; }
+
+/* Where a member types back, in the journal. A rule above it because the thread
+   above is what somebody else wrote and this is not - without the separator the
+   box reads as the next message in the conversation rather than as the place to
+   compose one. */
+.reply-say {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-lo);
+}
 
 /* In the journal the reply is a row of its own under the trade. The empty
    first cell keeps it clear of the select column, so the checkboxes still read

@@ -671,22 +671,33 @@ and whether a planned move was taken in full.</p>
   </article>
 </div>
 
-<h3>The reply, and why it is a table rather than a column</h3>
+<h3>The thread, and why it is a table rather than a column</h3>
 
 <p>A mentor needs somewhere to answer and a way to clear a trade off the queue. The obvious version
 of the second is letting an admin untick <code>shared_with_mentor</code>, which is exactly what
 <code>trades.sql</code> refuses &mdash; nobody edits your journal but you, and a well-meant exception
 is still an exception.</p>
 
-<p>So a reply is a row in <code>trade_reviews</code>, owned by whoever wrote it, and the queue is
-<em>derived</em>: a shared trade is waiting if nobody has answered it since the last time its owner
-touched it. Nothing writes to <code>trades</code>. The reopen rule comes free with that &mdash; a
-member who edits a trade after being answered puts it back in the queue by doing so, because
-<code>updated_at</code> moves past the reply.</p>
+<p>So a message is a row in <code>trade_reviews</code>, owned by whoever wrote it, and the queue is
+<em>derived</em>. Nothing writes to <code>trades</code>. A shared trade is waiting when the last word
+was the member&rsquo;s &mdash; their first question, or an answer to a reply &mdash; or when the
+newest mentor message predates the trade&rsquo;s <code>updated_at</code>, which is how editing a
+trade after it was answered reopens it.</p>
 
-<p class="field-note">Members read replies on their own trades and can write none. The same
-<code>.reply</code> block renders in the journal under the trade it answers, without the textarea,
-because an input there would be a lie about what the database will accept.</p>
+<p><strong>Which voice a message is comes from comparing <code>author_id</code> with the
+trade&rsquo;s <code>user_id</code>, never from looking the author&rsquo;s role up.</strong> A role is
+current and a message is history: promote a member to admin and every question they ever asked would
+retroactively become a mentor&rsquo;s answer. The comparison cannot go stale because neither side of
+it changes.</p>
+
+<p class="field-note"><code>.reply--mine</code> is set against the <em>reader</em>, not against a
+role &mdash; in the journal it is the member&rsquo;s question, on the admin page it is the
+mentor&rsquo;s answer. So both pages tell the two voices apart the same way without either needing to
+know which one it is. The indent is backed up by the name in the byline, because indentation alone is
+a convention and a convention is no use to a screen reader.</p>
+
+<p class="field-note">The member&rsquo;s box appears only while the trade is shared, because that is
+exactly what the insert policy requires. An input Postgres would refuse is a lie told in HTML.</p>
 
 <div class="demo">
   <table>
@@ -699,9 +710,23 @@ because an input there would be a lie about what the database will accept.</p>
       <tr class="reply-tr">
         <td></td>
         <td colspan="2">
-          <div class="reply">
-            <p class="reply-when">Mentor &mdash; 14 August 2026, 09:12</p>
-            <p>The entry is fine. What cost you is the stop.</p>
+          <div class="reply-box">
+            <div class="reply reply--mine">
+              <p class="reply-when">You &mdash; 13 August 2026, 20:41</p>
+              <p>Took this at the gap but I was early. Should I have waited for the close?</p>
+            </div>
+            <div class="reply">
+              <p class="reply-when">Mentor &mdash; 14 August 2026, 09:12</p>
+              <p>The entry is fine. What cost you is the stop.</p>
+            </div>
+            <div class="reply-say">
+              <textarea rows="2" placeholder="Answer back"></textarea>
+              <p class="reply-actions">
+                <button type="button" class="secondary">Send</button>
+                <span class="field-note">Goes to the mentor and puts this trade back at the top of
+                their queue.</span>
+              </p>
+            </div>
           </div>
         </td>
       </tr>

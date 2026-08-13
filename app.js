@@ -604,6 +604,20 @@ export function migrationHint(error) {
   // nothing about which table it happened on.
   if (/ON CONFLICT specification/i.test(raw)) return 'supabase/trade-import-fix.sql';
 
+  // Also not a missing object: the table is there and the policy that would
+  // have allowed the write is not. Named here rather than in the table below
+  // because the table is only consulted for missing objects, and because the
+  // right file is a different one - trade_reviews has existed since a mentor
+  // could reply, so pointing at trade-reviews.sql would send somebody to re-run
+  // a migration that changes nothing and make the advice look wrong.
+  //
+  // Only trade_reviews. Every other RLS refusal on this site means the policies
+  // are doing their job, and offering a file to run would read as an
+  // instruction to disable them.
+  if (/row-level security/i.test(raw) && /trade_reviews/i.test(raw)) {
+    return 'supabase/trade-reviews-thread.sql';
+  }
+
   const missing = /does not exist|schema cache|Could not find/i.test(raw);
   if (!missing) return null;
 

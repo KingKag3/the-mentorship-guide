@@ -330,24 +330,22 @@ Be honest about this list before trusting anything below it.
   this list.** The record of what was actually observed is under **Verified by attack** below. It
   stays named here because four earlier attempts to test it produced errors that looked like passes,
   and anybody re-checking it should read that section before trusting a red console line.
-- **`supabase/trade-reviews.sql` — run on 12 August 2026. The table is confirmed; the policies are
-  not.** Signed out, with the publishable key only, `trade_reviews` answers `200 []`, which is the
+- **`supabase/trade-reviews.sql` — run on 12 August 2026. Half the policies are now observed.**
+  Signed out, with the publishable key only, `trade_reviews` answers `200 []`, which is the
   signature of a table that exists behind a policy that holds — a table that does not exist answers
-  `404 PGRST205` and names itself, which is what the reply box was reporting an hour earlier. That
-  settles existence and nothing else.
+  `404 PGRST205` and names itself, which is what the reply box was reporting an hour earlier.
 
-  Four things still have never touched a database, and all of them are policy behaviour rather than
-  schema:
+  Two of the four unknowns were settled on **13 August 2026** by a screenshot of a member's own
+  journal: a trade tagged *shared*, with *"Mentor — 8/13/2026, 8:52:06 AM"* and the reply body
+  rendered beneath it. That is an admin insert on a shared trade **and** the member reading it back
+  on their own — items 1 and 3 below, both of which had never returned a row.
 
-  1. An admin inserting a reply on a trade whose owner shared it.
-  2. An admin being *refused* on a trade nobody shared. This is the one worth attacking, because a
-     permissive insert policy would let a mentor write on any trade in the system and nothing in the
-     UI would look wrong.
-  3. The member reading that reply back on their own trade.
+  Two remain, and both are the attacking half:
+
+  2. An admin being *refused* on a trade nobody shared. Worth attacking, because a permissive insert
+     policy would let a mentor write on any trade in the system and nothing in the UI would look
+     wrong.
   4. A *different* member not being able to read it.
-
-  Two accounts and four attempts, the same shape as the journal-media check below. Until then the
-  reply box working proves the table exists, which is already known.
 
   What *was* verified on 12 August 2026, in a browser against the shipped source rather than a
   retyping of it: `admin.html`, `journal.html` and `design.html` all parse, and `isWaiting()` was
@@ -356,12 +354,27 @@ Be honest about this list before trusting anything below it.
   absent one, a missing `updated_at`, and a two-reply list proving the newest-first order is what
   gets compared. All seven behave as intended.
 
-  That covers the arithmetic of the queue and nothing else. **The three things to watch when it is
-  first run**, because each fails quietly rather than loudly: whether a member can read a reply on
-  their own trade at all (a policy that is too tight shows an empty journal, not an error); whether
-  a member can write one (they must not, and the UI simply has no input, which is not a defence);
-  and whether replying actually clears the trade from the queue, which depends on `created_at`
-  landing after the trade's `updated_at` on the same server clock.
+- **`supabase/trade-reviews-thread.sql` — written 13 August 2026, never run.** Three policies, no
+  schema change, letting a member write on their own trade while it is shared. Until it is applied
+  the Send button under a trade fails every time; the journal names that case rather than showing
+  the raw *"new row violates row-level security policy"*, which reads like a bug.
+
+  `isWaiting()` was lifted out of `admin.html` again and run against nine fixtures covering every
+  order a thread can arrive in, plus a mentor writing on their own shared trade. All nine behave as
+  intended, and the run prints what the **old** rule said beside the new one — on *member answered
+  back* the old rule returns *answered*, which is the regression this migration exists to close: a
+  member's reply was the newest row, so it marked their own question answered and the mentor never
+  saw it.
+
+  **Four things to watch the first time it runs**, each of which fails quietly rather than loudly:
+
+  1. A member writing on their own shared trade. Must succeed.
+  2. A member writing on a trade they have **unshared**. Must be refused — the box is hidden, which
+     is not a defence.
+  3. A member writing on somebody **else's** trade. Must be refused. This is the one worth attacking
+     and it cannot be checked from the SQL editor, because RLS does not apply to the table owner.
+  4. Whether their reply actually puts the trade back in the mentor's queue, which depends on
+     `created_at` landing after the mentor's message on the same server clock.
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

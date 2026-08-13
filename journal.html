@@ -820,12 +820,17 @@ async function load() {
   drawPage();
 }
 
-/* What the mentor wrote back.
+/* The conversation about a trade.
  *
- * Read-only here, and it has to be: the policies on trade_reviews let a member
- * read replies on their own trades and write nothing at all. The reply arrives
- * through the trade rather than through a user column, so this needs no filter
- * beyond the ids - RLS returns exactly the ones that are ours.
+ * author_id is selected because it is the only thing that says who wrote a
+ * message. It is compared against the reader's own id rather than looked up in
+ * profiles - a role is current and a message is history, so asking "is this
+ * author an admin" would turn every question a member ever asked into a
+ * mentor's answer on the day they were promoted.
+ *
+ * The messages arrive through the trade rather than through a user column, so
+ * this needs no filter beyond the ids - RLS returns exactly the ones that are
+ * ours.
  *
  * A failure is not fatal. Somebody's journal is still their journal without the
  * critique attached, and the likely cause on first run is a migration that has
@@ -837,7 +842,7 @@ async function loadReplies(rows) {
 
   const { data, error } = await supabase
     .from('trade_reviews')
-    .select('trade_id, body, created_at')
+    .select('id, trade_id, author_id, body, created_at')
     .in('trade_id', rows.map((r) => r.id))
     .order('created_at', { ascending: true });
 
@@ -1142,28 +1147,112 @@ function renderRow(r, shotUrl) {
   '</tr>' + replyRow(r);
 }
 
-/* The mentor's answer, under the trade it is about.
+/* The conversation, under the trade it is about.
  *
  * Its own full-width row rather than a cell, because a critique is prose and
  * the widest column here is forty characters. It sits directly beneath the
  * trade so there is never a question about which one is being talked about.
  *
- * Nothing here can be typed into. Replies are written from the admin page and
- * the policies on trade_reviews give a member read and nothing else, so an
- * input would be a lie about what the database will accept.
+ * WHO WROTE IT is decided by comparing the author against the reader, and by
+ * nothing else. Every trade in this table belongs to the person reading it, so
+ * an author who is not them is the mentor. That test cannot go stale, which a
+ * role lookup could.
+ *
+ * The box only appears while the trade is shared, because that is exactly what
+ * the database will accept - the insert policy requires shared_with_mentor. An
+ * input that Postgres would refuse is a lie told in HTML, and this page has
+ * been careful not to tell it: the previous version had no box at all, for the
+ * same reason.
  */
 function replyRow(r) {
-  const said = replies.get(r.id);
-  if (!said || !said.length) return '';
+  const said = replies.get(r.id) || [];
+  if (!said.length && !r.shared_with_mentor) return '';
+
+  const thread = said.map((v) => {
+    const mine = v.author_id === profile.id;
+    return '<div class="reply' + (mine ? ' reply--mine' : '') + '">' +
+      '<p class="reply-when">' + (mine ? 'You' : 'Mentor') + ' &mdash; ' +
+        escapeHtml(new Date(v.created_at).toLocaleString()) + '</p>' +
+      '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
+    '</div>';
+  }).join('');
+
+  // Nothing said yet, but the trade is in the queue. Worth saying so: silence
+  // after pressing "ask" is indistinguishable from the button not having
+  // worked, and this is the one place the member looks for the answer.
+  const empty = (!said.length && r.shared_with_mentor)
+    ? '<p class="field-note">Waiting on the mentor. Add anything below that ' +
+      'would not fit in the notes &mdash; what you were thinking, or what you ' +
+      'are unsure about.</p>'
+    : '';
+
+  const box = r.shared_with_mentor
+    ? '<div class="reply-say">' +
+        '<label class="sr-only" for="say-' + r.id + '">Reply about this trade</label>' +
+        '<textarea id="say-' + r.id + '" rows="2" data-say-for="' + r.id + '" ' +
+          'placeholder="' + (said.length ? 'Answer back' : 'Ask something about this trade') +
+          '"></textarea>' +
+        '<p class="reply-actions">' +
+          '<button type="button" class="secondary" data-send-say="' + r.id + '">Send</button>' +
+          '<span class="field-note">Goes to the mentor and puts this trade back ' +
+            'at the top of their queue.</span>' +
+        '</p>' +
+      '</div>'
+    : '';
 
   return '<tr class="reply-tr"><td></td><td colspan="7">' +
-    said.map((v) =>
-      '<div class="reply">' +
-        '<p class="reply-when">Mentor &mdash; ' +
-          escapeHtml(new Date(v.created_at).toLocaleString()) + '</p>' +
-        '<p>' + escapeHtml(v.body).replace(/\n/g, '<br>') + '</p>' +
-      '</div>').join('') +
+    '<div class="reply-box">' + thread + empty + box + '</div>' +
     '</td></tr>';
+}
+
+/* Saying something back.
+ *
+ * author_id is left to its default rather than sent. The column defaults to
+ * auth.uid() and the policy checks it equals auth.uid(), so a client that sends
+ * nothing is correct by construction and a client that lies is refused by
+ * Postgres. Sending it from here would only add a way to be wrong.
+ *
+ * Only the thread is reloaded, not the page. A journal of five hundred rows
+ * with filters and a page position is a lot to throw away to add one line of
+ * text, and nothing else on screen can have changed.
+ */
+async function sendSay(btn) {
+  const id = Number(btn.getAttribute('data-send-say'));
+  const box = document.getElementById('say-' + id);
+  const body = (box && box.value || '').trim();
+
+  if (!body) { if (box) box.focus(); return; }
+
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Sending…';
+
+  const { error } = await supabase.from('trade_reviews').insert({ trade_id: id, body });
+
+  btn.disabled = false;
+  btn.textContent = was;
+
+  if (error) {
+    // Named rather than swallowed. The failure that will actually happen here
+    // is not a missing table - trade_reviews has existed since the mentor could
+    // reply - it is a refused INSERT, because trade-reviews-thread.sql is what
+    // grants a member the right to write one. Postgres phrases that as a
+    // row-level security violation, which reads like a bug rather than like a
+    // migration nobody has run yet.
+    //
+    // migrationHint knows that, so this does not have to. Repeating the rule
+    // here would be a second place to update when the file is renamed, and the
+    // one that nobody would think to look at.
+    const file = migrationHint(error);
+    setStatus('#status', file
+      ? 'The database refused that. Run ' + file + ' in the Supabase SQL editor, then reload.'
+      : error.message, 'error');
+    return;
+  }
+
+  if (box) box.value = '';
+  await loadReplies(rows);
+  drawPage();
 }
 
 $('list').addEventListener('change', (e) => {
@@ -1344,6 +1433,13 @@ $('empty-journal').addEventListener('click', async () => {
 });
 
 $('list').addEventListener('click', async (e) => {
+  // closest, not the target itself: the rest of this handler reads attributes
+  // off e.target because those controls have no children, and a button with
+  // text in it is still the target. Kept separate rather than converting the
+  // others, which would be a change to code that works.
+  const say = e.target.closest && e.target.closest('[data-send-say]');
+  if (say) { await sendSay(say); return; }
+
   const editId = e.target.getAttribute && e.target.getAttribute('data-edit');
   const delId = e.target.getAttribute && e.target.getAttribute('data-del');
   const shareId = e.target.getAttribute && e.target.getAttribute('data-share');

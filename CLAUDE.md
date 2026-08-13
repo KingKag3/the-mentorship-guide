@@ -34,12 +34,19 @@ So the split is by **repo, not by feature**:
 
 | Machine | Repo | Current piece |
 | --- | --- | --- |
-| This one | both, for now | Journal analytics, then indicators |
+| This one | both, for now | The mentor review loop: share, chart, reply |
 | The other | idle | — |
 
 **The split is suspended, not abandoned.** An overnight session was asked for indicator work while
 the site work was still open, so one machine currently holds both. That is fine while only one
 machine is running. Put the split back the moment two are.
+
+**A second session on the same machine is not a second machine, and is not covered by the table
+above.** Two sessions ran against this repo on 12 August — one on the journal, one on the storage
+policy and the reply table — and it worked only because they were told to stay in different files.
+The rule that makes it safe is the same one: agree the files first, and push between them. Two
+sessions editing `journal.html` from the same checkout is a lost edit, not a merge conflict, because
+neither one is a separate branch.
 
 There is also a running list of migrations waiting to be applied in
 [supabase/RUN-THESE.md](supabase/RUN-THESE.md). Add to it rather than burying a new one in a commit

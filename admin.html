@@ -104,10 +104,12 @@
   </div>
   <p class="search-meta" id="user-count">&nbsp;</p>
 
+  <div class="callout" id="user-attrition" hidden></div>
+
   <div class="table-scroll">
     <table id="users-table">
       <thead>
-        <tr><th>Email</th><th>Name</th><th>Joined</th><th>Role</th><th></th></tr>
+        <tr><th>Email</th><th>Name</th><th>Joined</th><th>Last seen</th><th>Role</th><th></th></tr>
       </thead>
       <tbody id="users-body"></tbody>
     </table>
@@ -1046,20 +1048,74 @@ function flash(btn, message) {
 
 /* ------------------------------- users ------------------------------- */
 
+/* last_seen_at is optional, and the fallback is the point.
+ *
+ * member-last-seen.sql may not have been run. PostgREST answers a select naming
+ * a missing column with an error rather than by ignoring it, so asking for it
+ * unconditionally would take the whole Accounts tab down - every role, every
+ * name, every reset button - over one attendance date nobody had asked for yet.
+ *
+ * So it is asked for, and if the column is not there the query runs again
+ * without it and the page says so once, in the one place it matters. */
+let seenColumn = true;
+
 async function loadUsers() {
+  const columns = 'id, email, full_name, role, created_at' +
+                  (seenColumn ? ', last_seen_at' : '');
+
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role, created_at')
+    .select(columns)
     .order('created_at', { ascending: false });
 
   if (error) {
+    if (seenColumn && /last_seen_at/i.test(error.message || '')) {
+      seenColumn = false;
+      return loadUsers();
+    }
     document.getElementById('users-body').innerHTML =
-      '<tr><td colspan="5">' + escapeHtml(error.message) + '</td></tr>';
+      '<tr><td colspan="6">' + escapeHtml(error.message) + '</td></tr>';
     return;
   }
 
   allUsers = data;
   renderUsers();
+}
+
+/* How long since somebody was here.
+ *
+ * Whole days, from dates rather than from milliseconds: a member who signed in
+ * at 23:50 last night and is looked at now has been away for eleven minutes by
+ * the clock and one day by the calendar, and the calendar is what the question
+ * means.
+ *
+ * Null means never seen since the column was added, which is not the same as
+ * never seen - the two are told apart in the cell rather than folded together
+ * into a number that would be a guess. */
+function daysAway(row) {
+  if (!row.last_seen_at) return null;
+  const then = new Date(row.last_seen_at);
+  if (Number.isNaN(then.getTime())) return null;
+  const day = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.max(0, Math.round((day(new Date()) - day(then)) / 86400000));
+}
+
+function lastSeenCell(row) {
+  if (!seenColumn) return '<td class="acct-muted">—</td>';
+
+  const n = daysAway(row);
+  if (n === null) {
+    // Deliberately not "never". The column started empty, so an account that
+    // has simply not been back since it was added looks identical to one that
+    // never arrived - and saying "never" about the first would be a lie the
+    // page has no way to check.
+    return '<td class="acct-muted">not since tracking began</td>';
+  }
+  if (n === 0) return '<td><span class="tag bull">today</span></td>';
+  if (n === 1) return '<td>yesterday</td>';
+  if (n < 14) return '<td>' + n + ' days ago</td>';
+  // Two weeks is where a gap stops being a holiday and starts being a question.
+  return '<td><span class="tag bear">' + n + ' days ago</span></td>';
 }
 
 function renderUsers() {
@@ -1073,6 +1129,8 @@ function renderUsers() {
     rows.length + ' of ' + allUsers.length + ' accounts' +
     (pending ? ' — ' + pending + ' awaiting approval' : '');
 
+  renderAttrition();
+
   document.getElementById('users-body').innerHTML = rows.map((u) => {
     const isMe = u.id === me.id;
     return '<tr data-id="' + escapeHtml(u.id) + '">' +
@@ -1080,6 +1138,7 @@ function renderUsers() {
       '<td><input type="text" class="name-input" maxlength="80" ' +
         'value="' + escapeHtml(u.full_name || '') + '" placeholder="no name set"></td>' +
       '<td>' + new Date(u.created_at).toISOString().slice(0, 10) + '</td>' +
+      lastSeenCell(u) +
       '<td>' +
         '<select class="role-select"' + (isMe ? ' disabled title="You cannot change your own role"' : '') + '>' +
           ['pending', 'member', 'admin'].map((r) =>
@@ -1093,6 +1152,61 @@ function renderUsers() {
       '</td>' +
     '</tr>';
   }).join('');
+}
+
+/* The attrition line.
+ *
+ * Counted over EVERY account, not over the filtered rows above it. The filter
+ * is for finding one person; this is a statement about the membership, and one
+ * that changed when somebody typed a name into a search box would be worthless.
+ *
+ * Pending accounts are excluded throughout. Somebody who signed up and was
+ * never approved has not lapsed - they were never let in, which is a different
+ * problem with a different fix, and counting them here would make the site look
+ * like it was losing people it never had.
+ */
+function renderAttrition() {
+  const el = document.getElementById('user-attrition');
+  if (!el) return;
+
+  if (!seenColumn) {
+    el.innerHTML =
+      '<span class="callout-label">Attendance is not being recorded</span>' +
+      '<p>Run <code>supabase/member-last-seen.sql</code> to start. Nothing else ' +
+      'on this page depends on it, and the column fills as members visit rather ' +
+      'than from the migration &mdash; so expect this to stay empty for a day.</p>';
+    el.hidden = false;
+    return;
+  }
+
+  const live = allUsers.filter((u) => u.role !== 'pending');
+  if (!live.length) { el.hidden = true; return; }
+
+  const seen = live.map(daysAway);
+  const active7 = seen.filter((n) => n !== null && n <= 7).length;
+  const lapsed30 = seen.filter((n) => n !== null && n > 30).length;
+  const never = seen.filter((n) => n === null).length;
+
+  // Said in a sentence rather than shown as four numbers. Four numbers need a
+  // legend; a sentence carries its own.
+  const bits = [
+    '<strong>' + active7 + '</strong> of ' + live.length +
+      (live.length === 1 ? ' member' : ' members') + ' here in the last week'
+  ];
+  if (lapsed30) bits.push('<strong>' + lapsed30 + '</strong> not for over a month');
+  if (never) {
+    bits.push('<strong>' + never + '</strong> not since tracking began');
+  }
+
+  el.innerHTML =
+    '<span class="callout-label">Who is still turning up</span>' +
+    '<p>' + bits.join(' &middot; ') + '.</p>' +
+    // The caveat travels with the number. A retention figure quoted without it
+    // is the sort of thing that ends up in a decision it cannot support.
+    '<p class="field-note">This is attendance, not engagement: it records a ' +
+    'browser opening a members page, at most once a day. Somebody who stopped ' +
+    'because the material worked looks the same as somebody who gave up.</p>';
+  el.hidden = false;
 }
 
 document.getElementById('user-filter').addEventListener('input', renderUsers);

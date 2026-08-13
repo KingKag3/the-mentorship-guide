@@ -394,6 +394,23 @@ Be honest about this list before trusting anything below it.
   **What has never happened: a message going through Postgres.** Worth one send containing a bold
   word, a bullet list and a link, read back on the other side.
 
+- **`last_seen_at` — the column is written by every members page and has never been read back.**
+  `supabase/member-last-seen.sql` is in the Waiting list. Until it is run the write silently fails,
+  by design: `touchLastSeen` in `app.js` is unawaited and swallows its own errors, because the least
+  important write on the site sits on the critical path of every members page.
+
+  The consequence of that design is that **nothing will tell you it is not working.** The proof is
+  the Accounts tab: run the migration, open any members page as a member, and that account should
+  read *today*. If it does not, the throttle stamp is the first place to look —
+  `localStorage['member_last_seen_stamp:<user id>']` holds a date, and clearing it forces the next
+  load to write again.
+
+  The maths is verified: 18 checks over `daysAway` and the attrition counts, including the boundary
+  cases (7 days is active, 8 is not; 30 is not lapsed, 31 is), a stamp at 23:50 last night reading
+  as one day rather than eleven minutes, and a clock skew putting the stamp in the future clamping
+  to zero rather than going negative. The Accounts table was rendered with a fixture covering every
+  cell wording, and the missing-column fallback was exercised.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

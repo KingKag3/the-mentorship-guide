@@ -147,7 +147,63 @@ export async function requireRole(roles, mountSelector = '#auth-root') {
     return null;
   }
 
+  touchLastSeen(profile);
   return profile;
+}
+
+/* --------------------------- who is still here ---------------------------
+ *
+ * One write per member per day, so an admin can see who has stopped coming.
+ *
+ * WHY IT IS HERE. requireRole is the only chokepoint every members page passes
+ * through. Calling this from each page instead would mean remembering to, on
+ * every page added from now on, and the first one forgotten would quietly
+ * under-report somebody as having left.
+ *
+ * WHAT IT DELIBERATELY IS NOT. Not awaited, not checked, and wrapped so it can
+ * never reject. This is the least important write on the site and it sits on
+ * the critical path of every members page: a Supabase hiccup, a missing column
+ * because the migration has not been run, an ad blocker - none of those may
+ * cost anybody their journal. If it fails, nothing anywhere says so, and that
+ * is correct. The consequence of losing one is one member looking a day staler
+ * than they are.
+ *
+ * THE THROTTLE IS THE POINT. Fifty members opening six pages a day is three
+ * hundred writes to record fifty dates. The stamp is a date rather than a
+ * timestamp, so a second visit the same day has nothing to add.
+ *
+ * Keyed by user id, because two accounts share a browser more often than is
+ * comfortable - a mentor checking what a member sees is exactly this - and a
+ * single flag would let whoever signed in first suppress the other's write for
+ * the rest of the day.
+ */
+
+/* Not SEEN_KEY. That name is already taken further down this file, by the
+ * scripts page's "what is new since you last looked" stamp - and a second
+ * top-level `const` of the same name is a SyntaxError that stops app.js from
+ * loading at all, which blanks every page on the site. It got as far as a
+ * browser because `node --check` does not catch it: see tools/check-duplicates.py. */
+const LAST_SEEN_KEY = 'member_last_seen_stamp';
+
+function touchLastSeen(profile) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = LAST_SEEN_KEY + ':' + profile.id;
+    if (localStorage.getItem(key) === today) return;
+
+    // Written before the request rather than after it. If the write fails, the
+    // cost is one missed day; if it is written after and the page is closed
+    // mid-flight, every subsequent load retries forever.
+    localStorage.setItem(key, today);
+
+    supabase.from('profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', profile.id)
+      .then(() => {}, () => {});
+  } catch (err) {
+    // Private browsing has no localStorage. Skipping the stamp entirely is
+    // better than writing on every page load to a column nobody reads live.
+  }
 }
 
 /* ------------------------------ invite codes ------------------------------ */
@@ -585,6 +641,7 @@ const MIGRATIONS = [
   // to run. A table added without a line here fails silently in the one way
   // this function exists to prevent.
   [/trade_reviews/i,                     'supabase/trade-reviews.sql'],
+  [/last_seen_at/i,                      'supabase/member-last-seen.sql'],
   [/risk_settings/i,                     'supabase/risk-settings.sql'],
   [/\btrade_exits\b/i,                       'supabase/trade-exits.sql'],
   [/\b(account|net_pnl)\b/i,                 'supabase/trade-accounts.sql'],

@@ -329,7 +329,7 @@ should not start at the end of a long session.
 Three pieces asked for on 13 August 2026. They are listed in dependency order, which is also
 cheapest-first: **5.1 stands alone, 5.3 needs 5.2, and 5.2 is the expensive one.** None is started.
 
-### 5.1 Who is still turning up — attrition on the admin side
+### 5.1 Who is still turning up — attrition on the admin side — **level one built**
 
 **The honest answer to "can we do this today" is no, and the reason is worth knowing.** `profiles`
 carries `created_at` and nothing else about a member's life. Supabase does record
@@ -346,6 +346,8 @@ days beside each name, is most of the value of this whole item.
 
 Throttle it to one write per member per day, held in `localStorage`. Fifty members opening six pages
 a day is three hundred pointless writes otherwise, and the number that matters is a date.
+
+**Level one landed on 13 August 2026**: `supabase/member-last-seen.sql`, a throttled write from `requireRole`, and a Last seen column plus an attrition line on the Accounts tab. The rest of this section is level two and is not started.
 
 *Level two — a `member_activity` table*, one row per member per day, recording which tools were
 opened. That is what answers the more useful questions: do the members who use the journal stay

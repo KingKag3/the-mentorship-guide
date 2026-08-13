@@ -11,7 +11,14 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `member-last-seen.sql` | Adds `last_seen_at` to `profiles` | The Accounts tab cannot show who has stopped coming without it. **Nothing breaks if it is not run** — the admin page detects the missing column, drops it from the query and says so in place |
+
+No new policy in it. `profiles-self-service.sql` already grants *update own profile*, and row-level
+security answers which rows rather than which columns; the trigger there guards `role`, `id` and
+`email` and nothing else. Read the header of the migration before assuming that is safe — it quotes
+the trigger rather than asserting.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

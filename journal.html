@@ -381,7 +381,7 @@ import {
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager } from './app.js';
-import { mountEditor, renderBody, warmEditor } from './editor.js';
+import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
 // The session list is rendered rather than written out, so the journal, the
@@ -392,10 +392,6 @@ document.getElementById('dl-session').innerHTML =
 
 
 renderToolRail('#tool-rail', 'journal.html');
-
-// Fetch the reply editor during an idle moment, so the first click on a reply
-// box is instant rather than a two-second wait for a CDN. Nothing waits on it.
-warmEditor();
 
 const profile = await requireRole(['member', 'admin']);
 if (!profile) { throw new Error('not signed in'); }
@@ -1182,11 +1178,12 @@ function replyRow(r) {
     return '<div class="reply' + (mine ? ' reply--mine' : '') + '">' +
       '<p class="reply-when">' + (mine ? 'You' : 'Mentor') + ' &mdash; ' +
         escapeHtml(new Date(v.created_at).toLocaleString()) + '</p>' +
-      // renderBody, not escapeHtml. It takes an Editor.js document, Markdown or
-      // the plain text that predates both, and every tag it emits is one
-      // editor.js wrote - see the header of that file for why storing HTML
-      // instead would put a stored XSS in the admin page, the one session
-      // holding every grant.
+      // renderBody, not escapeHtml. Every tag it emits is one editor.js wrote
+      // and every character of v.body goes through escapeHtml on the way - see
+      // the header of that file for why storing the HTML instead would put a
+      // stored XSS in the admin page, the one session holding every grant. It
+      // reads Markdown, the plain text that predates it, and the Editor.js
+      // documents written during the afternoon this repo ran Editor.js.
       '<div class="reply-prose">' + renderBody(v.body) + '</div>' +
     '</div>';
   }).join('');
@@ -1233,12 +1230,7 @@ function replyRow(r) {
 const sayEditors = new Map();
 
 function mountSayEditors() {
-  // Destroyed, not just dropped. Editor.js appends its inline toolbar and block
-  // menu to the body rather than to its own holder, so replacing the table's
-  // innerHTML leaves those behind - one set per redraw, each still listening.
-  for (const old of sayEditors.values()) old.destroy();
   sayEditors.clear();
-
   for (const host of $('list').querySelectorAll('[data-say-for]')) {
     const id = host.getAttribute('data-say-for');
     sayEditors.set(id, mountEditor(host, {
@@ -1266,15 +1258,9 @@ async function sendSay(btn) {
   const key = btn.getAttribute('data-send-say');
   const id = Number(key);
   const editor = sayEditors.get(key);
-  if (!editor) return;
+  const body = editor ? editor.getMarkdown() : '';
 
-  // Awaited: the editor may still be loading, and getBody waits for it rather
-  // than reporting an empty box that is only empty because it has not appeared
-  // yet. Pressing Send before it finishes mounting is exactly what an eager
-  // person does.
-  const body = await editor.getBody();
-
-  if (!body) { editor.focus(); return; }
+  if (!body) { if (editor) editor.focus(); return; }
 
   btn.disabled = true;
   editor.setDisabled(true);

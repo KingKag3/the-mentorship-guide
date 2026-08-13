@@ -742,3 +742,41 @@ DOMPurify.
 **Still open:** whether lessons should move to Editor.js too, which would leave one editor rather
 than two. That is a larger change — `lessons.body_html` holds HTML and would need converting — and
 it is not blocking anything.
+
+---
+
+## 2026-08-13 (evening) — Editor.js moves off the reply box, and onto the roadmap for lessons
+
+**Decision:** the reply box goes back to the local editor in `editor.js`. Editor.js is not deleted
+from the plan — it is reassigned to lessons, scoped in `ROADMAP.md` and not started.
+
+**This supersedes the entry above it.** Same day, third position on the same question, which is
+worth admitting rather than tidying away.
+
+**What the experiment actually established**, since it was not wasted:
+
+- **The library saved no code.** Local editor 544 lines; Editor.js version 565. The whitelist
+  renderer had to be written either way, because a block's inline formatting is an HTML fragment
+  and the browser sending it belongs to the member. The usual argument for a dependency — less code
+  you own — did not apply here.
+- **About eighty of those lines were pure compensation.** The placeholder shell, the idle prefetch,
+  the matched `min-height`, the 56px gutter for handles that otherwise render outside the box: none
+  of it is functionality. It exists because eight requests and a two-second cold start cannot be
+  mounted ten times on a page. The local editor needed none of it.
+- **It put a CDN in front of a member-facing control.** Before, only Supabase was a network
+  dependency; a reply box that cannot load is a worse failure than one that is plainer.
+- **The model is wrong for the content.** A block editor gives every paragraph a plus button and a
+  drag handle. Nobody reorders the two sentences of a trade critique.
+
+**What is kept.** `renderBody()` stays and is what both pages call. It reads Markdown, the plain
+text that predates any editor, *and* Editor.js documents — so the replies written during the
+experiment still render as prose rather than as a wall of JSON. It is also exactly the renderer the
+lessons migration will need, which is the second reason not to delete it.
+
+**What would flip this back:** replies wanting images or chart annotation inline. Charts are a
+`chart_url` today, so they do not.
+
+**The rule, unchanged through all three entries:** rich text written by one class of user and
+rendered to a more privileged one must not reach `innerHTML` as markup. Markdown satisfies it, an
+Editor.js document satisfies it, and stored HTML does not. That is the thing to hold on to when this
+question comes round a fourth time.

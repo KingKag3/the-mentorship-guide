@@ -281,6 +281,49 @@ needs the deployed site.
 
 ---
 
+## One editor, not two — scoped, not started
+
+The site has two rich-text mechanisms and should have one. Lessons use **Quill**, store HTML in
+`lessons.body_html`, and are sanitised with **DOMPurify** on render. The reply box uses the local
+editor in `editor.js`, stores Markdown, and is whitelisted on render.
+
+For one afternoon on 13 August 2026 the reply box ran **Editor.js**, and moving it back is what
+produced this entry. `DECISIONS.md` has the full reasoning; the short version is that Editor.js is a
+good library that was in the wrong place. A reply is a sentence about one trade, and a block editor
+gives every sentence a plus button and a drag handle nobody will use. It cost eight CDN requests, a
+two-second cold start, and about eighty lines of placeholder-and-gutter machinery whose only job was
+to make a document editor feel like an inline box — while saving no code at all, because the
+whitelist renderer had to be written either way.
+
+**But lessons are the case it was built for**, and that is the piece worth doing:
+
+- Long-form, block-structured, image-carrying, written by one person. The plus button and the drag
+  handle are the feature there, not overhead.
+- It would retire Quill, leaving one editor library instead of two.
+- It would retire the weaker of the two security patterns. Storing JSON and whitelisting on render
+  beats storing HTML and sanitising on render, and `renderBody()` in `editor.js` is already that
+  renderer — it reads Editor.js documents today, for the replies written during the experiment.
+- Page weight stops mattering: one editor, admin only, and `lesson.html` renders rather than edits.
+
+### What makes it a session rather than an hour
+
+- **`lessons.body_html` holds HTML on every existing lesson**, thirteen in Prerequisites alone. They
+  need converting to blocks, or `lesson.html` needs to render both formats the way `renderBody()`
+  already does for replies. The second is cheaper and reversible; do that first.
+- **Image handling is the risky part.** The Quill flow already does paste-to-upload plus a save-time
+  sweep for inline base64 — which exists because embedding images as data URIs once caused a
+  statement timeout on save. `@editorjs/image` needs wiring to the same Supabase bucket and the same
+  policies, and getting that wrong is a broken lesson rather than a cosmetic fault.
+- **`admin.html` references `quill` in about thirty places.** Mechanical, but not small.
+
+### The order
+
+Render both formats in `lesson.html` first, then switch the editor, then convert the stored rows
+last — or never, if dual rendering turns out to be enough. Nothing about this is urgent, and it
+should not start at the end of a long session.
+
+---
+
 ## Not doing
 
 - **Live charts.** TradingView is better at this than we will ever be, and the data licensing alone

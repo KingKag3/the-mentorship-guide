@@ -2994,9 +2994,12 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .cal-toggle { display: flex; gap: var(--s-4); margin-bottom: var(--s-4); }
 .cal-toggle .check-line { margin: 0 !important; }
 
+/* Seven days and a total. The eighth column is narrower than a day on purpose:
+   it is a summary of the row, not an eighth day, and giving it equal width
+   makes the week read as running Monday to Monday. */
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 1fr) 0.8fr;
   gap: 4px;
   margin: var(--s-4) 0;
 }
@@ -3075,9 +3078,68 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .cal-cell.is-flat  .cal-value { color: var(--muted); }
 .cal-cell.is-unknown .cal-value { color: var(--muted); }
 
+/* The week total.
+
+   Deliberately NOT a swatch. The filled cells above are the data, and a filled
+   eighth cell on every row would double the amount of colour on the page while
+   adding no day to it — the eye would start reading the right-hand column as
+   the month. So the week gets the same colour in ink only, on a plain
+   background, with a rule down its left edge to say the row has ended.
+
+   That also keeps the swatch meaning intact: a coloured block is a day you
+   traded, and nothing else. */
+.cal-week {
+  min-height: 82px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 1px dashed var(--border-lo);
+}
+
+.cal-week .cal-date {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cal-week .cal-value { font-size: 0.8rem; }
+
+/* --bull and --bear, NOT the swatch line colours. Those two are tuned to sit
+   against their own swatch and are far too pale for text: --cal-up-line on the
+   light page measures 2.0:1, where WCAG asks 4.5:1. --bull is 6.4:1 and
+   already follows the theme. */
+.cal-week.is-up      .cal-value { color: var(--bull); }
+.cal-week.is-down    .cal-value { color: var(--bear); }
+.cal-week.is-flat    .cal-value,
+.cal-week.is-unknown .cal-value { color: var(--muted); }
+.cal-week.is-empty   { border-left-color: transparent; }
+
+.cal-dow--week { color: var(--fg); }
+
+/* THE GRID DOES NOT FIT A PHONE, and cannot be made to.
+
+   Each column has to hold a figure like -$1,382.00 in a monospace face, which
+   is about 70px however small the cell is told to be — a grid track's implicit
+   min-width is its content. Seven of those is 528px against a 375px viewport,
+   so the calendar overflowed the page on a phone long before the week column
+   was added. (Eight columns measures 520px, because the narrower eighth track
+   takes width the seven were only using for air.)
+
+   Shrinking the type far enough would mean about 8px, which is not readable.
+   So the grid scrolls sideways inside its own box rather than pushing the
+   whole page sideways with it — a page that scrolls horizontally is the worse
+   of the two failures, because it moves the text you were reading as well. */
+.cal-scroll { overflow-x: auto; }
+
 @media (max-width: 560px) {
   .cal-cell { min-height: 62px; padding: 4px 5px; }
+  .cal-week { min-height: 62px; padding: 4px 5px; }
   .cal-value { font-size: 0.72rem; }
+  /* .cal-week .cal-value is two classes and outranks the line above, so it
+     needs saying again or the week total stays at desktop size on a phone. */
+  .cal-week .cal-value { font-size: 0.68rem; }
+  .cal-week .cal-date { font-size: 0.56rem; }
   .cal-count { display: none; }
 }
 

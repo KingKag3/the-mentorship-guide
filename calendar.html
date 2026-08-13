@@ -87,7 +87,7 @@
   </div>
 
   <div id="summary"></div>
-  <div id="grid"></div>
+  <div id="grid" class="cal-scroll"></div>
   <div id="month-trades"></div>
 
 </div>
@@ -286,25 +286,69 @@ function render() {
   const lead = (first.getDay() + 6) % 7;
 
   const cells = [];
-  for (let i = 0; i < lead; i++) cells.push('<div class="cal-cell is-empty"></div>');
-
   const monthRows = [];
+
+  // The eighth column. Cells go in through push() rather than straight into the
+  // array so the week total lands after every seventh one without anybody
+  // having to count — a partial first or last week is the normal case, not the
+  // edge case, and counting by hand is what gets it wrong.
+  let slot = 0;
+  let weekRows = [];
+  let weekDays = 0;
+
+  function endWeek() {
+    while (slot < 7) { cells.push('<div class="cal-cell is-empty"></div>'); slot++; }
+
+    if (!weekDays) {
+      cells.push('<div class="cal-week is-empty"></div>');
+    } else {
+      const t = dayTotals(weekRows);
+      const value = dayValue(t);
+      const cls = value === null ? 'is-unknown'
+        : value > 0 ? 'is-up' : value < 0 ? 'is-down' : 'is-flat';
+      cells.push(
+        '<div class="cal-week ' + cls + '">' +
+          '<span class="cal-date">Week</span>' +
+          '<span class="cal-value">' + fmt(value) + '</span>' +
+          // Days, not trades. Eighteen copied accounts turn one decision into
+          // eighteen rows, so a trade count here would read as activity that
+          // never happened. Days traded cannot be inflated that way.
+          '<span class="cal-count">' + weekDays + (weekDays === 1 ? ' day' : ' days') + '</span>' +
+        '</div>'
+      );
+    }
+
+    slot = 0;
+    weekRows = [];
+    weekDays = 0;
+  }
+
+  function push(html) {
+    cells.push(html);
+    slot++;
+    if (slot === 7) endWeek();
+  }
+
+  for (let i = 0; i < lead; i++) push('<div class="cal-cell is-empty"></div>');
 
   for (let d = 1; d <= daysInMonth; d++) {
     const key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     const rows = byDay.get(key);
 
     if (!rows) {
-      cells.push('<div class="cal-cell"><span class="cal-date">' + d + '</span></div>');
+      push('<div class="cal-cell"><span class="cal-date">' + d + '</span></div>');
       continue;
     }
 
     monthRows.push(...rows);
+    weekRows.push(...rows);
+    weekDays++;
+
     const t = dayTotals(rows);
     const value = dayValue(t);
     const cls = value === null ? 'is-unknown' : value > 0 ? 'is-up' : value < 0 ? 'is-down' : 'is-flat';
 
-    cells.push(
+    push(
       '<button type="button" class="cal-cell has-trades ' + cls + '" data-day="' + key + '">' +
         '<span class="cal-date">' + d + '</span>' +
         '<span class="cal-value">' + fmt(value) + '</span>' +
@@ -313,9 +357,13 @@ function render() {
     );
   }
 
+  // A month ending mid-week still owes its last total.
+  if (slot > 0) endWeek();
+
   $('grid').innerHTML =
     '<div class="cal-grid">' +
       DAYS.map((d) => '<div class="cal-dow">' + d + '</div>').join('') +
+      '<div class="cal-dow cal-dow--week">Week</div>' +
       cells.join('') +
     '</div>';
 

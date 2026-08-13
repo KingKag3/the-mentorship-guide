@@ -815,11 +815,24 @@ remapped <code>--accent</code> from green to the brand red, and every winning da
 in the losing colour for as long as nobody logged in to look. A component that is not on this page
 is a component with no regression check.</p>
 
+<p>The eighth column totals the row. It is deliberately <strong>not</strong> a swatch: the coloured
+blocks are days you traded, and a filled cell on every row would double the colour on the page
+without adding a day to it — the eye starts reading the right-hand column as the month. So the week
+takes the same sign in ink only, on a plain background, with a rule down its left edge to say the
+row has ended.</p>
+
+<p>Its ink is <code>--bull</code> / <code>--bear</code> rather than the swatch line colours.
+<code>--cal-up-line</code> is tuned to sit against its own swatch and measures 2.0:1 as text on the
+light page, where WCAG asks 4.5:1. And it counts <em>days</em>, never trades — copied prop accounts
+turn one decision into eighteen rows, so a trade count there would report activity that never
+happened.</p>
+
 <div class="demo">
+  <div class="cal-scroll">
   <div class="cal-grid">
     <div class="cal-dow">MON</div><div class="cal-dow">TUE</div><div class="cal-dow">WED</div>
     <div class="cal-dow">THU</div><div class="cal-dow">FRI</div><div class="cal-dow">SAT</div>
-    <div class="cal-dow">SUN</div>
+    <div class="cal-dow">SUN</div><div class="cal-dow cal-dow--week">WEEK</div>
     <div class="cal-cell has-trades is-up">
       <span class="cal-date">3</span>
       <span class="cal-value">$134.34</span>
@@ -847,6 +860,36 @@ is a component with no regression check.</p>
     </div>
     <div class="cal-cell"><span class="cal-date">8</span></div>
     <div class="cal-cell"><span class="cal-date">9</span></div>
+    <div class="cal-week is-up">
+      <span class="cal-date">Week</span>
+      <span class="cal-value">$2.68</span>
+      <span class="cal-count">5 days</span>
+    </div>
+    <div class="cal-cell has-trades is-down">
+      <span class="cal-date">10</span>
+      <span class="cal-value">−$412.90</span>
+      <span class="cal-count">6 trades</span>
+    </div>
+    <div class="cal-cell"><span class="cal-date">11</span></div>
+    <div class="cal-cell"><span class="cal-date">12</span></div>
+    <div class="cal-cell"><span class="cal-date">13</span></div>
+    <div class="cal-cell"><span class="cal-date">14</span></div>
+    <div class="cal-cell"><span class="cal-date">15</span></div>
+    <div class="cal-cell"><span class="cal-date">16</span></div>
+    <div class="cal-week is-down">
+      <span class="cal-date">Week</span>
+      <span class="cal-value">−$412.90</span>
+      <span class="cal-count">1 day</span>
+    </div>
+    <div class="cal-cell"><span class="cal-date">17</span></div>
+    <div class="cal-cell"><span class="cal-date">18</span></div>
+    <div class="cal-cell"><span class="cal-date">19</span></div>
+    <div class="cal-cell"><span class="cal-date">20</span></div>
+    <div class="cal-cell"><span class="cal-date">21</span></div>
+    <div class="cal-cell"><span class="cal-date">22</span></div>
+    <div class="cal-cell"><span class="cal-date">23</span></div>
+    <div class="cal-week is-empty"></div>
+  </div>
   </div>
 </div>
 

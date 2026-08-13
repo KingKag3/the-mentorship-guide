@@ -579,15 +579,21 @@ const MIGRATIONS = [
   [/chart_url/i,                         'supabase/trade-chart-url.sql'],
   [/closed_at/i,                         'supabase/trade-closed-at.sql'],
   [/prop_attempts/i,                     'supabase/prop-attempts.sql'],
+  // Above the loose /trades/i rule. It would not have matched anyway -
+  // "trade_reviews" does not contain "trades" - which is exactly why this list
+  // missed it and the reply box reported a bare schema-cache error with no file
+  // to run. A table added without a line here fails silently in the one way
+  // this function exists to prevent.
+  [/trade_reviews/i,                     'supabase/trade-reviews.sql'],
   [/risk_settings/i,                     'supabase/risk-settings.sql'],
-  [/trade_exits/i,                       'supabase/trade-exits.sql'],
-  [/(account|net_pnl)/i,                 'supabase/trade-accounts.sql'],
-  [/fees/i,                              'supabase/trade-exits.sql'],
-  [/settings/i,                          'supabase/settings.sql'],
-  [/scripts/i,                           'supabase/scripts.sql'],
-  [/lesson_links|video_url/i,        'supabase/lesson-media.sql'],
-  [/phase_id|phases/i,              'supabase/phases.sql'],
-  [/trades/i,                            'supabase/trades.sql']
+  [/\btrade_exits\b/i,                       'supabase/trade-exits.sql'],
+  [/\b(account|net_pnl)\b/i,                 'supabase/trade-accounts.sql'],
+  [/\bfees\b/i,                              'supabase/trade-exits.sql'],
+  [/\bsettings\b/i,                          'supabase/settings.sql'],
+  [/\bscripts\b/i,                           'supabase/scripts.sql'],
+  [/\blesson_links\b|\bvideo_url\b/i,        'supabase/lesson-media.sql'],
+  [/\bphase_id\b|\bphases\b/i,              'supabase/phases.sql'],
+  [/\btrades\b/i,                            'supabase/trades.sql']
 ];
 
 export function migrationHint(error) {

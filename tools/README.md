@@ -123,6 +123,35 @@ neither — both of those run *after* a parse, and nothing here ever parsed.
 **Use the Write tool for any file content containing a backslash.** If a heredoc is unavoidable,
 read the result back and look at the line before believing it.
 
+**It happened again on 12 August, and the second time was quieter.** Eight regexes in `app.js`'s
+`MIGRATIONS` list were written with `\b` word boundaries. Each `\b` arrived on disk as one 0x08
+byte, so every one of them became a pattern asking for a literal backspace character and matched
+nothing, ever. Nothing threw. No page broke. The only symptom was a database error that quietly
+stopped naming the file that fixes it — `Could not find the table 'public.trade_reviews'` with no
+*run this* line under it — which is a degradation nobody would think to report.
+
+The reason it survived review is that **an editor renders a backspace as nothing at all**. The line
+reads `[/trade_exits/i, …]` on screen and is `[/<BS>trade_exits<BS>/i, …]` on disk. Reading the file
+back is not enough when the damage is invisible; `check-control-chars.py` below is.
+
+## check-control-chars.py
+
+Finds control characters no editor will show you.
+
+```
+python tools/check-control-chars.py            # every source file
+python tools/check-control-chars.py app.js
+```
+
+Tab, newline and carriage return are allowed. Everything else below `0x20`, plus `DEL`, is not:
+none of them can be typed deliberately, and each one means an escape was eaten somewhere between
+the keyboard and the file.
+
+It self-tests on every run, for the reason `check-tdz.py` does. **It was also checked against the
+committed version of the bug it was written for** — pointed at `git show HEAD:app.js` from before
+the fix, it reports all twenty backspaces and exits non-zero. A checker that has only ever been run
+against clean files is a claim, not evidence.
+
 ### How to find one
 
 There is no JavaScript runtime on these machines, so the check is a browser. It needs the pages over

@@ -139,13 +139,23 @@ back is not enough when the damage is invisible; `check-control-chars.py` below 
 Finds control characters no editor will show you.
 
 ```
-python tools/check-control-chars.py            # every source file
+python tools/check-control-chars.py                 # every source file
 python tools/check-control-chars.py app.js
+python tools/check-control-chars.py --root R:/the-mentorship-pine
 ```
 
 Tab, newline and carriage return are allowed. Everything else below `0x20`, plus `DEL`, is not:
 none of them can be typed deliberately, and each one means an escape was eaten somewhere between
 the keyboard and the file.
+
+`--root` sweeps the other repo without a copy of this file living in it. The pine repo has the same
+exposure and no reason to carry a second, drifting version of the same checker. Swept on 12 August:
+30 files, clean.
+
+**What it cannot catch, and this matters.** An escape eaten into a character a text file may
+legitimately contain is invisible here. `\n` arriving as a real line break is exactly the failure
+that took `props.html` down, and a newline in a file is not suspicious. That half of the trap is
+caught by the parse check above, not by this. Two checks, two halves; neither one covers the other.
 
 It self-tests on every run, for the reason `check-tdz.py` does. **It was also checked against the
 committed version of the bug it was written for** — pointed at `git show HEAD:app.js` from before

@@ -15,9 +15,16 @@ Tab, newline and carriage return are fine. Everything else below 0x20 is not:
 none of them can be typed deliberately, and every one of them means an escape
 was eaten somewhere between the keyboard and the file.
 
+WHAT IT CANNOT CATCH, and this matters: an escape that was eaten into a
+character a text file may legitimately contain. `\\n` arriving as a real line
+break is the failure that took props.html down, and it is invisible here because
+a newline in a file is not suspicious. That one is caught by the parse check in
+README.md, which is a different check for a different half of the same trap.
+
 Usage:
-    python tools/check-control-chars.py            # every source file
+    python tools/check-control-chars.py                 # every source file
     python tools/check-control-chars.py app.js
+    python tools/check-control-chars.py --root R:/the-mentorship-pine
 """
 
 import sys
@@ -81,11 +88,11 @@ def self_test():
     return ok
 
 
-def files(args):
+def files(args, root):
     if args:
-        return [ROOT / a for a in args]
+        return [root / a for a in args]
     found = []
-    for path in ROOT.rglob("*"):
+    for path in root.rglob("*"):
         if not path.is_file() or path.suffix not in SUFFIXES:
             continue
         if any(part in SKIP_DIRS for part in path.parts):
@@ -95,6 +102,21 @@ def files(args):
 
 
 def main():
+    # --root, so the other repo can be swept without a copy of this file living
+    # in it. The pine repo has the same heredoc exposure and no reason to carry
+    # a second, drifting version of the same checker.
+    args = sys.argv[1:]
+    root = ROOT
+    if args and args[0] == "--root":
+        if len(args) < 2:
+            print("--root needs a directory")
+            return 2
+        root = Path(args[1]).resolve()
+        args = args[2:]
+        if not root.is_dir():
+            print("not a directory: %s" % root)
+            return 2
+
     print("self-test")
     if not self_test():
         print("\nSelf-test failed. Reporting nothing, because a checker that is "
@@ -104,7 +126,7 @@ def main():
 
     bad = 0
     checked = 0
-    for path in files(sys.argv[1:]):
+    for path in files(args, root):
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, FileNotFoundError) as err:
@@ -122,7 +144,7 @@ def main():
         # prove this catches the bug it was written for is to point it at the
         # committed version, which lands in a temporary directory.
         try:
-            rel = path.relative_to(ROOT)
+            rel = path.relative_to(root)
         except ValueError:
             rel = path
         for row, col, point in found:

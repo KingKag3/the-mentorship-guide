@@ -11,9 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why now |
-| --- | --- | --- |
-| `trade-reviews.sql` | A `trade_reviews` table so the mentor can answer a shared trade, and the Review tab can clear it from the queue without writing to `trades` | The Review tab already renders the reply box. Until this runs, sending one fails and the page says which file to run; the queue still lists and reads correctly, because the reply load is deliberately non-fatal |
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
@@ -37,6 +35,14 @@ select account, risk_per_trade, updated_at
   from public.risk_settings
  order by account;
 
+-- trade_reviews: the table, and the five policies it needs. Expect 5 rows.
+-- Fewer means the create ran and part of the policy block did not, which is the
+-- one state that looks fine from the browser until somebody replies.
+select policyname, cmd
+  from pg_policies
+ where schemaname = 'public' and tablename = 'trade_reviews'
+ order by policyname;
+
 -- journal-media-privacy: expect exactly one row with permissive = 'RESTRICTIVE'.
 -- Its absence is the whole bug coming back, and nothing in the UI would show it.
 select policyname, permissive, cmd
@@ -55,6 +61,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `trade-reviews.sql` | 12 Aug 2026 | The mentor's answer to a shared trade, in its own table. **Confirmed from outside the same day**: signed out, with the publishable key only, `trade_reviews` answers `200 []` — the same signature as `trades`, which is a table that exists behind a policy that holds. A table that does not exist answers `404 PGRST205` and names itself, which is exactly the error the reply box was reporting beforehand. What that does *not* prove is the policies: an admin writing a reply and the member reading it back needs two signed-in sessions, and is in the **Untested** section of `HANDOVER.md` |
 | `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Verified by attack the same day**: one admin, one path string, minutes apart — a `signedUrl` while the trade was shared, `Object not found` once the member unticked it. Nothing changed in between but their checkbox. `HANDOVER.md` has the evidence and the five wrong-looking errors that fooled four earlier attempts |
 | `trade-chart-url.sql` | 12 Aug 2026 | Adds `chart_url` to `trades`. **Confirmed by the result**: a chart renders on the Review tab, and nothing but this column can produce one. It also unblocked saving from the journal form at all — `readForm` sends the key on every save, so the form had never once saved successfully before this |
 | `prop-attempts.sql` | 12 Aug 2026 | One account, several lives. **Not independently confirmed** — an Attempts section on each card in `props.html` is the proof, and until one is seen the backfill has not been shown to have run |

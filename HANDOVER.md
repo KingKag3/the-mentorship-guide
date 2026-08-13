@@ -330,11 +330,24 @@ Be honest about this list before trusting anything below it.
   this list.** The record of what was actually observed is under **Verified by attack** below. It
   stays named here because four earlier attempts to test it produced errors that looked like passes,
   and anybody re-checking it should read that section before trusting a red console line.
-- **`supabase/trade-reviews.sql` and the whole reply feature, written 12 August 2026.** The migration
-  has not been run, so nothing here has touched a database: not the insert, not the five policies,
-  not the member's read of a reply on their own trade. The Review tab renders the reply box and
-  sending one will fail until the file is applied — the failure names the file, and the queue itself
-  still lists and reads correctly, because the reply load is deliberately non-fatal.
+- **`supabase/trade-reviews.sql` — run on 12 August 2026. The table is confirmed; the policies are
+  not.** Signed out, with the publishable key only, `trade_reviews` answers `200 []`, which is the
+  signature of a table that exists behind a policy that holds — a table that does not exist answers
+  `404 PGRST205` and names itself, which is what the reply box was reporting an hour earlier. That
+  settles existence and nothing else.
+
+  Four things still have never touched a database, and all of them are policy behaviour rather than
+  schema:
+
+  1. An admin inserting a reply on a trade whose owner shared it.
+  2. An admin being *refused* on a trade nobody shared. This is the one worth attacking, because a
+     permissive insert policy would let a mentor write on any trade in the system and nothing in the
+     UI would look wrong.
+  3. The member reading that reply back on their own trade.
+  4. A *different* member not being able to read it.
+
+  Two accounts and four attempts, the same shape as the journal-media check below. Until then the
+  reply box working proves the table exists, which is already known.
 
   What *was* verified on 12 August 2026, in a browser against the shipped source rather than a
   retyping of it: `admin.html`, `journal.html` and `design.html` all parse, and `isWaiting()` was

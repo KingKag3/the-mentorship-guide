@@ -394,14 +394,19 @@ Be honest about this list before trusting anything below it.
   **What has never happened: a message going through Postgres.** Worth one send containing a bold
   word, a bullet list and a link, read back on the other side.
 
-- **`last_seen_at` — the column is written by every members page and has never been read back.**
-  `supabase/member-last-seen.sql` is in the Waiting list. Until it is run the write silently fails,
+- **`last_seen_at` — the column is confirmed, and nothing has been seen writing to it.**
+  `supabase/member-last-seen.sql` ran on 13 August 2026. Signed out with the publishable key,
+  `profiles?select=last_seen_at` answers `200 []` while `?select=not_a_real_column` answers `400`
+  with `42703`; the control is what makes the pass mean anything, since `200 []` on its own is
+  equally consistent with an unknown column being ignored.
+
+  That settles existence and the read policy. It settles nothing about the write, which is silent
   by design: `touchLastSeen` in `app.js` is unawaited and swallows its own errors, because the least
   important write on the site sits on the critical path of every members page.
 
   The consequence of that design is that **nothing will tell you it is not working.** The proof is
-  the Accounts tab: run the migration, open any members page as a member, and that account should
-  read *today*. If it does not, the throttle stamp is the first place to look —
+  the Accounts tab: open any members page while signed in, then look at Accounts — that account
+  should read *today*. If it does not, the throttle stamp is the first place to look —
   `localStorage['member_last_seen_stamp:<user id>']` holds a date, and clearing it forces the next
   load to write again.
 

@@ -11,14 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `member-last-seen.sql` | Adds `last_seen_at` to `profiles` | The Accounts tab cannot show who has stopped coming without it. **Nothing breaks if it is not run** — the admin page detects the missing column, drops it from the query and says so in place |
-
-No new policy in it. `profiles-self-service.sql` already grants *update own profile*, and row-level
-security answers which rows rather than which columns; the trigger there guards `role`, `id` and
-`email` and nothing else. Read the header of the migration before assuming that is safe — it quotes
-the trigger rather than asserting.
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
@@ -68,6 +61,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `member-last-seen.sql` | 13 Aug 2026 | Adds `last_seen_at` to `profiles`. **Confirmed from outside the same day**: signed out with the publishable key, `?select=last_seen_at` answers `200 []` while `?select=not_a_real_column` answers `400` with `42703 column profiles.not_a_real_column does not exist`. The control is what makes the pass mean something — without it, `200 []` is equally consistent with PostgREST ignoring an unknown column. So the column exists and the policy holds. What it does **not** show is anything writing to it: that needs a members page opened while signed in, and the Accounts tab is where it shows up |
 | `trade-reviews-thread.sql` | 13 Aug 2026 | Three policies, no schema change, letting a member write on their own trade while it is shared. **Not independently confirmed** — the proof is a Send under a shared trade in the journal that does not report a row-level security violation. The refusals matter more than the success and cannot be checked from the SQL editor at all, because RLS does not apply to the table owner: see the four things to watch in `HANDOVER.md` |
 | `trade-reviews.sql` | 12 Aug 2026 | The mentor's answer to a shared trade, in its own table. **Confirmed from outside the same day**: signed out, with the publishable key only, `trade_reviews` answers `200 []` — the same signature as `trades`, which is a table that exists behind a policy that holds. A table that does not exist answers `404 PGRST205` and names itself, which is exactly the error the reply box was reporting beforehand. What that does *not* prove is the policies: an admin writing a reply and the member reading it back needs two signed-in sessions, and is in the **Untested** section of `HANDOVER.md` |
 | `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Verified by attack the same day**: one admin, one path string, minutes apart — a `signedUrl` while the trade was shared, `Object not found` once the member unticked it. Nothing changed in between but their checkbox. `HANDOVER.md` has the evidence and the five wrong-looking errors that fooled four earlier attempts |

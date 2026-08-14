@@ -475,6 +475,24 @@ let showAnswered = false;
 // this block: a `let` further down is in the dead zone while the loaders run.
 const replyEditors = new Map();
 
+/* Whether profiles carries last_seen_at, and the fallback that makes it
+ * optional.
+ *
+ * member-last-seen.sql may not have been run. PostgREST answers a select naming
+ * a missing column with an error rather than by ignoring it, so asking for it
+ * unconditionally would take the whole Accounts tab down - every role, every
+ * name, every reset button - over one attendance date nobody had asked for yet.
+ * So it is asked for, and if the column is not there the query runs again
+ * without it and the page says so once, in the one place it matters.
+ *
+ * DECLARED HERE, and it was not the first time round. It sat beside loadUsers
+ * six hundred lines below, where it reads more naturally and is in the temporal
+ * dead zone: the init block awaits loadUsers long before the declaration is
+ * reached, so the page failed with "Cannot access 'seenColumn' before
+ * initialization" and the Accounts tab came up empty. That is the exact failure
+ * the note at the top of this block describes. */
+let seenColumn = true;
+
 const me = await requireRole(['admin']);
 
 if (me) {
@@ -1047,17 +1065,6 @@ function flash(btn, message) {
 }
 
 /* ------------------------------- users ------------------------------- */
-
-/* last_seen_at is optional, and the fallback is the point.
- *
- * member-last-seen.sql may not have been run. PostgREST answers a select naming
- * a missing column with an error rather than by ignoring it, so asking for it
- * unconditionally would take the whole Accounts tab down - every role, every
- * name, every reset button - over one attendance date nobody had asked for yet.
- *
- * So it is asked for, and if the column is not there the query runs again
- * without it and the page says so once, in the one place it matters. */
-let seenColumn = true;
 
 async function loadUsers() {
   const columns = 'id, email, full_name, role, created_at' +

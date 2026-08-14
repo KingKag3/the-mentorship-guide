@@ -50,6 +50,11 @@ DESTRUCTURE = re.compile(r'^\s*(?:const|let)\s*[{\[]([^}\]]*)[}\]]\s*=')
 FN_DECL = re.compile(r'^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(')
 FN_CONST = re.compile(r'^\s*(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\(|function\b)')
 CALL = re.compile(r'\b([A-Za-z_$][\w$]*)\s*\(')
+
+# A line that opens a function body, wherever it sits. `function` in any
+# position, or an arrow immediately followed by a brace. An arrow with an
+# expression body opens nothing and is handled by the `=>` split further down.
+OPENS_CALLABLE = re.compile(r'\bfunction\b|=>\s*\{')
 WORD = re.compile(r'[A-Za-z_$][\w$]*')
 
 KEYWORDS = {
@@ -118,7 +123,8 @@ def scan_text(raw):
     setup = []        # (line, text) that executes during setup
     funcs = {}        # name -> [line numbers of its body]
     depth = 0
-    current = None    # (name, depth at which its body opened)
+    current = None      # (name, depth at which its body opened)
+    in_callable = None  # depth at which a function body opened, at any level
 
     for i, clean in enumerate(lines, start=1):
         opens = clean.count('{') + clean.count('(') + clean.count('[')
@@ -144,6 +150,31 @@ def scan_text(raw):
 
         if current:
             funcs[current[0]].append(i)
+        # `is None`, never `not in_callable`. Zero is a real depth - it is the
+        # depth at which a top-level addEventListener callback opens - and `not 0`
+        # is True, so the falsy test read every listener body in stats.html as
+        # setup and reported 39 dead-zone reads that cannot happen.
+        elif depth > 0 and clean.strip() and in_callable is None:
+            # A BRACE OPENED AT THE TOP LEVEL BY SOMETHING THAT IS NOT A
+            # FUNCTION STILL RUNS DURING SETUP.
+            #
+            # This is the case that let a real bug through. admin.html gates its
+            # whole init on `if (me) { ... await loadUsers(); ... }`, so every
+            # loader call sits at depth 1 - and only depth 0 was being collected.
+            # The page failed with "Cannot access 'seenColumn' before
+            # initialization" while this reported eighteen pages clean.
+            #
+            # `in_callable` is what keeps this honest. Without it, the body of a
+            # multi-line arrow inside a top-level object literal would be read as
+            # setup, and those bodies run on an event.
+            setup.append((i, clean))
+
+        # Are we inside a function body, at any depth? Tracked separately from
+        # `current`, which only knows about functions declared at the top level.
+        if in_callable is None and OPENS_CALLABLE.search(clean):
+            in_callable = depth
+        elif in_callable is not None and depth + opens - closes <= in_callable:
+            in_callable = None
 
         depth += opens - closes
         if depth <= 0:

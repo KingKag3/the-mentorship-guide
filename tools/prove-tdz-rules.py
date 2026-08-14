@@ -7,8 +7,16 @@ that reports three phantom bugs gets ignored and then the real one is ignored
 too.
 """
 import importlib.util
+import os
 
-spec = importlib.util.spec_from_file_location('tdz', r'R:\the mentorship\tools\check-tdz.py')
+# Resolved from this file, never hardcoded. It used to name an absolute path on
+# one of the two machines, so on the other one this tool raised FileNotFoundError
+# and did nothing - and a guard that does not run is not a guard. Two machines,
+# one repo: nothing here may assume a drive letter.
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+spec = importlib.util.spec_from_file_location(
+    'tdz', os.path.join(HERE, 'check-tdz.py'))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
@@ -50,6 +58,32 @@ let deep = 1;
 function outer() { return inner(); }
 function inner() { return deep; }
 </script>""", True),
+
+    # admin.html gates its whole init on `if (me) { ... }`, so every loader call
+    # sits one brace deep. Only depth zero was collected, so this shape was
+    # invisible - it reached a browser as "Cannot access 'seenColumn' before
+    # initialization" with the Accounts tab empty behind it.
+    'setup inside a top-level if': ("""<script type="module">
+const me = await requireRole(['admin']);
+if (me) {
+  await loadUsers();
+}
+let seenColumn = true;
+async function loadUsers() { return seenColumn ? 'a' : 'b'; }
+</script>""", True),
+
+    # And the false positive that fix caused on the first attempt. A listener
+    # registered at the top level opens its body at depth ZERO, and testing that
+    # depth for truthiness rather than for None read every listener in
+    # stats.html as setup - 39 phantom bugs on a page that works.
+    'multi-line listener body at depth zero': ("""<script type="module">
+document.getElementById('unit-toggle').addEventListener('change', (e) => {
+  if (e.target.name !== 'unit') return;
+  render();
+});
+const later = 1;
+function render() { return later; }
+</script>""", False),
 }
 
 fails = 0

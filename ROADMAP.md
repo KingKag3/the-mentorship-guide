@@ -339,6 +339,11 @@ written once and rendered into every member's browser.
 Beside it, and only ever seen by an admin, a derived notice saying how many shared trades are
 waiting, with a link into the queue. The masthead badge says *that* there is work; this says *what*.
 
+The member has the mirror of it: a **Sent for review** tab on the journal, and a tag on every
+shared row saying *awaiting reply* or *replied*. It uses the same `isWaitingForMentor` the mentor's
+queue does, imported rather than rewritten — a journal reading "replied" while the queue still
+shows the trade as owed would be the two pages disagreeing about one fact.
+
 ### 5.1 Who is still turning up — attrition on the admin side — **level one built**
 
 **The honest answer to "can we do this today" is no, and the reason is worth knowing.** `profiles`

@@ -272,6 +272,13 @@
   <h2>Your trades</h2>
   <p class="stat-note" id="count-note"></p>
 
+  <div class="seg" role="tablist" aria-label="Which trades to show" id="view-filter">
+    <button type="button" class="seg-btn is-on" role="tab" data-view="all" aria-selected="true">
+      All trades<span class="seg-count" id="view-all"></span></button>
+    <button type="button" class="seg-btn" role="tab" data-view="asked" aria-selected="false">
+      Sent for review<span class="seg-count" id="view-asked"></span></button>
+  </div>
+
   <div class="cal-toggle">
     <select id="account-filter" class="role-select cal-account" hidden
             aria-label="Show one account"></select>
@@ -380,7 +387,7 @@ import {
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
-  pageSize, setPageSize, pageSlice, renderPager } from './app.js';
+  pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -789,7 +796,12 @@ async function load() {
   // the page filtered to nothing with no way back that anybody would find.
   if (account !== 'all' && !names.includes(account)) account = 'all';
 
-  $('count-note').textContent = !rows.length ? ''
+  /* Held, because two things write this line now.
+   *
+   * load() sets it once; syncViewTabs replaces it while the Sent for review
+   * tab is open. Without keeping the original, switching back to All left the
+   * review sentence sitting under a list it no longer described. */
+  baseCountNote = !rows.length ? ''
     : capped
       ? 'Showing the most recent 5,000. There are more - the statistics and the calendar read all ' +
         'of them, and the export below takes the lot.'
@@ -797,6 +809,8 @@ async function load() {
         (rows.length < 50
           ? 'Fifty is roughly where the statistics start meaning something.'
           : 'Enough for the statistics to be worth reading.');
+
+  $('count-note').textContent = baseCountNote;
 
   if (!rows.length) {
     mount.innerHTML =
@@ -879,6 +893,16 @@ let account = 'all';
 let sortKey = 'opened_at';
 let sortAsc = false;
 
+/* 'all' or 'asked'. Which trades are on screen, not which order they are in.
+ *
+ * A member who has asked about six trades out of five hundred has no way to
+ * find those six again: the shared tag is on the row, but finding it means
+ * scrolling. This is that list. */
+let view = 'all';
+
+// What the count line says when the Sent for review tab is not the one open.
+let baseCountNote = '';
+
 const SORTS = {
   opened_at:  (r) => Date.parse(r.opened_at) || 0,
   symbol:     (r) => (r.symbol || '') + ' ' + (r.direction || ''),
@@ -891,9 +915,11 @@ const SORTS = {
 
 function visible() {
   const key = SORTS[sortKey] || SORTS.opened_at;
-  const list = account === 'all'
+  let list = account === 'all'
     ? rows.slice()
     : rows.filter((r) => (r.account || '') === account);
+
+  if (view === 'asked') list = list.filter((r) => r.shared_with_mentor);
 
   const missing = (v) => v === '' || (typeof v === 'number' && !Number.isFinite(v));
 
@@ -959,6 +985,7 @@ function drawPage() {
   $('empty-row').hidden = false;
   $('reset-view').hidden = account === 'all' && sortKey === 'opened_at' && !sortAsc;
   syncBulk();
+  syncViewTabs();
 
   // After the table is in the document, never before: the editors attach to
   // elements that only exist once innerHTML has been set.
@@ -1124,7 +1151,15 @@ function renderRow(r, shotUrl) {
     '<td><span class="tag' + (r.direction === 'long' ? ' bull' : ' bear') + '">' +
       escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
       (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') +
-      (r.shared_with_mentor ? ' <span class="tag time">shared</span>' : '') +
+      // The tag says which of the two states a shared trade is in. "shared"
+      // said only that it had been sent, which the member already knew -
+      // they pressed the button. Whether anyone has answered is the thing
+      // they are actually looking for.
+      (r.shared_with_mentor
+        ? (awaitingReply(r)
+            ? ' <span class="tag time">awaiting reply</span>'
+            : ' <span class="tag bull">replied</span>')
+        : '') +
       (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
       '</td>' +
     '<td>' + escapeHtml(r.model || '—') +
@@ -1150,6 +1185,28 @@ function renderRow(r, shotUrl) {
       '<button class="btn-danger" data-del="' + r.id + '">delete</button>' +
       '</td>' +
   '</tr>' + replyRow(r);
+}
+
+/* Has the mentor answered this one yet?
+ *
+ * The same rule the Review tab uses, imported rather than rewritten - a
+ * journal saying "replied" while the mentor's queue still shows it as owed
+ * would be the two pages disagreeing about the same fact.
+ *
+ * Two adjustments. The messages are stored oldest-first here and the rule
+ * wants newest-first, so they are reversed. And the trade is always this
+ * member's own, so user_id is theirs by definition - the row itself does not
+ * carry it.
+ *
+ * A trade the mentor set aside still reads as awaiting a reply, which is
+ * honest: from the member's side no reply has come, and the dismissal is not
+ * something they can see or should be told about.
+ */
+function awaitingReply(r) {
+  const said = replies.get(r.id) || [];
+  return isWaitingForMentor(
+    { user_id: profile.id, updated_at: r.updated_at },
+    said.slice().reverse());
 }
 
 /* The conversation, under the trade it is about.
@@ -1315,6 +1372,55 @@ $('list').addEventListener('change', (e) => {
     if (e.target.checked) picked.add(pick); else picked.delete(pick);
     syncBulk();
   }
+});
+
+/* The two views, and their counts.
+ *
+ * Counted over every loaded trade rather than over what the account filter is
+ * showing, so switching account does not make the tab counts jump around while
+ * the question - how many have I sent - has one answer.
+ *
+ * The Sent for review tab is hidden until something has been sent. A tab that
+ * is always empty is a control that teaches people it does nothing.
+ */
+function syncViewTabs() {
+  const asked = rows.filter((r) => r.shared_with_mentor);
+  const waiting = asked.filter(awaitingReply).length;
+
+  const put = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n ? ' ' + n : '';
+  };
+  put('view-all', rows.length);
+  put('view-asked', asked.length);
+
+  const bar = document.getElementById('view-filter');
+  if (bar) bar.hidden = !asked.length && view === 'all';
+
+  for (const b of document.querySelectorAll('#view-filter .seg-btn')) {
+    const on = b.getAttribute('data-view') === view;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+
+  const note = document.getElementById('count-note');
+  if (note) {
+    note.textContent = view !== 'asked' ? baseCountNote
+      : !asked.length ? ''
+      : waiting ? waiting + ' of ' + asked.length + ' still waiting on a reply.'
+      : 'All ' + asked.length + ' have been replied to.';
+  }
+}
+
+document.getElementById('view-filter').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-view]');
+  if (!btn) return;
+  const next = btn.getAttribute('data-view');
+  if (next === view) return;
+  view = next;
+  // Page four of everything is not page four of six shared trades.
+  page = 1;
+  drawPage();
 });
 
 $('bulk-clear').addEventListener('click', () => { picked.clear(); syncBulk(); });

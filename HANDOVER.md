@@ -433,11 +433,17 @@ Be honest about this list before trusting anything below it.
   nothing is lost. A trade answered *and then* set aside shows under Set aside, because the
   dismissal is what is holding it out.
 
-  **Three things to watch the first time it runs.** A member must get nothing at all from this
-  table, which cannot be checked from the SQL editor because RLS does not apply to the owner. The
-  button uses `upsert` on the trade id, so setting aside something already set aside must re-stamp
-  rather than fail. And the masthead badge reads the table separately from the Review tab — if the
-  two disagree, one of the two queries is filtering differently.
+  **Exercised end to end on 17 August 2026, across two signed-in accounts** — the first time
+  anything in the mentor loop has been. Observed in order: *no reply needed* moved a trade into Set
+  aside; the mentor then wrote on it and it **stayed** in Set aside, which is the clause saying a
+  mentor acting is not the member needing something; then, signed in as the member, a reply put it
+  **back into Waiting on its own**. That is the expiry rule working in both directions against a
+  real database rather than a fixture.
+
+  **Still not shown:** that a member gets nothing at all from the dismissals table. RLS does not
+  apply to the table owner, so the SQL editor cannot answer it — it wants the member's own client
+  asking for `trade_review_dismissals` and getting `[]`. The two accounts are already set up, so
+  this is one console line away.
 
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means

@@ -1199,6 +1199,60 @@ export async function newScriptCount() {
  * spelling. */
 export const MOTD_KEY = 'members_motd';
 
+/* Has this member already dismissed THIS notice?
+ *
+ * Keyed on a fingerprint of the notice text, not on a bare "dismissed" flag.
+ * A flag would mean posting a new notice and having it seen only by people who
+ * had never closed the previous one - which is the failure that makes a notice
+ * system worthless, and it fails silently: the admin sees their notice, because
+ * they never dismissed anything.
+ *
+ * Change one character and the fingerprint changes, so the notice is new again
+ * for everybody.
+ *
+ * One fingerprint is stored per member, not a list, so reverting to an earlier
+ * wording does NOT restore the dismissal - it reads as new, because it is not
+ * the notice they last closed. That is the right way round: a notice nobody has
+ * dismissed showing is a nuisance, and one nobody sees is a failure.
+ *
+ * IN localStorage RATHER THAN THE DATABASE, and that is a trade rather than an
+ * oversight. It costs a column, a policy and a write on every page load to make
+ * "I have read this" follow somebody between their laptop and their phone, and
+ * a notice is not worth that. The cost of being wrong is seeing a notice twice.
+ *
+ * Keyed by user id as well, because two accounts share a browser more often
+ * than is comfortable - the same reason touchLastSeen is.
+ */
+const MOTD_SEEN_KEY = 'motd_dismissed';
+
+/* A cheap, stable fingerprint. Not a hash for any security purpose - it only
+ * has to change when the text does, and be the same on every machine. */
+export function fingerprint(text) {
+  const s = String(text == null ? '' : text);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+export function motdDismissed(userId, text) {
+  try {
+    return localStorage.getItem(MOTD_SEEN_KEY + ':' + userId) === fingerprint(text);
+  } catch (err) {
+    // Private browsing has no localStorage. Showing the notice is the right
+    // way to be wrong.
+    return false;
+  }
+}
+
+export function dismissMotd(userId, text) {
+  try {
+    localStorage.setItem(MOTD_SEEN_KEY + ':' + userId, fingerprint(text));
+  } catch (err) { /* nothing to do, and nothing worth saying */ }
+}
+
 export async function getSetting(key) {
   if (!supabase) return null;
   try {

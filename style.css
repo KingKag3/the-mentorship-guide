@@ -1895,11 +1895,74 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 .callout.motd .reply-prose > *:first-child { margin-top: 0; }
 .callout.motd .reply-prose > *:last-child { margin-bottom: 0; }
 
+/* The close button on a notice.
+
+   Positioned rather than in the flow, so adding it did not reflow the notice
+   that was already there. The callout gets padding on the right to keep prose
+   from running under it. */
+.callout.motd { position: relative; padding-right: calc(var(--s-4) + 22px); }
+
+.motd-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.motd-close:hover { background: var(--hover); color: var(--fg); }
+.motd-close:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 /* A picture in a notice, and the same rule inside the editor writing it, so
    what an admin sees while composing is what a member sees afterwards. Capped
    rather than full-bleed: a notice is a paragraph with a picture in it, not a
    banner, and a screenshot pasted at native size would push everything below
    it off the first screen. */
+/* The size bar under a picture being edited. Only ever in the editor - a
+   notice on the members page is finished, and nothing there is adjustable. */
+.rte-sizer {
+  display: flex;
+  gap: 2px;
+  margin: calc(var(--s-3) * -1) 0 var(--s-3);
+  padding: 3px;
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  width: fit-content;
+}
+
+.rte-sizer button {
+  font: inherit;
+  font-size: var(--step--2);
+  font-family: var(--mono);
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rte-sizer button:hover { background: var(--hover); color: var(--fg); }
+
+.rte-sizer button.is-on {
+  background: var(--paper);
+  color: var(--accent-dk);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Which picture the bar belongs to. Outline rather than border, so selecting
+   one does not move anything. */
+.rte-input img.is-picked { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .reply-prose img,
 .rte-input img {
   display: block;

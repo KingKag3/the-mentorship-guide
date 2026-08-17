@@ -336,6 +336,17 @@ as a key in `settings` — no table, because settings.sql exists for exactly thi
 editor and the same whitelist renderer, which matters more here than anywhere: that one string is
 written once and rendered into every member's browser.
 
+Members can **dismiss** a notice, and it stays dismissed only while the text is unchanged: the
+fingerprint of the notice is what is stored, so posting a different one brings it back for everybody
+including whoever closed the last. That is kept in `localStorage` rather than the database on
+purpose — making "I have read this" follow somebody between their laptop and their phone costs a
+column, a policy and a write on every page load, and the cost of being wrong is seeing a notice
+twice.
+
+A picture in a notice can be **resized** — 25, 50, 75 or full — and the width travels in the stored
+text as `![alt](path =50%)` rather than in a stylesheet, because it is a decision about one picture
+and a rule cannot hold two answers.
+
 A notice can carry a **picture**, and a reply cannot &mdash; enforced by construction rather than by
 a rule about who may write what. `renderBody` draws an image only when the page rendering it hands
 over a signed URL for that exact path, so the members page (which signs first) shows pictures and

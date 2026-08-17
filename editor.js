@@ -77,6 +77,22 @@ const SAFE_SCHEME = /^https?:\/\//i;
  * snake_case symbol somebody pastes in. */
 const MD_SPECIAL = /([\\*`[\]])/g;
 
+/* A percentage width, or null.
+ *
+ * Null for missing, unparseable, and for 100 - full width is the default, and
+ * writing `=100%` into every notice that never asked for a size would be noise
+ * in the stored text and a difference with no meaning.
+ *
+ * parseInt and a clamp are the reason emitting a style attribute for this is
+ * safe: the number that reaches the output is one this file computed from a
+ * range it chose, never a string somebody typed.
+ */
+function clampWidth(value) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 1 || n >= 100) return null;
+  return n;
+}
+
 const BLOCKS = new Set(['p', 'div', 'ul', 'ol', 'blockquote', 'pre',
                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
@@ -120,7 +136,10 @@ export function renderBody(body, images) {
  */
 export function imagePathsIn(src) {
   const out = [];
-  const re = /!\[[^\]]*\]\(([^)\s]+)\)/g;
+  // The width is optional and must be tolerated here too: without it a sized
+  // picture matches nothing, its path is never signed, and it renders as its
+  // alt text - a picture that vanishes the moment somebody resizes it.
+  const re = /!\[[^\]]*\]\(([^)\s]+)(?:\s+=\d{1,3}%)?\)/g;
   let m;
   while ((m = re.exec(String(src == null ? '' : src)))) out.push(m[1]);
   return out;
@@ -378,9 +397,14 @@ function inlineToHtml(src, images) {
      * Checked before the link branch because `![x](y)` starts with `!` and the
      * link branch would otherwise take the `[x](y)` that follows it. */
     if (c === '!' && src[i + 1] === '[') {
-      const m = /^!\[([^\]]*)\]\(([^)\s]+)\)/.exec(src.slice(i));
+      // `![alt](path)`, optionally `![alt](path =60%)`. The width belongs to
+      // one picture in one notice - "this screenshot is a detail, that one is
+      // the whole chart" - which is a thing a stylesheet rule cannot hold two
+      // answers for.
+      const m = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+=(\d{1,3})%)?\)/.exec(src.slice(i));
       if (m) {
         const url = images && images.get ? images.get(m[2]) : null;
+        const w = clampWidth(m[3]);
         /* data-path is written here as well as by the editor, and leaving it
          * out was a silent data loss: loading a notice for editing renders it
          * through this function, and the serialiser reads the path from the
@@ -389,7 +413,8 @@ function inlineToHtml(src, images) {
          * simply gone. */
         out += url
           ? '<img src="' + escapeHtml(url) + '" data-path="' + escapeHtml(m[2]) +
-            '" alt="' + escapeHtml(m[1]) + '" loading="lazy">'
+            '" alt="' + escapeHtml(m[1]) + '" loading="lazy"' +
+            (w ? ' data-w="' + w + '" style="width:' + w + '%"' : '') + '>'
           : escapeHtml(m[1]);
         i += m[0].length;
         continue;
@@ -440,6 +465,12 @@ export function toMarkdown(root) {
   };
 
   for (const node of root.childNodes) {
+    // The editor's own furniture, skipped before anything else looks at it.
+    // The size bar is a <div>, which is a BLOCK - so checking this only in
+    // inlineOf missed it entirely and the bar's buttons were serialised into
+    // the saved text as "25%50%75%100%".
+    if (node.nodeType === 1 && node.classList.contains('rte-ui')) continue;
+
     const tag = node.nodeType === 1 ? node.nodeName.toLowerCase() : '';
     if (BLOCKS.has(tag)) {
       flush();
@@ -484,6 +515,13 @@ function blockOf(node) {
    * "entry earlystop too tight": no separator, no list, and the words silently
    * joined. Recursing gets the list back. */
   if (wraps(node)) return toMarkdown(node);
+
+  // A bar sitting inside a paragraph rather than beside it. Same reason.
+  if (node.querySelector && node.querySelector('.rte-ui')) {
+    return [...node.childNodes]
+      .filter((k) => !(k.nodeType === 1 && k.classList.contains('rte-ui')))
+      .map(inlineOf).join('').trim();
+  }
 
   // Everything else block-shaped, headings included, becomes a paragraph. A
   // heading in a two-paragraph reply is somebody's browser being helpful, not
@@ -541,6 +579,15 @@ function inlineOf(node) {
   }
   if (node.nodeType !== 1) return '';
 
+  /* The editor's own furniture, which lives inside the editable area so it can
+   * sit under the picture it belongs to.
+   *
+   * Without this the size bar was SAVED INTO THE NOTICE: the text came back
+   * ending "25%50%75%100%", because the serialiser walks whatever is in the box
+   * and had no way to tell a control from content. Anything the editor injects
+   * for its own use carries this class and contributes nothing. */
+  if (node.classList && node.classList.contains('rte-ui')) return '';
+
   const tag = node.nodeName.toLowerCase();
   if (tag === 'br') return '\n';
   if (tag === 'script' || tag === 'style') return '';
@@ -559,7 +606,8 @@ function inlineOf(node) {
     const path = node.getAttribute('data-path');
     if (!path) return '';
     const alt = (node.getAttribute('alt') || '').replace(MD_SPECIAL, '\\$1');
-    return '![' + alt + '](' + path + ')';
+    const w = clampWidth(node.getAttribute('data-w'));
+    return '![' + alt + '](' + path + (w ? ' =' + w + '%' : '') + ')';
   }
 
   // Code is taken verbatim, so its contents are NOT escaped as Markdown - they
@@ -892,6 +940,70 @@ export function mountEditor(host, opts = {}) {
    * the serialiser would strip it on the way out, what somebody sees before
    * saving would not be what gets saved. Plain text is also what people
    * actually want when pasting out of a chat window or a broker export. */
+  /* Resizing a picture, on the editor that can insert one.
+   *
+   * Clicking an image selects it and puts a row of widths under it. Drag
+   * handles are the other way to do this and are far more code: pointer
+   * capture, an aspect ratio to preserve, a minimum, and a different answer on
+   * touch. Four buttons are worse for nudging and better for everything else,
+   * and a notice does not need a picture 63% wide.
+   *
+   * The bar is rebuilt on every click rather than moved, so there is never a
+   * stale one pointing at an image that has been deleted.
+   */
+  function closeSizer() {
+    const old = host.querySelector('.rte-sizer');
+    if (old) old.remove();
+    for (const el of input.querySelectorAll('img.is-picked')) el.classList.remove('is-picked');
+  }
+
+  function openSizer(img) {
+    closeSizer();
+    img.classList.add('is-picked');
+
+    const bar = document.createElement('div');
+    // rte-ui is what the serialiser skips on; contenteditable=false keeps the
+    // caret from wandering in and typing between the buttons.
+    bar.className = 'rte-sizer rte-ui';
+    bar.setAttribute('contenteditable', 'false');
+    bar.innerHTML = [25, 50, 75, 100].map((w) =>
+      '<button type="button" data-w="' + w + '">' + w + '%</button>').join('');
+
+    bar.addEventListener('mousedown', (e) => {
+      const btn = e.target.closest('[data-w]');
+      if (!btn) return;
+      // mousedown and preventDefault, or the click clears the selection before
+      // the handler runs - the same reason the toolbar uses it.
+      e.preventDefault();
+      const w = clampWidth(btn.getAttribute('data-w'));
+      if (w) {
+        img.setAttribute('data-w', String(w));
+        img.style.width = w + '%';
+      } else {
+        // 100 clamps to null, which is the default: no attribute, no style,
+        // and nothing written into the saved text.
+        img.removeAttribute('data-w');
+        img.style.removeProperty('width');
+      }
+      openSizer(img);
+    });
+
+    img.insertAdjacentElement('afterend', bar);
+    const now = clampWidth(img.getAttribute('data-w')) || 100;
+    const on = bar.querySelector('[data-w="' + now + '"]');
+    if (on) on.classList.add('is-on');
+  }
+
+  input.addEventListener('click', (e) => {
+    const img = e.target.closest && e.target.closest('img');
+    if (img && input.contains(img)) openSizer(img);
+    else closeSizer();
+  });
+
+  // Typing anywhere means the picture is no longer what is being worked on.
+  input.addEventListener('keydown', closeSizer);
+  input.addEventListener('blur', () => setTimeout(closeSizer, 150));
+
   input.addEventListener('paste', (e) => {
     /* An image on the clipboard, where the page accepts one.
      *
@@ -980,7 +1092,13 @@ export function mountEditor(host, opts = {}) {
 
   return {
     element: input,
-    getMarkdown: () => toMarkdown(input).trim(),
+    getMarkdown: () => {
+      // Closed first, so what is saved is what was written rather than what is
+      // being edited. The serialiser skips it anyway; this keeps the two from
+      // ever having to agree.
+      closeSizer();
+      return toMarkdown(input).trim();
+    },
     // `images` is the same path -> signed URL map renderBody takes. Without it
     // a notice being edited shows its pictures as alt text, which looks like
     // they were lost.

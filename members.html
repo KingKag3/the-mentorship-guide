@@ -139,7 +139,7 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, signedUrlMap,
          renderToolCards, newScriptCount, getSetting, MOTD_KEY,
-         countWaitingReviews } from './app.js';
+         countWaitingReviews, motdDismissed, dismissMotd } from './app.js';
 import { renderBody, imagePathsIn } from './editor.js';
 
 renderAccountStrip();
@@ -175,11 +175,22 @@ if (profile) {
      * The bucket is private, so there is no durable URL to store: the notice
      * holds paths and every view mints its own links.
      */
+    // Already closed, and unchanged since. A new notice has a different
+    // fingerprint and comes back on its own.
+    if (motdDismissed(profile.id, text)) return;
+
     const images = await signedUrlMap(imagePathsIn(text));
 
     box.innerHTML =
       '<div class="callout motd"><span class="callout-label">Notice</span>' +
+      '<button type="button" class="motd-close" id="motd-close" ' +
+        'aria-label="Dismiss this notice">&times;</button>' +
       '<div class="reply-prose">' + renderBody(text, images) + '</div></div>';
+
+    document.getElementById('motd-close').addEventListener('click', () => {
+      dismissMotd(profile.id, text);
+      box.innerHTML = '';
+    });
   }, () => {});
 
   /* And the one only a mentor sees: how much is waiting.

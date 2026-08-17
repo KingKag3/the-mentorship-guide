@@ -416,10 +416,15 @@ Be honest about this list before trusting anything below it.
   to zero rather than going negative. The Accounts table was rendered with a fixture covering every
   cell wording, and the missing-column fallback was exercised.
 
-- **`trade-review-dismissals.sql` — written 17 August 2026, never run.** Lets a mentor take a
-  shared trade out of the queue without answering it. Admin-only in every direction; **no policy
-  lets a member read it**, because "your mentor decided not to answer this" is unkind and tells them
-  nothing they can act on.
+- **`trade-review-dismissals.sql` — run on 17 August 2026, and the table is confirmed.**
+  Signed out with the publishable key: the table answers `200 []` with all four columns named, a
+  table that does not exist answers `404 PGRST205`, and a column that does not exist on the real
+  table answers `400 42703`. Three probes, because one on its own proves nothing — the middle two
+  are what stop `200 []` meaning "PostgREST ignored you".
+
+  It lets a mentor take a shared trade out of the queue without answering it. Admin-only in every
+  direction; **no policy lets a member read it**, because "your mentor decided not to answer this"
+  is unkind and tells them nothing they can act on.
 
   The maths is verified: 22 checks over the rule, including both directions of expiry — a trade set
   aside then edited comes back, a trade set aside then written to by the member comes back, and a

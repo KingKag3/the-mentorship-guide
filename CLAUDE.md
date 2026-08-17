@@ -34,12 +34,23 @@ So the split is by **repo, not by feature**:
 
 | Machine | Repo | Current piece |
 | --- | --- | --- |
-| This one | both, for now | The mentor review loop: share, chart, reply |
-| The other | idle | — |
+| `NERV-NEKO` | both, until the other picks one up | Handed over 13 Aug 2026, 21:38. Everything pushed |
+| the second PC | — | Put its `$env:COMPUTERNAME` here the first time it runs, and take this row's word for it |
+
+**Rows name machines, they do not say "this one".** They used to, and it was wrong in the only
+situation the table exists for: this file loads automatically on both PCs, so a row reading *"This
+one — both repos, the review loop"* tells whichever machine is reading that **it** holds the work.
+On the machine that has just been walked away from, that is exactly backwards, and it is believed,
+because the file is the thing you are supposed to trust. Check the hostname against the table before
+reading anything else in it.
 
 **The split is suspended, not abandoned.** An overnight session was asked for indicator work while
 the site work was still open, so one machine currently holds both. That is fine while only one
 machine is running. Put the split back the moment two are.
+
+**Starting on the other PC: pull both repos first.** `the-mentorship-guide` moved a long way on
+12–13 August — the review loop, `editor.js`, reply threads, `member-last-seen`, and four checkers in
+`tools/`. A stale checkout will not conflict, it will quietly rebuild something that already exists.
 
 **A second session on the same machine is not a second machine, and is not covered by the table
 above.** Two sessions ran against this repo on 12 August — one on the journal, one on the storage

@@ -550,6 +550,36 @@ Be honest about this list before trusting anything below it.
   a path and every view mints its own link, so a signed URL leaking into the saved text would show
   as a picture today and a broken one tomorrow.
 
+- **The WealthCharts fold was wrong, and is fixed and confirmed against the source.** 17 August
+  2026. `foldFills` bucketed fills on account plus `created_on` and took the FIRST open and FIRST
+  close in each bucket. 36 buckets held two complete round turns — two trades filled in the same
+  second — so each emitted one trade pairing an open with the wrong close and **discarded the other
+  pair in silence**. Not counted as dropped either, because the existing guard only fires when one
+  side is missing entirely.
+
+  **The discarded closes were worth −8,507.34.** Losing trades that never arrive do not look like
+  missing data; they look like a better month, which is why nothing complained for a week.
+
+  Every open in a bucket is now paired, each with whichever close shares the longest order id
+  prefix — WealthCharts derives a closing order id from its opening one, so inside a bucket that is
+  unambiguous. It resolved all 72 pairs in the 36 crowded buckets. Used only within a bucket: across
+  the whole export, unrelated ids can share as little as three characters.
+
+  **Confirmed end to end.** After re-importing one complete export, all 19 accounts match
+  WealthCharts' Realized PnL to the cent and total 61,302.50, against 69,809.84 before. No cleanup
+  was needed in the end: re-importing produced the correct ids directly, and the old rows turned out
+  to be a subset of the correct ones rather than wrong ones — for 1672, 48 of 50, missing exactly
+  the −472.63 of losses.
+
+  **The habit that follows: export the whole range in ONE file.** These exports are cumulative
+  snapshots. Importing a run of them re-folds the same buckets every time, and where a bucket's
+  pairing changes between exports the new row arrives under a new `external_id` while the old one
+  stays. A single file cannot do that, and the importer now says so at the top of `foldFills`.
+
+  **Six accounts were never in this export and were never checked** — `APEX-247230-10` through
+  `-13` and `APEX-28074-08`/`-09`, totalling −2,866.12. If they were imported from WealthCharts they
+  carry the same fault. Re-importing their own export would settle it.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

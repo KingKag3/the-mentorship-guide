@@ -11,35 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `wealthcharts-refold-cleanup.sql` | Removes WealthCharts rows the corrected fold does not produce, then you re-import | The importer now pairs every round turn in a bucket, so re-importing brings back what was missing — but it cannot remove what was wrong: those rows carry an `external_id` the fixed fold never produces, so the upsert has nothing to overwrite |
-
-**It has a SELECT at the top. Run that first and read it.** It reports, per row,
-whether the trade is shared, carries notes or a chart, or has a mentor reply. If
-any of those come back true, stop — a trade that never existed having a
-conversation on it is worth understanding before it is deleted.
-
-**Do not erase the journal instead.** `trade_reviews` references `trades` with
-`on delete cascade`, so wiping it destroys every mentor reply attached — including
-the thread tested on 17 August — along with `shared_with_mentor`, `chart_url` and
-any notes typed onto an imported row.
-
-The match is inverted on purpose: *anything on these nineteen accounts, in
-WealthCharts' id format, that the corrected fold does not produce.* A list of
-known-bad ids would only cover the exports in hand, and anything left by an
-earlier import would survive it while being wrong in exactly the same way.
-Hand-logged trades have no `external_id` and are never matched.
-
-**Then re-import ONE file, not nine.** The exports are cumulative snapshots, so
-the newest already holds everything: `orders (13).csv` carries all 1,828 fills
-and the older eight add nothing — checked, not assumed. Folded alone it produces
-the identical 914 round turns and the same 61,302.50.
-
-One complete export is also the safer habit. Importing successive snapshots is
-what let the stale rows accumulate: each import re-folded the same buckets, and
-when a bucket's pairing changed the new row arrived under a new `external_id`
-while the old one stayed. A single file covering the whole range cannot do that.
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

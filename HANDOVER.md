@@ -582,9 +582,16 @@ Be honest about this list before trusting anything below it.
   in the result says so. `APEX-247230-10` to `-13` and `APEX-28074-08`/`-09` are almost certainly
   other members who imported their own Apex exports.
 
+  **Settled on 17 August, scoped properly:** joined to `profiles` and filtered to
+  `kingkag3@proton.me`, the journal holds **914 trades totalling 61,302.50** — which is 18 accounts
+  of 50 plus 1690's 14, exactly the round turns the corrected fold produces. The six unrecognised
+  accounts are therefore somebody else's: were they his, the count would be 1,036. Nothing to
+  investigate and nothing to remove.
+
   Two things follow. Any total taken from that editor without a `user_id` filter is a total across
-  the membership, not one person's — including the 61,302.50 above, which happened to be right only
-  because no other member uses those nineteen account names. And a `delete ... where account in
+  the membership, not one person's — the earlier 61,302.50 happened to be right only because no
+  other member uses those nineteen account names, which is the wrong reason for a figure to be
+  correct. And a `delete ... where account in
   (...)` written there reaches across every member in the table, with `trade_reviews` cascading
   behind it. `supabase/stray-accounts.sql` names the owner on every query for that reason.
 

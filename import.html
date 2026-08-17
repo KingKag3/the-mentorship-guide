@@ -473,6 +473,12 @@ function guessHeaderRow(all) {
    the fill rather than of the trade. Points and profit only ever appear on the
    closing leg, which is what makes the pairing unambiguous.
 
+   EXPORT THE WHOLE RANGE IN ONE FILE. WealthCharts' exports are cumulative
+   snapshots, so importing a run of them re-folds the same buckets every time -
+   and where a bucket's pairing changes between exports, the new row arrives
+   under a new external_id while the old one stays behind. Nine snapshots left
+   eighteen orphans that way. One file covering the range cannot.
+
    The two legs of a round turn share `created_on` exactly - it is stamped per
    trade, not per fill - so account plus that timestamp is the pairing key.
    `mov_time` is NOT usable for this: it is a batch stamp shared across

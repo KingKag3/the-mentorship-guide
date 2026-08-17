@@ -31,6 +31,16 @@ known-bad ids would only cover the exports in hand, and anything left by an
 earlier import would survive it while being wrong in exactly the same way.
 Hand-logged trades have no `external_id` and are never matched.
 
+**Then re-import ONE file, not nine.** The exports are cumulative snapshots, so
+the newest already holds everything: `orders (13).csv` carries all 1,828 fills
+and the older eight add nothing — checked, not assumed. Folded alone it produces
+the identical 914 round turns and the same 61,302.50.
+
+One complete export is also the safer habit. Importing successive snapshots is
+what let the stale rows accumulate: each import re-folded the same buckets, and
+when a bucket's pairing changed the new row arrived under a new `external_id`
+while the old one stayed. A single file covering the whole range cannot do that.
+
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
 pass and are not.

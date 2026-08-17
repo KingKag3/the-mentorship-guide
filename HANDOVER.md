@@ -647,7 +647,9 @@ Be honest about this list before trusting anything below it.
   other member uses those nineteen account names, which is the wrong reason for a figure to be
   correct. And a `delete ... where account in
   (...)` written there reaches across every member in the table, with `trade_reviews` cascading
-  behind it. `supabase/stray-accounts.sql` names the owner on every query for that reason.
+  behind it. Join `profiles` and name the owner on every query — the shape is written out in
+  `supabase/RUN-THESE.md`. It used to live in `supabase/stray-accounts.sql`, which was deleted the
+  same day once the question it answered had been answered.
 
   The site itself was never at risk: every page goes through PostgREST with a member's own key, and
   RLS holds there. This is a hazard of the SQL editor specifically, and it is worth remembering the

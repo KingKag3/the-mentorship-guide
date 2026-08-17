@@ -29,8 +29,19 @@ membership rather than one person's, and — the part that bites — a
 `delete ... where account in (...)` reaches across every member in the table,
 with `trade_reviews` cascading behind it.
 
-Join `profiles` and name the owner. `supabase/stray-accounts.sql` does it on
-every query and is the shape to copy.
+Join `profiles` and name the owner, on every query. The shape:
+
+```sql
+select count(*), sum(t.net_pnl)
+  from public.trades t
+  join public.profiles p on p.id = t.user_id
+ where p.email = 'kingkag3@proton.me';
+```
+
+`supabase/stray-accounts.sql` used to be the worked example and was deleted on
+17 August, once the question it answered had been answered. The pattern is
+written out here instead, because a pointer to a file that is not there is the
+same stale instruction the deletion was avoiding.
 
 ### How to tell they worked, if you ever need to check again
 

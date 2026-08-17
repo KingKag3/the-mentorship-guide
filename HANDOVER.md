@@ -490,10 +490,15 @@ Be honest about this list before trusting anything below it.
   `?select=last_seen_at,avatar_path` still answers `200 []` — the column is real and the earlier
   one survived.
 
-  **The three storage policies could not be confirmed from outside, and no probe will do it.** An
-  anonymous upload is refused whether or not a member write policy exists, so the refusal says
-  nothing either way. The proof is choosing a picture on `account.html` and having it appear.
-  Reads already worked through `storage.sql`; only writes were missing.
+  **The three storage policies are confirmed too, by the only test that could do it.** On
+  17 August a member chose a picture on `account.html` and it uploaded, saved and rendered. No
+  probe from outside could have shown this — an anonymous upload is refused whether or not a member
+  write policy exists, so the refusal carries no information either way. Reads already worked
+  through `storage.sql`; only the writes were in question, and they work.
+
+  Still unshown: that a member is **refused** writing into `avatars/<somebody else's id>/`. The
+  successful path says the policy grants; it does not say the policy is narrow. That needs a
+  deliberate attempt with another uuid in the path, from a member's own client.
 
   **The trap avoided, which is worth knowing before anyone "tidies" this.** `avatar_path` is
   deliberately NOT added to `getProfile` in `app.js`. That function gates every page: it selects a

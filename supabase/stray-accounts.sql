@@ -22,6 +22,42 @@
 
 
 -- ---------------------------------------------------------------------------
+-- 0. Is anything missing?
+--
+-- Run this FIRST if there is any doubt about what an earlier delete did.
+--
+-- The delete in wealthcharts-refold-cleanup.sql was live, and it was scoped to
+-- nineteen account names - APEX-26922-1672 to -1690 - so it could not reach
+-- APEX-247230-* or APEX-28074-* whatever they belong to. The delete in the
+-- first version of THIS file was commented out and executed nothing.
+--
+-- The reason that is more than an argument: the cleanup's SELECT and its DELETE
+-- carried identical criteria, and the SELECT returned no rows. In that editor a
+-- SELECT reads every member's data, so "no rows" means no rows anywhere - and a
+-- delete with the same criteria removes what a select with the same criteria
+-- finds.
+--
+-- This proves it rather than arguing it. Six accounts, 122 trades, -2,866.12
+-- between them when last seen.
+-- ---------------------------------------------------------------------------
+
+select t.account,
+       count(*)                        as trades,
+       round(sum(t.net_pnl), 2)        as total,
+       min(p.email)                    as owner
+  from public.trades t
+  left join public.profiles p on p.id = t.user_id
+ where t.account in ('APEX-247230-10', 'APEX-247230-11', 'APEX-247230-12',
+                     'APEX-247230-13', 'APEX-28074-08', 'APEX-28074-09')
+ group by t.account
+ order by t.account;
+
+-- Expect six rows: 39, 11, 11, 16, 26 and 19 trades, totalling -2,866.12.
+-- Six rows means nothing was lost. Fewer, or none, means something was, and
+-- Supabase keeps point-in-time backups under Database -> Backups.
+
+
+-- ---------------------------------------------------------------------------
 -- 1. Every account in the journal, and who owns it
 --
 -- If the six unrecognised accounts come back under a different email, they are

@@ -403,16 +403,56 @@ export function fromMember(msg, trade) {
  *   c) the newest MENTOR message predates the trade's updated_at, so editing a
  *      trade after it was answered puts it back.
  *
- * `msgs` must be newest first, which is how both callers query it.
+ * ...and one way it stops waiting without being answered: the mentor set it
+ * aside. `dismissedAt` is that timestamp, or null.
+ *
+ * A DISMISSAL EXPIRES. If it did not, it would be a silencer - the member asks
+ * a follow-up on a trade set aside last month and nobody ever sees it. So it
+ * only counts while it is newer than everything the member has done since:
+ * their last edit, and their last message. Nothing has to clear it up; a stale
+ * dismissal is an old timestamp that loses every comparison.
+ *
+ * `msgs` must be newest first, which is how every caller queries it.
  */
-export function isWaitingForMentor(trade, msgs) {
-  if (!msgs || !msgs.length) return true;
-  if (fromMember(msgs[0], trade)) return true;
+export function isWaitingForMentor(trade, msgs, dismissedAt) {
+  const list = msgs || [];
+  const memberLast = list.find((m) => fromMember(m, trade));
 
-  const newestMentor = msgs.find((m) => !fromMember(m, trade));
+  // Set aside, and the member has not touched it since.
+  if (dismissedAt) {
+    const aside = new Date(dismissedAt);
+    const since = [trade.updated_at, memberLast && memberLast.created_at]
+      .filter(Boolean)
+      .map((v) => new Date(v));
+    if (since.every((t) => aside >= t)) return false;
+  }
+
+  if (!list.length) return true;
+  if (fromMember(list[0], trade)) return true;
+
+  const newestMentor = list.find((m) => !fromMember(m, trade));
   if (!newestMentor) return true;
   return !trade.updated_at ||
          new Date(newestMentor.created_at) < new Date(trade.updated_at);
+}
+
+/**
+ * Set aside, and still set aside.
+ *
+ * Told apart from "answered" because they are different facts and the page
+ * says so. A trade can be both - answered, then set aside after a follow-up -
+ * and in that case the dismissal is what is keeping it out of the queue, so
+ * that is what gets reported.
+ */
+export function isSetAside(trade, msgs, dismissedAt) {
+  if (!dismissedAt) return false;
+  const list = msgs || [];
+  const memberLast = list.find((m) => fromMember(m, trade));
+  const aside = new Date(dismissedAt);
+  return [trade.updated_at, memberLast && memberLast.created_at]
+    .filter(Boolean)
+    .map((v) => new Date(v))
+    .every((t) => aside >= t);
 }
 
 /**
@@ -449,7 +489,23 @@ export async function countWaitingReviews() {
       byTrade.get(m.trade_id).push(m);
     }
 
-    return trades.filter((t) => isWaitingForMentor(t, byTrade.get(t.id))).length;
+    /* Dismissals, and a failure here must not inflate the badge.
+     *
+     * If this table is missing - the migration has not been run - the query
+     * errors and `aside` stays empty, so every set-aside trade counts as
+     * waiting again. That is the right way round: the badge over-reports and
+     * the mentor finds a trade they thought they had dealt with, rather than
+     * under-reporting and hiding one nobody has answered. */
+    const aside = new Map();
+    const { data: dropped } = await supabase
+      .from('trade_review_dismissals')
+      .select('trade_id, dismissed_at')
+      .in('trade_id', trades.map((t) => t.id));
+
+    for (const d of dropped || []) aside.set(d.trade_id, d.dismissed_at);
+
+    return trades.filter((t) =>
+      isWaitingForMentor(t, byTrade.get(t.id), aside.get(t.id))).length;
   } catch (err) {
     return 0;
   }

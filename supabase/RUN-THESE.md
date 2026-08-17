@@ -11,7 +11,14 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `trade-review-dismissals.sql` | Lets a mentor set a shared trade aside without answering it | Admin-only table, nothing touches `trades`. **Nothing breaks if it is not run** — the Set aside tab stays empty, the button reports the missing table, and every trade counts as waiting, which is the safe direction to be wrong |
+
+The dismissal **expires**: it only holds while it is newer than the member's last
+edit and their last message, so a follow-up on a trade you set aside comes back
+on its own. There is nothing to tidy up — a stale dismissal is an old timestamp
+that loses every comparison.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

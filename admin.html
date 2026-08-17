@@ -91,6 +91,8 @@
       Waiting<span class="seg-count" id="seg-waiting"></span></button>
     <button type="button" class="seg-btn" role="tab" data-queue="answered" aria-selected="false">
       Replied<span class="seg-count" id="seg-answered"></span></button>
+    <button type="button" class="seg-btn" role="tab" data-queue="aside" aria-selected="false">
+      Set aside<span class="seg-count" id="seg-aside"></span></button>
     <button type="button" class="seg-btn" role="tab" data-queue="all" aria-selected="false">
       All<span class="seg-count" id="seg-all"></span></button>
   </div>
@@ -446,7 +448,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
-         fromMember, isWaitingForMentor } from './app.js';
+         fromMember, isWaitingForMentor, isSetAside } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -475,6 +477,11 @@ let reviewPer = pageSize('review', 10, CARD_SIZES);
 // sharedTrades because they arrive from a different table under different
 // policies, and because a failed reply load should cost the queue nothing.
 let reviewsByTrade = new Map();
+
+// trade id -> dismissed_at, for trades a mentor set aside without answering.
+// Empty when trade-review-dismissals.sql has not been run, which makes every
+// set-aside trade count as waiting again - the safe direction.
+let dismissedByTrade = new Map();
 /* Which of the three lists is on screen: 'waiting', 'answered' or 'all'.
  *
  * It replaced a "show trades already answered" checkbox, which could say two
@@ -630,6 +637,30 @@ async function loadReviews() {
     if (!reviewsByTrade.has(row.trade_id)) reviewsByTrade.set(row.trade_id, []);
     reviewsByTrade.get(row.trade_id).push(row);
   }
+
+  await loadDismissals();
+}
+
+/**
+ * Trades set aside without an answer.
+ *
+ * A failure is deliberately quiet and deliberately safe. If the table is not
+ * there yet the map stays empty, every set-aside trade counts as waiting again,
+ * and the queue over-reports. That is the right way to be wrong: a mentor finds
+ * a trade they thought they had dealt with, rather than one nobody has answered
+ * being hidden.
+ */
+async function loadDismissals() {
+  dismissedByTrade = new Map();
+  if (!sharedTrades.length) return;
+
+  const { data, error } = await supabase
+    .from('trade_review_dismissals')
+    .select('trade_id, dismissed_at, reason')
+    .in('trade_id', sharedTrades.map((t) => t.id));
+
+  if (error) return;
+  for (const row of data || []) dismissedByTrade.set(row.trade_id, row.dismissed_at);
 }
 
 /* The queue rule lives in app.js, because the masthead badge on every members
@@ -637,7 +668,12 @@ async function loadReviews() {
  * equal, and a badge saying three while this tab shows two is worse than no
  * badge - it sends somebody looking for work that is not there. */
 function isWaiting(t) {
-  return isWaitingForMentor(t, reviewsByTrade.get(t.id));
+  return isWaitingForMentor(t, reviewsByTrade.get(t.id), dismissedByTrade.get(t.id));
+}
+
+/** Set aside without an answer, and the member has not touched it since. */
+function setAside(t) {
+  return isSetAside(t, reviewsByTrade.get(t.id), dismissedByTrade.get(t.id));
 }
 
 /** Whoever sent it. `profiles` is already loaded for the Accounts tab. */
@@ -772,6 +808,17 @@ function reviewCard(r) {
         'copy for TradingView</button>' +
       '<button type="button" class="link-button" data-copy-trade="' + escapeHtml(String(r.id)) + '">' +
         'copy for a reply</button>' +
+      // Set aside, or put back. One control, because they are the same
+      // decision read in opposite directions, and two would leave a card
+      // showing both.
+      (setAside(r)
+        ? '<button type="button" class="link-button is-on" data-undo-aside="' +
+            escapeHtml(String(r.id)) + '" ' +
+            'title="Put this back in the queue">set aside &mdash; undo</button>'
+        : '<button type="button" class="link-button" data-set-aside="' +
+            escapeHtml(String(r.id)) + '" ' +
+            'title="Takes it out of the queue without a reply. It comes back if ' +
+            'they edit it or write again.">no reply needed</button>') +
     '</div>' +
 
     '<div class="review-plan">' +
@@ -857,9 +904,14 @@ async function renderShared() {
   // Replied tab does not mean there is no work; a badge that followed the tab
   // would say zero while three people waited.
   const waiting = sharedTrades.filter(isWaiting);
-  const answered = sharedTrades.filter((t) => !isWaiting(t));
+  const aside = sharedTrades.filter(setAside);
+  // Replied means answered, and NOT kept out of the queue by a dismissal.
+  // A trade can be both - answered, then set aside after a follow-up - and in
+  // that case the dismissal is what is holding it, so that is where it shows.
+  const answered = sharedTrades.filter((t) => !isWaiting(t) && !setAside(t));
   const shown = queue === 'all' ? sharedTrades
               : queue === 'answered' ? answered
+              : queue === 'aside' ? aside
               : waiting;
 
   badge.hidden = waiting.length === 0;
@@ -873,6 +925,7 @@ async function renderShared() {
   };
   put('seg-waiting', waiting.length);
   put('seg-answered', answered.length);
+  put('seg-aside', aside.length);
   put('seg-all', sharedTrades.length);
 
   for (const b of document.querySelectorAll('#review-filter .seg-btn')) {
@@ -891,6 +944,12 @@ async function renderShared() {
       ? '<div class="callout"><span class="callout-label">Nothing replied to yet</span>' +
         '<p>Answers you write appear here, so you can read one back without ' +
         'scrolling past everything still waiting.</p></div>'
+      : queue === 'aside'
+      ? '<div class="callout"><span class="callout-label">Nothing set aside</span>' +
+        '<p>A trade that needs no reply &mdash; a duplicate, or one of a batch ' +
+        'answered together &mdash; can be set aside from its card. It leaves the ' +
+        'queue, and comes back on its own if the member edits it or writes ' +
+        'again.</p></div>'
       : '<div class="callout"><span class="callout-label">All caught up</span>' +
         '<p>On every shared trade the last word is yours, written since the trade ' +
         'was last edited. They are under <em>Replied</em> &mdash; and a member ' +
@@ -913,8 +972,10 @@ async function renderShared() {
   document.getElementById('review-count').textContent =
     shown.length + (shown.length === 1 ? ' trade' : ' trades') +
     ' from ' + people + (people === 1 ? ' member' : ' members') +
-    (queue === 'waiting' && answered.length
-      ? ' — ' + answered.length + ' already replied to, under Replied'
+    (queue === 'waiting'
+      ? [answered.length ? answered.length + ' replied to' : '',
+         aside.length ? aside.length + ' set aside' : '']
+          .filter(Boolean).join(', ').replace(/^(.)/, (c) => ' — ' + c)
       : '');
 
   list.innerHTML = state.rows.map(reviewCard).join('');
@@ -1023,9 +1084,50 @@ async function sendReply(btn) {
 
 /* Copying a trade out stays, because plenty of conversation still happens
  * somewhere this site does not reach. */
+/* Setting a trade aside, and putting it back.
+ *
+ * upsert rather than insert: the primary key is the trade, so setting aside
+ * something already set aside re-stamps the date instead of failing. That
+ * matters because re-stamping is exactly what somebody means when a member has
+ * written since and they still do not want to answer.
+ *
+ * dismissed_by is left to its default, the same reasoning as author_id on a
+ * reply: the column defaults to auth.uid() and the policy checks it equals
+ * auth.uid(), so a client that sends nothing is correct by construction.
+ *
+ * The whole queue reloads afterwards rather than the one card being patched.
+ * Which tab a trade belongs in depends on timestamps the database just wrote,
+ * and that comparison is worth doing against what it actually holds.
+ */
+async function setTradeAside(btn, want) {
+  const id = Number(btn.getAttribute(want ? 'data-set-aside' : 'data-undo-aside'));
+  btn.disabled = true;
+
+  const { error } = want
+    ? await supabase.from('trade_review_dismissals')
+        .upsert({ trade_id: id }, { onConflict: 'trade_id' })
+    : await supabase.from('trade_review_dismissals').delete().eq('trade_id', id);
+
+  btn.disabled = false;
+
+  if (error) {
+    document.getElementById('review-count').innerHTML =
+      dbError(error, want ? 'Could not set that aside' : 'Could not put that back');
+    return;
+  }
+
+  await loadShared();
+}
+
 document.getElementById('review-list').addEventListener('click', async (e) => {
   const send = e.target.closest && e.target.closest('[data-send-reply]');
   if (send) { await sendReply(send); return; }
+
+  const aside = e.target.closest && e.target.closest('[data-set-aside]');
+  if (aside) { await setTradeAside(aside, true); return; }
+
+  const back = e.target.closest && e.target.closest('[data-undo-aside]');
+  if (back) { await setTradeAside(back, false); return; }
 
   const tv = e.target.closest && e.target.closest('[data-tv-trade]');
   if (tv) {

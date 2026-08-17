@@ -416,6 +416,24 @@ Be honest about this list before trusting anything below it.
   to zero rather than going negative. The Accounts table was rendered with a fixture covering every
   cell wording, and the missing-column fallback was exercised.
 
+- **`trade-review-dismissals.sql` — written 17 August 2026, never run.** Lets a mentor take a
+  shared trade out of the queue without answering it. Admin-only in every direction; **no policy
+  lets a member read it**, because "your mentor decided not to answer this" is unkind and tells them
+  nothing they can act on.
+
+  The maths is verified: 22 checks over the rule, including both directions of expiry — a trade set
+  aside then edited comes back, a trade set aside then written to by the member comes back, and a
+  trade set aside then written to by the *mentor* stays out. Plus the four-way partition: every
+  shared trade lands in exactly one of Waiting, Replied and Set aside, nothing is counted twice and
+  nothing is lost. A trade answered *and then* set aside shows under Set aside, because the
+  dismissal is what is holding it out.
+
+  **Three things to watch the first time it runs.** A member must get nothing at all from this
+  table, which cannot be checked from the SQL editor because RLS does not apply to the owner. The
+  button uses `upsert` on the trade id, so setting aside something already set aside must re-stamp
+  rather than fail. And the masthead badge reads the table separately from the Review tab — if the
+  two disagree, one of the two queries is filtering differently.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

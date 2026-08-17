@@ -320,6 +320,60 @@ returns for daily; the curriculum is what they read once.
 
 ---
 
+## Where it was left, 17 August 2026
+
+`DESKTOP-6S0E97B` handed over at 16:36 with both repos level and nothing local.
+The whole of 17 August went on two things.
+
+**The community layer.** Attendance on the Accounts tab; a waiting-count beside
+the Admin link on every members page; Waiting / Replied / Set aside / All tabs on
+the review queue; setting a trade aside without answering it, with a dismissal
+that expires the moment the member touches the trade again; a message of the day
+on its own admin tab, with pictures that can be pasted, dropped and resized, and
+that members can dismiss; profile pictures, with initials as the default rather
+than a fallback. Four migrations, all run and confirmed.
+
+**A real importer bug, found by Kag3 noticing three numbers disagree.** The
+WealthCharts fold silently discarded 8,507.34 of losing trades. Fixed, verified
+against the source, and the journal now matches WealthCharts to the cent on all
+nineteen accounts: 914 trades, 61,302.50.
+
+### The first thing to do on the other machine
+
+**Pull both repos.** The guide is 25 commits further on than it was this
+morning, and `editor.js`, `import.html`, `app.js`, `admin.html`, `members.html`
+and `props.html` all changed. A stale checkout will not conflict — it will
+quietly rebuild something that already exists.
+
+### What is waiting, in the order it is worth doing
+
+1. **The eight Pine scripts have never been compiled.** `my-hours` first: 128
+   lines, no market logic, so it separates the environment from the code. This
+   has been open longest.
+2. **Six accounts belong to somebody else.** `APEX-247230-*` and `APEX-28074-*`,
+   122 trades, −2,866.12. Almost certainly other members' — the owner-scoped
+   count proves they are not Kag3's — but nobody has looked at the email beside
+   them yet. **Do not delete anything on the strength of an account name.**
+3. **`props.html` cards** settle three migrations still marked *not
+   independently confirmed*, and the funded-account button has never been
+   pressed.
+4. **Custom SMTP is still a launch blocker.** Every auth email goes through
+   Supabase's throttled built-in service, and the failure is silent from the
+   member's side.
+
+### The two hazards this day produced, both worth keeping
+
+**The SQL editor connects as the table owner and ignores row-level security.**
+A query there reads every member's rows, and a `delete ... where account in
+(...)` reaches across the whole membership with `trade_reviews` cascading behind
+it. Join `profiles` and name the owner.
+
+**Export the whole range in one file.** WealthCharts exports are cumulative
+snapshots; importing a run of them re-folds the same buckets every time, and a
+changed pairing leaves the old row behind under a dead id.
+
+---
+
 ## Untested
 
 Be honest about this list before trusting anything below it.

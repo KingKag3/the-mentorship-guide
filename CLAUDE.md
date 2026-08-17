@@ -34,8 +34,8 @@ So the split is by **repo, not by feature**:
 
 | Machine | Repo | Current piece |
 | --- | --- | --- |
-| `NERV-NEKO` | idle since the handover | Handed over 13 Aug 2026, 21:38 with everything pushed. Wrote this table on 17 Aug |
-| `DESKTOP-6S0E97B` | `the-mentorship-guide` | Picked up 17 Aug 2026. Phase 5.1 attendance, and the four checkers in `tools/` |
+| `NERV-NEKO` | free to pick either up | Idle since 13 Aug. **Pull both before starting** — the guide moved a long way on 17 Aug |
+| `DESKTOP-6S0E97B` | idle since the handover | Handed over 17 Aug 2026, 16:36 with everything pushed and both repos level |
 
 **Rows name machines, they do not say "this one".** They used to, and it was wrong in the only
 situation the table exists for: this file loads automatically on both PCs, so a row reading *"This

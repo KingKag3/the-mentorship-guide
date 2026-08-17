@@ -52,6 +52,13 @@
 <div id="auth-root"></div>
 
 <div id="members-body" hidden>
+
+  <!-- Two notices, and they are not the same kind of thing.
+       #motd is written by an admin and read by everyone.
+       #mentor-motd is derived from the queue and only an admin ever sees it. -->
+  <div id="mentor-motd"></div>
+  <div id="motd"></div>
+
   <p class="lede" id="greeting"></p>
 
   <h2>Tools</h2>
@@ -131,7 +138,9 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, signedUrlMap,
-         renderToolCards, newScriptCount } from './app.js';
+         renderToolCards, newScriptCount, getSetting, MOTD_KEY,
+         countWaitingReviews } from './app.js';
+import { renderBody } from './editor.js';
 
 renderAccountStrip();
 
@@ -141,6 +150,46 @@ if (profile) {
   document.getElementById('members-body').hidden = false;
   document.getElementById('greeting').textContent =
     'Signed in as ' + (profile.full_name || profile.email) + '.';
+
+  /* The message of the day, written by an admin.
+   *
+   * Rendered with renderBody, the same reader the mentor's replies use, so a
+   * notice can carry a link or a list without this page learning a second way
+   * to turn text into markup - and without an admin's text ever reaching
+   * innerHTML as markup. Empty means no box at all rather than an empty one.
+   *
+   * Failing to load it must not cost anybody the curriculum, so getSetting
+   * already swallows its own errors and returns null.
+   */
+  getSetting(MOTD_KEY).then((text) => {
+    const box = document.getElementById('motd');
+    if (!box || !text || !text.trim()) return;
+    box.innerHTML =
+      '<div class="callout motd"><span class="callout-label">Notice</span>' +
+      '<div class="reply-prose">' + renderBody(text) + '</div></div>';
+  }, () => {});
+
+  /* And the one only a mentor sees: how much is waiting.
+   *
+   * On this page rather than only in the masthead badge, because a number in a
+   * corner says there is work and a sentence says what it is. The badge is
+   * ambient; this is the thing you read on the way in.
+   *
+   * Nothing waits on it. It is two queries and the curriculum below is the
+   * reason anybody opened the page.
+   */
+  if (profile.role === 'admin') {
+    countWaitingReviews().then((n) => {
+      const box = document.getElementById('mentor-motd');
+      if (!box || !n) return;
+      box.innerHTML =
+        '<div class="callout warn"><span class="callout-label">Waiting on you</span>' +
+        '<p>' + (n === 1
+          ? '<strong>One shared trade</strong> is waiting for a reply.'
+          : '<strong>' + n + ' shared trades</strong> are waiting for a reply.') +
+        ' <a href="admin.html">Open the review queue</a>.</p></div>';
+    }, () => {});
+  }
 
   // The badge counts indicators changed since this browser last opened that
   // page. Failing to count must not stop the curriculum rendering, so a missing

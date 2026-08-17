@@ -1183,6 +1183,18 @@ export async function newScriptCount() {
  * render without it, so a settings lookup must never be able to take the page
  * down with it.
  */
+/* The members' message of the day.
+ *
+ * A key in `settings` rather than a table of its own. There is one of them, it
+ * is a string, and settings.sql says outright that is what it is for: values
+ * where a table per setting would be worse than the setting.
+ *
+ * Named here rather than typed as a literal in two files. A key spelled one way
+ * on the page that writes it and another on the page that reads it is a notice
+ * that silently never appears, and nothing about that failure points at the
+ * spelling. */
+export const MOTD_KEY = 'members_motd';
+
 export async function getSetting(key) {
   if (!supabase) return null;
   try {

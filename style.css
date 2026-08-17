@@ -1732,6 +1732,28 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 
 .acct-link:hover .acct-count { background: var(--brand-600); }
 
+/* An author `display` beats the user agent's `[hidden] { display: none }`, so
+   the badge kept its box when there was nothing to show - an empty red pill
+   between Admin and Sign out that read as a stray dash. Author styles always
+   win over UA styles, so hiding has to be said here too. */
+.acct-count[hidden] { display: none; }
+
+/* The members' notice.
+
+   A plain callout rather than a coloured one. `.callout.warn` and
+   `.callout.risk` already mean something on this site - something needs
+   attention, something could cost you money - and a routine "the new lesson is
+   up" wearing that colour spends the warning on nothing. The mentor's own
+   "waiting on you" notice IS warn, because that one is work owed. */
+.callout.motd {
+  border-left-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.callout.motd .reply-prose { margin-top: var(--s-2); }
+.callout.motd .reply-prose > *:first-child { margin-top: 0; }
+.callout.motd .reply-prose > *:last-child { margin-bottom: 0; }
+
 /* ---------------------------------------------------------------
    Segmented control
 

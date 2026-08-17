@@ -197,6 +197,24 @@
     </table>
   </div>
 
+  <h3>Message of the day</h3>
+
+  <p>Shown at the top of the members area, above the tools, to everyone who signs in. Leave it
+  empty to show nothing at all &mdash; a notice box with nothing in it trains people to stop
+  reading notices.</p>
+
+  <p class="field-note">The same editor as a reply, so a notice can carry a link, a list or a
+  quote. It is stored as text and rendered through the whitelist in <code>editor.js</code>, which
+  matters here more than it looks: this string is written once and rendered into every member's
+  browser.</p>
+
+  <div id="motd-editor"></div>
+  <p class="reply-actions">
+    <button type="button" class="btn-secondary" id="motd-save">Save notice</button>
+    <button type="button" class="link-button" id="motd-clear">Clear it</button>
+    <span class="field-note" id="motd-status"></span>
+  </p>
+
   <h3>Install walkthrough video</h3>
 
   <p>Shown at the top of the indicators page, above the written steps. A YouTube link — the
@@ -448,7 +466,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
-         fromMember, isWaitingForMentor, isSetAside } from './app.js';
+         fromMember, isWaitingForMentor, isSetAside, MOTD_KEY } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -514,6 +532,20 @@ const replyEditors = new Map();
  * the note at the top of this block describes. */
 let seenColumn = true;
 
+/* The one message-of-the-day editor, mounted once because there is one notice.
+ *
+ * Eagerly rather than lazily like the reply boxes: those are ten or fifty to a
+ * page and this is one, so the lazy machinery would cost more than it saved.
+ * Same editor either way, so what an admin types here and what a member reads
+ * cannot disagree about formatting.
+ *
+ * DECLARED HERE for the reason at the top of this block, and check-tdz.py said
+ * so before a browser did - it sat beside loadMotd, which the init block awaits
+ * six hundred lines earlier. That is the second time in two days; the checker
+ * catching it this time is the whole point of teaching it about top-level
+ * `if` blocks. */
+let motdEditor = null;
+
 const me = await requireRole(['admin']);
 
 if (me) {
@@ -551,6 +583,7 @@ if (me) {
     await loadUsers();
     await loadShared();
     await loadInvites();
+    await loadMotd();
     await loadVideo();
     await loadScripts();
     await loadPhases();
@@ -1624,6 +1657,67 @@ function initialPanel() {
 showPanel(initialPanel(), false);
 
 window.addEventListener('hashchange', () => showPanel(initialPanel(), false));
+
+/* ----------------------- message of the day --------------------------- */
+
+async function loadMotd() {
+  const host = document.getElementById('motd-editor');
+  if (!host) return;
+
+  if (!motdEditor) {
+    motdEditor = mountEditor(host, {
+      id: 'motd-body',
+      label: 'Message of the day',
+      placeholder: 'Anything every member should see when they sign in'
+    });
+  }
+
+  const text = await getSetting(MOTD_KEY);
+  motdEditor.setMarkdown(text || '');
+  setMotdStatus(text && text.trim() ? 'A notice is showing.' : 'No notice is showing.');
+}
+
+function setMotdStatus(msg) {
+  const el = document.getElementById('motd-status');
+  if (el) el.textContent = msg;
+}
+
+async function saveMotd(text) {
+  const { error } = await setSetting(MOTD_KEY, text);
+  if (error) {
+    document.getElementById('motd-status').textContent =
+      'Could not save: ' + error.message;
+    return false;
+  }
+  return true;
+}
+
+document.getElementById('motd-save').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  setMotdStatus('Saving...');
+  // Trimmed, so a box holding only a blank line saves as empty and shows
+  // nothing - rather than putting an empty notice on every member's page.
+  const text = (motdEditor ? motdEditor.getMarkdown() : '').trim();
+  const ok = await saveMotd(text);
+  btn.disabled = false;
+  if (ok) {
+    setMotdStatus(text
+      ? 'Saved. Every member sees it on their next visit.'
+      : 'Saved as empty, so no notice is showing.');
+  }
+});
+
+document.getElementById('motd-clear').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const ok = await saveMotd('');
+  btn.disabled = false;
+  if (ok) {
+    if (motdEditor) motdEditor.clear();
+    setMotdStatus('Cleared. No notice is showing.');
+  }
+});
 
 /* -------------------------- install video ----------------------------- */
 

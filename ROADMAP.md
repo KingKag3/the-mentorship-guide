@@ -329,6 +329,16 @@ should not start at the end of a long session.
 Three pieces asked for on 13 August 2026. They are listed in dependency order, which is also
 cheapest-first: **5.1 stands alone, 5.3 needs 5.2, and 5.2 is the expensive one.** None is started.
 
+### 5.0 Notices — **built**
+
+A message of the day at the top of the members area, written from the admin Settings tab and stored
+as a key in `settings` — no table, because settings.sql exists for exactly this. It uses the reply
+editor and the same whitelist renderer, which matters more here than anywhere: that one string is
+written once and rendered into every member's browser.
+
+Beside it, and only ever seen by an admin, a derived notice saying how many shared trades are
+waiting, with a link into the queue. The masthead badge says *that* there is work; this says *what*.
+
 ### 5.1 Who is still turning up — attrition on the admin side — **level one built**
 
 **The honest answer to "can we do this today" is no, and the reason is worth knowing.** `profiles`

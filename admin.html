@@ -112,10 +112,14 @@
   on or it is off, and it is off when it is empty &mdash; a notice box with nothing in it trains
   people to stop reading notices.</p>
 
-  <p class="field-note">The same editor as a reply, so a notice can carry a link, a list or a
-  quote. It is stored as text and rendered through the whitelist in <code>editor.js</code>, which
-  matters here more than it looks: this string is written once and rendered into every member's
-  browser.</p>
+  <p class="field-note">A notice can carry a link, a list, a quote and a <strong>picture</strong>.
+  The picture button uploads straight away and drops the image in at the cursor &mdash; you will see
+  it here before you save, and it is not kept until you do.</p>
+
+  <p class="field-note">Replies deliberately cannot carry pictures, and the difference is not a rule
+  about who may write what: an image renders only where the page displaying it has signed the link
+  first, which the members page does and the reply threads do not. A member writing one into a reply
+  gets words, and nothing is requested from anybody else's server.</p>
 
   <div id="motd-editor"></div>
   <p class="reply-actions">
@@ -1764,9 +1768,21 @@ function pickNoticeImage() {
     picker.type = 'file';
     picker.accept = 'image/*';
 
+    /* Set the instant a file is chosen, before any awaiting starts.
+     *
+     * THIS FLAG IS THE WHOLE FIX. The cancel detection below resolves null a
+     * moment after the window regains focus, and the first version relied on
+     * "the change handler wins when there is one" - which it does not, because
+     * the change handler is async and an upload takes seconds while the
+     * timeout was 400ms. Every picture uploaded correctly and was then thrown
+     * away by the cancel path, so nothing ever appeared in the editor and
+     * nothing reported an error. */
+    let chose = false;
+
     picker.addEventListener('change', async () => {
       const file = picker.files && picker.files[0];
       if (!file) { resolve(null); return; }
+      chose = true;
 
       setMotdStatus('Uploading the picture...');
 
@@ -1786,15 +1802,25 @@ function pickNoticeImage() {
       }
 
       const url = await signedUrl(path);
-      setMotdStatus('Picture added. Save the notice to keep it.');
+      if (!url) {
+        setMotdStatus('The picture uploaded but could not be shown. Reload and try again.');
+        resolve(null);
+        return;
+      }
+
+      setMotdStatus('Picture added below. Press Save notice to keep it.');
       resolve({ path, url, alt: file.name.replace(/\.[^.]+$/, '') });
     });
 
-    // Cancelling a file dialog fires nothing at all in most browsers, so the
-    // promise would hang for ever. Resolving on the window regaining focus is
-    // the usual way out of that; the change handler wins when there is one.
-    window.addEventListener('focus', () => setTimeout(() => resolve(null), 400),
-      { once: true });
+    /* Cancelling a file dialog fires no event at all in most browsers, so
+     * without this the promise would hang for ever and the toolbar button
+     * would appear dead after one cancelled pick.
+     *
+     * Guarded on `chose`, not on time. However long the upload takes, a file
+     * that was picked is never treated as a cancellation. */
+    window.addEventListener('focus', () => {
+      setTimeout(() => { if (!chose) resolve(null); }, 500);
+    }, { once: true });
 
     picker.click();
   });

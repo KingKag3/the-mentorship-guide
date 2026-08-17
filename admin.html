@@ -1124,14 +1124,25 @@ async function sendReply(btn) {
  * somewhere this site does not reach. */
 /* Setting a trade aside, and putting it back.
  *
- * upsert rather than insert: the primary key is the trade, so setting aside
- * something already set aside re-stamps the date instead of failing. That
- * matters because re-stamping is exactly what somebody means when a member has
- * written since and they still do not want to answer.
+ * THE TIMESTAMP IS SENT, AND THAT IS NOT OPTIONAL.
  *
- * dismissed_by is left to its default, the same reasoning as author_id on a
- * reply: the column defaults to auth.uid() and the policy checks it equals
- * auth.uid(), so a client that sends nothing is correct by construction.
+ * The first version sent `{ trade_id }` alone and left dismissed_at to its
+ * column default, on the same reasoning as author_id on a reply. That is right
+ * for an insert and wrong for an upsert, because a DEFAULT only applies when a
+ * row is created. PostgREST's merge-duplicates writes
+ * `ON CONFLICT DO UPDATE SET` for exactly the columns in the payload - so on a
+ * trade that had been set aside once already, the update set trade_id to
+ * itself and left the old date alone.
+ *
+ * The result was a button that did nothing, in the one case somebody would
+ * press it twice: set aside, member replies, set aside again. The row was
+ * written, the request succeeded, and the stale timestamp had already lost to
+ * the member's newer message - so the trade stayed in Waiting. Nothing failed
+ * loudly enough to notice.
+ *
+ * dismissed_by is sent for the same reason. On the update path the policy
+ * checks `dismissed_by = auth.uid()`, which the existing value only satisfies
+ * while one person is doing this. Sending it keeps it true when there are two.
  *
  * The whole queue reloads afterwards rather than the one card being patched.
  * Which tab a trade belongs in depends on timestamps the database just wrote,
@@ -1143,14 +1154,25 @@ async function setTradeAside(btn, want) {
 
   const { error } = want
     ? await supabase.from('trade_review_dismissals')
-        .upsert({ trade_id: id }, { onConflict: 'trade_id' })
+        .upsert({ trade_id: id, dismissed_by: me.id, dismissed_at: new Date().toISOString() },
+                { onConflict: 'trade_id' })
     : await supabase.from('trade_review_dismissals').delete().eq('trade_id', id);
 
   btn.disabled = false;
 
   if (error) {
-    document.getElementById('review-count').innerHTML =
-      dbError(error, want ? 'Could not set that aside' : 'Could not put that back');
+    /* Said at the button, not at the top of the panel.
+     *
+     * It used to write into #review-count, which sits above the tabs - so from
+     * a card halfway down a page of ten, a refusal was reported somewhere the
+     * person who caused it could not see. A control that fails silently from
+     * where you are standing is indistinguishable from one that does nothing.
+     */
+    const say = document.createElement('span');
+    say.className = 'field-note-bad';
+    say.textContent = ' ' + (error.message || 'that did not save');
+    btn.after(say);
+    setTimeout(() => say.remove(), 6000);
     return;
   }
 

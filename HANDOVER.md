@@ -440,6 +440,17 @@ Be honest about this list before trusting anything below it.
   **back into Waiting on its own**. That is the expiry rule working in both directions against a
   real database rather than a fixture.
 
+  **And one bug the same test found, on 17 August.** Pressing *no reply needed* a second time - on
+  a trade that had been set aside once, then replied to by the member - did nothing at all. The
+  page sent `{ trade_id }` alone and left `dismissed_at` to its column default, which is right for
+  an insert and wrong for an upsert: a DEFAULT applies only when a row is created, and PostgREST's
+  merge-duplicates writes `ON CONFLICT DO UPDATE SET` for exactly the columns in the payload. So
+  the update set `trade_id` to itself, kept the stale timestamp, and the dismissal had already
+  expired against the member's newer message. The request succeeded; nothing moved. The page now
+  sends `dismissed_at` and `dismissed_by` explicitly, and failures are reported beside the button
+  rather than in `#review-count`, which sits above the tabs and is off-screen from a card halfway
+  down the list.
+
   **Still not shown:** that a member gets nothing at all from the dismissals table. RLS does not
   apply to the table owner, so the SQL editor cannot answer it — it wants the member's own client
   asking for `trade_review_dismissals` and getting `[]`. The two accounts are already set up, so

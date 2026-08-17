@@ -99,8 +99,16 @@ create policy "admins write dismissals"
   on public.trade_review_dismissals for insert
   with check (public.is_admin() and dismissed_by = auth.uid());
 
--- Setting aside a trade that was already set aside re-stamps it rather than
--- failing on the primary key, which is what the page's upsert relies on.
+-- Setting aside a trade that was already set aside must UPDATE rather than fail
+-- on the primary key.
+--
+-- Note what this policy does not do, because the first version of the page
+-- assumed it did: it does not re-stamp dismissed_at. A DEFAULT applies when a
+-- row is created and never on update, and PostgREST's merge-duplicates writes
+-- `ON CONFLICT DO UPDATE SET` for exactly the columns the client sent. So the
+-- page has to send dismissed_at itself - and it does. If it ever stops, the
+-- symptom is a button that appears to do nothing on the second press, because
+-- the stale timestamp has already lost to whatever the member did in between.
 create policy "admins update dismissals"
   on public.trade_review_dismissals for update
   using      (public.is_admin())

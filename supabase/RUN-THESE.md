@@ -11,7 +11,14 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `profile-avatars.sql` | Adds `profiles.avatar_path`, and three storage policies letting a member write inside `avatars/<their id>/` | Without it, choosing a picture uploads nothing — the storage policy refuses a member writing outside `journal/`. **Nothing breaks**: every face falls back to initials, which is what it already draws |
+
+**No new read policy in it, deliberately.** `storage.sql` already grants any member SELECT on
+anything in `lesson-media` outside `journal/`, and an avatar is exactly that. The RESTRICTIVE
+journal policy does not interfere either: its first clause passes anything whose first folder is
+not `journal`, and it is `for select` only, so it has no opinion about writes.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

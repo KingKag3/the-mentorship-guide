@@ -471,7 +471,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
-         fromMember, isWaitingForMentor, isSetAside, MOTD_KEY } from './app.js';
+         fromMember, isWaitingForMentor, isSetAside, MOTD_KEY,
+         faceHtml } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -536,6 +537,15 @@ const replyEditors = new Map();
  * initialization" and the Accounts tab came up empty. That is the exact failure
  * the note at the top of this block describes. */
 let seenColumn = true;
+
+/* Same idea, second optional column. profiles.avatar_path arrives with
+ * profile-avatars.sql, and the Accounts tab must not die over a picture. */
+let avatarColumn = true;
+
+// Signed links for the faces on the current page of accounts. Signed per
+// render because the bucket is private and every link expires; keyed by path
+// so two people cannot collide.
+let faceUrls = new Map();
 
 /* The one message-of-the-day editor, mounted once because there is one notice.
  *
@@ -835,7 +845,12 @@ function reviewCard(r) {
 
   return '<article class="review">' +
     '<div class="review-head">' +
-      '<span class="review-who">' + escapeHtml(sharedBy(r.user_id)) + '</span>' +
+      '<span class="review-who face-line">' +
+        (function () {
+          const u = allUsers.find((x) => x.id === r.user_id);
+          return u ? faceHtml(u, faceUrls.get(u.avatar_path), 'sm') : '';
+        })() +
+        '<span>' + escapeHtml(sharedBy(r.user_id)) + '</span></span>' +
       '<span class="review-when">' + escapeHtml(when.toLocaleString()) + '</span>' +
       '<span class="review-spacer"></span>' +
       // Onto your own chart, not just into a reply. Pasting this into the TK
@@ -904,8 +919,14 @@ function replyBlock(r) {
     // whenever the trade was waiting, which said the member had edited since
     // a message they had not yet written.
     const stale = mine && edited && new Date(v.created_at) < edited;
+    // The member's face on their messages, the mentor's absence of one on
+    // theirs: whose page this is is never in doubt, so a face beside your own
+    // words is decoration. It goes where it answers a question.
+    const who = mine ? null : allUsers.find((u) => u.id === r.user_id);
     return '<div class="reply' + (mine ? ' reply--mine' : '') + '">' +
-      '<p class="reply-when">' + escapeHtml(mine ? 'You' : sharedBy(r.user_id)) + ' &mdash; ' +
+      '<p class="reply-when">' +
+      (who ? faceHtml(who, faceUrls.get(who.avatar_path), 'sm') + ' ' : '') +
+      escapeHtml(mine ? 'You' : sharedBy(r.user_id)) + ' &mdash; ' +
         escapeHtml(new Date(v.created_at).toLocaleString()) +
         (stale ? ' &mdash; the trade has been edited since' : '') + '</p>' +
       // renderBody, not escapeHtml. This page matters most: a member's words
@@ -1237,7 +1258,8 @@ function flash(btn, message) {
 
 async function loadUsers() {
   const columns = 'id, email, full_name, role, created_at' +
-                  (seenColumn ? ', last_seen_at' : '');
+                  (seenColumn ? ', last_seen_at' : '') +
+                  (avatarColumn ? ', avatar_path' : '');
 
   const { data, error } = await supabase
     .from('profiles')
@@ -1249,12 +1271,23 @@ async function loadUsers() {
       seenColumn = false;
       return loadUsers();
     }
+    if (avatarColumn && /avatar_path/i.test(error.message || '')) {
+      avatarColumn = false;
+      return loadUsers();
+    }
     document.getElementById('users-body').innerHTML =
       '<tr><td colspan="6">' + escapeHtml(error.message) + '</td></tr>';
     return;
   }
 
   allUsers = data;
+
+  // One signed link per picture, before the table is drawn. signedUrlMap
+  // already skips nulls and swallows its own failures, so a member with no
+  // picture and a member whose link could not be minted both end up with
+  // initials - which is the same thing the reader sees either way.
+  faceUrls = await signedUrlMap(allUsers.map((u) => u.avatar_path));
+
   renderUsers();
 }
 
@@ -1310,7 +1343,9 @@ function renderUsers() {
   document.getElementById('users-body').innerHTML = rows.map((u) => {
     const isMe = u.id === me.id;
     return '<tr data-id="' + escapeHtml(u.id) + '">' +
-      '<td>' + escapeHtml(u.email) + (isMe ? ' <span class="tag">you</span>' : '') + '</td>' +
+      '<td><span class="face-line">' + faceHtml(u, faceUrls.get(u.avatar_path)) +
+        '<span>' + escapeHtml(u.email) + (isMe ? ' <span class="tag">you</span>' : '') +
+        '</span></span></td>' +
       '<td><input type="text" class="name-input" maxlength="80" ' +
         'value="' + escapeHtml(u.full_name || '') + '" placeholder="no name set"></td>' +
       '<td>' + new Date(u.created_at).toISOString().slice(0, 10) + '</td>' +

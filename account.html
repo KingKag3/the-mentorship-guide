@@ -68,6 +68,24 @@
 
   <h2>Profile</h2>
 
+  <div class="avatar-row">
+    <div id="avatar-face"></div>
+    <div class="avatar-controls">
+      <p class="field-note" id="avatar-note">Shown beside your name wherever you appear &mdash; on
+      a trade you asked about, and on the accounts list. Without one you get your initials, which
+      is a perfectly good answer.</p>
+      <div class="row-actions">
+        <label class="btn-secondary" for="avatar-file">Choose a picture</label>
+        <input id="avatar-file" type="file" accept="image/*" class="sr-only">
+        <button type="button" class="link-button" id="avatar-remove" hidden>Remove it</button>
+        <span class="form-status" id="status-avatar"></span>
+      </div>
+      <p class="field-note">Square works best. It is resized to 256px in your browser before it is
+      sent, so a four-megabyte photo does not become a four-megabyte download for everybody who
+      sees your name.</p>
+    </div>
+  </div>
+
   <form id="form-profile" class="auth-form auth-form-wide">
     <label for="p-email">Email</label>
     <input id="p-email" type="email" disabled autocomplete="off">
@@ -186,7 +204,9 @@
 </div>
 
 <script type="module">
-import { supabase, requireRole, renderAccountStrip, setStatus, signOut } from './app.js';
+import { supabase, requireRole, renderAccountStrip, setStatus, signOut,
+         faceHtml, avatarFolder, compressImage, signedUrl, MEDIA_BUCKET,
+         migrationHint } from './app.js';
 
 renderAccountStrip();
 
@@ -209,6 +229,131 @@ if (profile) {
     admin:   'Everything a member has, plus the admin page.'
   };
   document.getElementById('p-role-note').textContent = roleNote[profile.role] || '';
+
+  /* ------------------------------ the picture ------------------------------
+   *
+   * Fetched here, and DELIBERATELY NOT added to getProfile in app.js.
+   *
+   * getProfile is the gate on every page: it selects a fixed list of columns
+   * and returns null on any error, and requireRole sends a null straight to
+   * the sign-in page. Naming a column there that does not exist yet would not
+   * break the account page - it would sign everybody out of the whole site
+   * until the migration was run. One page needing a column is not a reason to
+   * put it on the critical path of eighteen.
+   *
+   * So it is asked for here, on its own, and a failure means no picture rather
+   * than no page.
+   */
+  let avatarPath = null;
+  {
+    const { data } = await supabase.from('profiles')
+      .select('avatar_path').eq('id', profile.id).maybeSingle();
+    avatarPath = (data && data.avatar_path) || null;
+  }
+
+  async function drawFace() {
+    const mount = document.getElementById('avatar-face');
+    const remove = document.getElementById('avatar-remove');
+    if (!mount) return;
+
+    // Signed per view. The bucket is private, so there is no durable URL to
+    // keep - and a link that expires in an hour is the right lifetime for one
+    // that only has to survive somebody looking at their own settings.
+    const url = avatarPath ? await signedUrl(avatarPath) : null;
+    mount.innerHTML = faceHtml(profile, url, 'lg');
+    if (remove) remove.hidden = !avatarPath;
+  }
+
+  await drawFace();
+
+  /* Uploading.
+   *
+   * A new object every time rather than overwriting one fixed name. Overwriting is
+   * tempting - one file per member, no cleanup - and it fights every cache
+   * between here and the browser: the path is unchanged, so the old picture
+   * keeps being shown until something expires. A fresh uuid cannot do that.
+   *
+   * The old object is deleted afterwards, and a failure to delete is ignored:
+   * an orphaned image nobody links to is untidy, while a failed delete that
+   * blocked the change would leave somebody stuck with a picture they had
+   * already replaced.
+   */
+  document.getElementById('avatar-file').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setStatus('#status-avatar', 'That is not an image.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    setStatus('#status-avatar', 'Resizing…', 'info');
+
+    // 256px, against 1600 for a journal screenshot. A face is drawn at 30px on
+    // most of the site and 76px here; anything larger is bytes nobody sees.
+    const small = await compressImage(file, 256, 0.85);
+    const ext = (small.type === 'image/png') ? 'png' : 'jpg';
+    const path = avatarFolder(profile.id) + crypto.randomUUID() + '.' + ext;
+
+    setStatus('#status-avatar', 'Uploading…', 'info');
+    const up = await supabase.storage.from(MEDIA_BUCKET)
+      .upload(path, small, { contentType: small.type, upsert: false });
+
+    e.target.value = '';
+
+    if (up.error) {
+      setStatus('#status-avatar', up.error.message, 'error');
+      return;
+    }
+
+    const saved = await supabase.from('profiles')
+      .update({ avatar_path: path }).eq('id', profile.id);
+
+    if (saved.error) {
+      // The bytes are up but nothing points at them. Say which half failed,
+      // and name the migration if that is what it is - "avatar_path" in the
+      // message is the tell.
+      const file = migrationHint(saved.error);
+      setStatus('#status-avatar', file
+        ? 'The picture uploaded, but nothing points at it yet. Run ' + file +
+          ' in the Supabase SQL editor.'
+        : 'The picture uploaded but could not be saved: ' + saved.error.message, 'error');
+      return;
+    }
+
+    const old = avatarPath;
+    avatarPath = path;
+    await drawFace();
+    setStatus('#status-avatar', 'Saved.', 'ok');
+    if (old) supabase.storage.from(MEDIA_BUCKET).remove([old]).catch(() => {});
+  });
+
+  /* Removing.
+   *
+   * Clears the column first and deletes the object second, which is the order
+   * that fails safely: a cleared column with the bytes still there shows no
+   * picture anywhere, while a deleted object with the column still set would
+   * leave every page pointing at nothing.
+   */
+  document.getElementById('avatar-remove').addEventListener('click', async () => {
+    if (!avatarPath) return;
+    setStatus('#status-avatar', 'Removing…', 'info');
+
+    const cleared = await supabase.from('profiles')
+      .update({ avatar_path: null }).eq('id', profile.id);
+
+    if (cleared.error) {
+      setStatus('#status-avatar', cleared.error.message, 'error');
+      return;
+    }
+
+    const old = avatarPath;
+    avatarPath = null;
+    await drawFace();
+    setStatus('#status-avatar', 'Removed. Your initials are back.', 'ok');
+    supabase.storage.from(MEDIA_BUCKET).remove([old]).catch(() => {});
+  });
 
   // A recovery link signs you in and drops you here. Say so, rather than
   // showing a page that looks like it did nothing.

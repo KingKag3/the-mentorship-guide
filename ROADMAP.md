@@ -436,9 +436,15 @@ two problems worth naming before anyone writes the table.
 **Suggested order:** the role audit, then mentor replies, then directing a question, then ratings.
 The first three are useful without the fourth.
 
-### 5.3 Profile images, and role flags under them
+### 5.3 Profile images — **built**; role flags still need 5.2
 
-**Needs 5.2 first** — the flags are the roles, so there is nothing to draw until the roles exist.
+**The picture half landed on 17 August 2026.** `profile-avatars.sql`, an upload control on
+`account.html`, and faces on the admin accounts list and in the review threads. Initials are
+the DEFAULT rather than a fallback: a member who uploads nothing still has a face everywhere,
+so there is no empty state and no layout that shifts when somebody finally uploads one.
+
+**The flags still need 5.2** — they are the roles, so there is nothing to draw until the roles
+exist.
 
 The image half is small and has one genuinely new problem in it. Every member-uploaded image on this
 site so far is *private*: journal screenshots are readable by their owner and by a mentor on a shared

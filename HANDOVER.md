@@ -485,6 +485,33 @@ Be honest about this list before trusting anything below it.
   **The payout figures are deliberately not seeded.** No Apex numbers are hardcoded anywhere, and
   none should be added without a source and a date beside them.
 
+- **`supabase/profile-avatars.sql` — written 17 August 2026, never run.** One column and three
+  storage policies. Reads already work through `storage.sql`; only writes were missing.
+
+  **The trap avoided, which is worth knowing before anyone "tidies" this.** `avatar_path` is
+  deliberately NOT added to `getProfile` in `app.js`. That function gates every page: it selects a
+  fixed column list and returns null on any error, and `requireRole` sends a null straight to the
+  sign-in page. Naming a column there that does not exist yet would not break the account page — it
+  would sign everybody out of the entire site until the migration ran. `account.html` fetches the
+  column on its own, and `admin.html` retries without it, the same way it already does for
+  `last_seen_at`.
+
+  Verified: 24 checks over initials and hue — an email's domain never contributes a letter, empty
+  and null give `?` rather than throwing, all eight hues appear across 400 ids with a 45–57 spread,
+  and the hue keys off the **id** so renaming yourself does not change your colour. In a browser:
+  worst ink contrast 5.9:1 light and 6.6:1 dark across all eight, and a byline with a face is the
+  same height as one without — it was 30px against 24 on the first attempt, which would have made
+  messages in a thread step up and down depending on who wrote them.
+
+  **Never run against storage.** Two things to watch: that a member uploading with somebody else's
+  uuid in the path is refused (which the SQL editor cannot show, since RLS does not apply to the
+  owner), and that replacing a picture leaves no orphan — the old object is deleted after the new
+  path is saved, and that delete is deliberately ignored if it fails.
+
+  **Moderation is not built.** The remedy is an admin clearing `avatar_path` (hides it everywhere)
+  and deleting the object (removes the bytes) — two separate actions on purpose. Neither has a
+  button yet; both are one line in the SQL editor.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

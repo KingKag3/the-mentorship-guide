@@ -1673,6 +1673,81 @@ export function humanSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(2) + ' MB';
 }
 
+/* --------------------------------- faces ---------------------------------
+ *
+ * A picture beside a name, or initials when there is no picture.
+ *
+ * INITIALS ARE THE DEFAULT, NOT THE FALLBACK, and the difference matters. A
+ * member who uploads nothing still has a face on every page they appear on, so
+ * there is no empty circle to explain, no "add a photo" nag, and no layout that
+ * shifts when somebody finally does. Uploading changes what is in the circle,
+ * not whether there is one.
+ */
+
+/** Up to two letters, from a name if there is one and an email if there is not. */
+export function initialsOf(nameOrEmail) {
+  const raw = String(nameOrEmail || '').trim();
+  if (!raw) return '?';
+
+  // An email is not a name. Everything after the @ is a company, and the local
+  // part is usually the closest thing to a person in it.
+  const base = raw.includes('@') ? raw.split('@')[0] : raw;
+  const words = base.split(/[\s._-]+/).filter(Boolean);
+
+  if (!words.length) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+/* One of eight hues, chosen from the id.
+ *
+ * From the ID rather than the name, so renaming yourself does not change your
+ * colour - the colour is a weak identity cue and one that moves is worse than
+ * none. Deterministic, so every page and every browser agrees without storing
+ * anything.
+ *
+ * Eight rather than a full spectrum: hues picked at random collide with the
+ * brand red and with the bull/bear pair, and a member whose circle happens to
+ * be the losing colour reads as something. These are spaced away from both.
+ */
+const FACE_HUES = [210, 260, 190, 280, 160, 230, 300, 175];
+
+export function faceHue(id) {
+  const key = String(id || '');
+  let sum = 0;
+  for (let i = 0; i < key.length; i++) sum = (sum + key.charCodeAt(i) * (i + 1)) % 9973;
+  return FACE_HUES[sum % FACE_HUES.length];
+}
+
+/**
+ * The markup for one face.
+ *
+ * `url` is a signed link when the member has a picture and the caller has
+ * already minted one - avatars live in a private bucket, so a page that wants
+ * pictures has to sign them, and a page that does not care can pass nothing and
+ * still get initials.
+ *
+ * The image sits ON TOP of the initials rather than instead of them, so a
+ * signed link that has expired, or a bucket that is briefly unreachable,
+ * degrades to a letter rather than to a broken-image icon.
+ */
+export function faceHtml(person, url, size) {
+  const name = (person && (person.full_name || person.email)) || '';
+  const hue = faceHue(person && person.id);
+  const cls = 'face' + (size ? ' face--' + size : '');
+
+  return '<span class="' + cls + '" style="--face-hue:' + hue + '" ' +
+      'title="' + escapeHtml(name) + '" aria-hidden="true">' +
+    escapeHtml(initialsOf(name)) +
+    (url ? '<img src="' + escapeHtml(url) + '" alt="" loading="lazy">' : '') +
+  '</span>';
+}
+
+/** Where a member's own picture goes. One folder each, enforced by policy. */
+export function avatarFolder(userId) {
+  return 'avatars/' + userId + '/';
+}
+
 /** Minimal escaping for anything that came out of the database. */
 export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({

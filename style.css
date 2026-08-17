@@ -1738,6 +1738,94 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
    win over UA styles, so hiding has to be said here too. */
 .acct-count[hidden] { display: none; }
 
+/* ---------------------------------------------------------------
+   Faces
+
+   A circle with initials in it, and a picture on top when there is
+   one. The image OVERLAYS rather than replaces, so an expired
+   signed link degrades to a letter instead of a broken-image icon -
+   avatars live in a private bucket and every link to one has an
+   expiry on it.
+   --------------------------------------------------------------- */
+
+.face {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  overflow: hidden;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+
+  /* Hue comes from the id, set inline. Saturation and lightness are fixed here
+     so no combination can produce something that reads as bull or bear, and so
+     the ink is legible against every one of them without being measured
+     eight times. */
+  background: hsl(var(--face-hue, 210) 42% 88%);
+  color: hsl(var(--face-hue, 210) 45% 26%);
+}
+
+/* Dark theme flips which end of the ramp is the background. The same hue, and
+   the same 8:1-ish separation, rather than a second palette to keep in step. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .face {
+    background: hsl(var(--face-hue, 210) 30% 26%);
+    color: hsl(var(--face-hue, 210) 55% 86%);
+  }
+}
+
+:root[data-theme="dark"] .face {
+  background: hsl(var(--face-hue, 210) 30% 26%);
+  color: hsl(var(--face-hue, 210) 55% 86%);
+}
+
+.face img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.face--sm { width: 22px; height: 22px; font-size: 0.58rem; }
+.face--lg { width: 76px; height: 76px; font-size: 1.5rem; }
+
+/* A face and a name on one line, which is how every use of this reads. */
+.face-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.face-line > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* A byline with a face must be the same height as one without, or messages in
+   a thread step up and down depending on who wrote them.
+
+   vertical-align was the first attempt and does not do this: it moves the
+   baseline and leaves the inline box taller, measured at 30px against 24. A
+   flex line takes its height from the tallest item instead of from a baseline
+   plus a descender, so the circle has to be shorter than the text line rather
+   than merely sitting lower - hence 20px here against .face--sm's 22. */
+.reply-when {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+
+.reply-when .face { width: 20px; height: 20px; font-size: 0.54rem; }
+
 /* The members' notice.
 
    A plain callout rather than a coloured one. `.callout.warn` and

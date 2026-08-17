@@ -456,9 +456,19 @@ Be honest about this list before trusting anything below it.
   asking for `trade_review_dismissals` and getting `[]`. The two accounts are already set up, so
   this is one console line away.
 
-- **`supabase/funded-accounts.sql` — written 17 August 2026, never run.** Adds `funded` to the
-  `kind` constraint, four payout columns and `from_account`. Nothing in it is destructive and
-  nothing is reclassified: every existing row keeps `kind = 'prop'` and gets nulls.
+- **`supabase/funded-accounts.sql` — run on 17 August 2026. Columns confirmed, constraint not.**
+  All five new columns named in one select answer `200 []`, and `payout_nonsense` answers
+  `400 42703`, so they exist rather than being ignored.
+
+  **The `kind` constraint could not be confirmed from outside, and no probe will do it.** Inserting
+  `kind='funded'` and inserting `kind='not_a_kind'` both answer `42501`: row-level security refuses
+  the write before the CHECK is evaluated, so a valid and an invalid value are indistinguishable to
+  an anonymous caller. Anyone tempted to re-check this later should know that before spending time
+  on it — the proof is choosing **Funded** on a card and having it save.
+
+  What the file adds: `funded` in the `kind` constraint, four payout columns and
+  `from_account`. Nothing in it is destructive and nothing is reclassified: every existing row
+  keeps `kind = 'prop'` and gets nulls.
 
   The maths is verified — 17 checks over `payoutProgress`, and the ones that matter are about
   **unset**. A card must never read as ready because a form was left blank: a threshold of `''` is

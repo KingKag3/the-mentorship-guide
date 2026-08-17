@@ -11,15 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `funded-accounts.sql` | Adds `funded` as a kind, plus payout terms and a link back to the evaluation | Until it runs, a funded account has to be filed as an evaluation, which means the page expects a profit target it does not have — so it reads as half configured for ever. **Nothing breaks without it**: the columns are absent, the fields do not render, and everything already there is untouched |
-
-Every payout number in it is a **field the member fills**, not a constant. Firms
-change these terms without telling anybody who wrote them down, and a threshold
-baked into a migration is right until the day it is silently wrong — where the
-failure is somebody reading *"eligible for a payout"* off last year's rules and
-going to ask a firm for money.
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
@@ -69,6 +61,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `funded-accounts.sql` | 17 Aug 2026 | `funded` as a kind, four payout columns and `from_account`. **Columns confirmed from outside with a control**: all five named together answer `200 []`, while `payout_nonsense` answers `400 42703`. **The constraint is NOT confirmed, and cannot be from outside** — inserting `kind='funded'` and inserting `kind='not_a_kind'` both answer `42501`, because row-level security refuses the write before the CHECK is ever evaluated. The two are indistinguishable to an anonymous caller, so the only proof is picking **Funded** in the dropdown on a card and having it save |
 | `trade-review-dismissals.sql` | 17 Aug 2026 | Lets a mentor set a shared trade aside without answering it. The dismissal **expires** — it only holds while it is newer than the member's last edit and their last message, so a follow-up comes back on its own and nothing needs tidying up. **Confirmed from outside the same day, with two controls**: the table with all four columns named answers `200 []`; a table that does not exist answers `404 PGRST205`; a column that does not exist on the real table answers `400 42703`. The first says the table is there and RLS holds, the second says `200 []` is not PostgREST shrugging, and the third says the four columns are real rather than ignored. What none of it shows is a **member** getting nothing from it — RLS does not apply to the table owner, so that needs a second signed-in account |
 | `member-last-seen.sql` | 13 Aug 2026 | Adds `last_seen_at` to `profiles`. **Confirmed from outside the same day**: signed out with the publishable key, `?select=last_seen_at` answers `200 []` while `?select=not_a_real_column` answers `400` with `42703 column profiles.not_a_real_column does not exist`. The control is what makes the pass mean something — without it, `200 []` is equally consistent with PostgREST ignoring an unknown column. So the column exists and the policy holds. What it does **not** show is anything writing to it: that needs a members page opened while signed in, and the Accounts tab is where it shows up |
 | `trade-reviews-thread.sql` | 13 Aug 2026 | Three policies, no schema change, letting a member write on their own trade while it is shared. **Not independently confirmed** — the proof is a Send under a shared trade in the journal that does not report a row-level security violation. The refusals matter more than the success and cannot be checked from the SQL editor at all, because RLS does not apply to the table owner: see the four things to watch in `HANDOVER.md` |

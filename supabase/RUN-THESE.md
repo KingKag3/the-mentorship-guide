@@ -18,6 +18,20 @@ The privacy migration that was outstanding here has been applied *and* shown to 
 pass and are not.
 
 
+### One thing about this editor, before any of the queries below
+
+**The SQL editor connects as the table owner, and row-level security does not
+apply to the owner.** A `select` on `trades`, `profiles` or anything else there
+returns **every member's** rows, and nothing in the result says so.
+
+So a total taken here without a `user_id` filter is a total across the whole
+membership rather than one person's, and — the part that bites — a
+`delete ... where account in (...)` reaches across every member in the table,
+with `trade_reviews` cascading behind it.
+
+Join `profiles` and name the owner. `supabase/stray-accounts.sql` does it on
+every query and is the shape to copy.
+
 ### How to tell they worked, if you ever need to check again
 
 ```sql

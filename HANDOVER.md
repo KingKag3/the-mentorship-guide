@@ -576,9 +576,21 @@ Be honest about this list before trusting anything below it.
   pairing changes between exports the new row arrives under a new `external_id` while the old one
   stays. A single file cannot do that, and the importer now says so at the top of `foldFills`.
 
-  **Six accounts were never in this export and were never checked** — `APEX-247230-10` through
-  `-13` and `APEX-28074-08`/`-09`, totalling −2,866.12. If they were imported from WealthCharts they
-  carry the same fault. Re-importing their own export would settle it.
+  **Six accounts turned up that are probably not Kag3's at all**, and the reason matters more than
+  the accounts do. **The Supabase SQL editor connects as the table owner, and RLS does not apply to
+  the owner** — so `select ... from public.trades` there returns EVERY MEMBER'S journal, and nothing
+  in the result says so. `APEX-247230-10` to `-13` and `APEX-28074-08`/`-09` are almost certainly
+  other members who imported their own Apex exports.
+
+  Two things follow. Any total taken from that editor without a `user_id` filter is a total across
+  the membership, not one person's — including the 61,302.50 above, which happened to be right only
+  because no other member uses those nineteen account names. And a `delete ... where account in
+  (...)` written there reaches across every member in the table, with `trade_reviews` cascading
+  behind it. `supabase/stray-accounts.sql` names the owner on every query for that reason.
+
+  The site itself was never at risk: every page goes through PostgREST with a member's own key, and
+  RLS holds there. This is a hazard of the SQL editor specifically, and it is worth remembering the
+  next time a query in one of these files does not mention `user_id`.
 
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means

@@ -113,8 +113,9 @@
   people to stop reading notices.</p>
 
   <p class="field-note">A notice can carry a link, a list, a quote and a <strong>picture</strong>.
-  The picture button uploads straight away and drops the image in at the cursor &mdash; you will see
-  it here before you save, and it is not kept until you do.</p>
+  <strong>Paste a screenshot straight in</strong>, drag a file onto the box, or use the picture
+  button &mdash; all three upload immediately and drop the image in at the cursor. You see it here
+  before you save, and it is not kept until you press Save notice.</p>
 
   <p class="field-note">Replies deliberately cannot carry pictures, and the difference is not a rule
   about who may write what: an image renders only where the page displaying it has signed the link
@@ -1735,10 +1736,11 @@ async function loadMotd() {
       id: 'motd-body',
       label: 'Message of the day',
       placeholder: 'Anything every member should see when they sign in',
-      // The picture button exists here and nowhere else. A notice is written by
-      // an administrator to everybody; a reply is written by anybody to one
-      // person, and the reply boxes are never given this handler.
-      onImage: pickNoticeImage
+      // Given here and nowhere else. It is what turns on the picture button,
+      // pasting an image and dropping one - a notice is written by an
+      // administrator to everybody, a reply by anybody to one person, and the
+      // reply boxes are never handed this.
+      uploadImage: uploadNoticeImage
     });
   }
 
@@ -1751,79 +1753,48 @@ async function loadMotd() {
   setMotdStatus(text && text.trim() ? 'A notice is showing.' : 'No notice is showing.');
 }
 
-/* Choosing a picture for a notice.
+/* Storing one picture for a notice.
  *
- * Uploaded to notices/, where an admin already has insert rights through
- * storage.sql - so this needed no migration at all. Members can read it,
- * because the same file grants SELECT on anything in the bucket outside
- * journal/, which is exactly what a notice image should be.
+ * The editor owns the picking - the button, the file dialog, the paste, the
+ * drop - and hands this a File. This owns the storage, which is the half a
+ * text editor has no business knowing about.
  *
- * Returns { path, url } for the editor to insert, or nothing if the person
- * changed their mind. The path is what gets saved; the URL is a signed link
- * that only has to last as long as this editing session.
+ * That split is not tidiness. The first version had this function open the
+ * dialog and return a promise, which meant guessing when a cancelled dialog
+ * had been cancelled, because browsers fire no event for that. The guess was a
+ * timer, the timer raced the upload, and the upload lost - every picture was
+ * stored and then discarded. There is no promise here now and nothing to
+ * guess: a cancel fires nothing and nothing is what happens.
+ *
+ * notices/ needs no migration. An admin already holds insert across the bucket
+ * through storage.sql, and members already hold SELECT on anything outside
+ * journal/ - which is exactly what a notice image should be.
  */
-function pickNoticeImage() {
-  return new Promise((resolve) => {
-    const picker = document.createElement('input');
-    picker.type = 'file';
-    picker.accept = 'image/*';
+async function uploadNoticeImage(file) {
+  setMotdStatus('Uploading the picture...');
 
-    /* Set the instant a file is chosen, before any awaiting starts.
-     *
-     * THIS FLAG IS THE WHOLE FIX. The cancel detection below resolves null a
-     * moment after the window regains focus, and the first version relied on
-     * "the change handler wins when there is one" - which it does not, because
-     * the change handler is async and an upload takes seconds while the
-     * timeout was 400ms. Every picture uploaded correctly and was then thrown
-     * away by the cancel path, so nothing ever appeared in the editor and
-     * nothing reported an error. */
-    let chose = false;
+  // 1200px: a notice image is read at the width of the members page, not
+  // pinched into a 30px circle like an avatar.
+  const small = await compressImage(file, 1200, 0.82);
+  const ext = small.type === 'image/png' ? 'png' : 'jpg';
+  const path = 'notices/' + crypto.randomUUID() + '.' + ext;
 
-    picker.addEventListener('change', async () => {
-      const file = picker.files && picker.files[0];
-      if (!file) { resolve(null); return; }
-      chose = true;
+  const up = await supabase.storage.from(MEDIA_BUCKET)
+    .upload(path, small, { contentType: small.type, upsert: false });
 
-      setMotdStatus('Uploading the picture...');
+  if (up.error) {
+    setMotdStatus('The picture would not upload: ' + up.error.message);
+    return null;
+  }
 
-      // 1200px: a notice image is read at the width of the members page, not
-      // pinched into a 30px circle like an avatar.
-      const small = await compressImage(file, 1200, 0.82);
-      const ext = small.type === 'image/png' ? 'png' : 'jpg';
-      const path = 'notices/' + crypto.randomUUID() + '.' + ext;
+  const url = await signedUrl(path);
+  if (!url) {
+    setMotdStatus('The picture uploaded but could not be shown. Reload and try again.');
+    return null;
+  }
 
-      const up = await supabase.storage.from(MEDIA_BUCKET)
-        .upload(path, small, { contentType: small.type, upsert: false });
-
-      if (up.error) {
-        setMotdStatus('The picture would not upload: ' + up.error.message);
-        resolve(null);
-        return;
-      }
-
-      const url = await signedUrl(path);
-      if (!url) {
-        setMotdStatus('The picture uploaded but could not be shown. Reload and try again.');
-        resolve(null);
-        return;
-      }
-
-      setMotdStatus('Picture added below. Press Save notice to keep it.');
-      resolve({ path, url, alt: file.name.replace(/\.[^.]+$/, '') });
-    });
-
-    /* Cancelling a file dialog fires no event at all in most browsers, so
-     * without this the promise would hang for ever and the toolbar button
-     * would appear dead after one cancelled pick.
-     *
-     * Guarded on `chose`, not on time. However long the upload takes, a file
-     * that was picked is never treated as a cancellation. */
-    window.addEventListener('focus', () => {
-      setTimeout(() => { if (!chose) resolve(null); }, 500);
-    }, { once: true });
-
-    picker.click();
-  });
+  setMotdStatus('Picture added. Press Save notice to keep it.');
+  return { path, url, alt: (file.name || '').replace(/\.[^.]+$/, '') };
 }
 
 function setMotdStatus(msg) {

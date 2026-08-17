@@ -646,8 +646,8 @@ const TOOLS = [
 
 /* The picture button, which is NOT in TOOLS.
  *
- * It appears only when the caller passes an `onImage` handler, and only one
- * caller does: the notice editor on the admin page. The reply boxes are never
+ * It appears only when the caller passes an `uploadImage` handler, and only
+ * one caller does: the notice editor on the admin page. The reply boxes are never
  * given one, so members and mentors do not get the button - which matters,
  * because a notice is written by an administrator to everybody and a reply is
  * written by anybody to one person. Different trust, different tools.
@@ -707,7 +707,7 @@ export function mountEditor(host, opts = {}) {
   host.classList.add('rte');
   host.innerHTML =
     '<div class="rte-tools" role="toolbar" aria-label="Formatting">' +
-      (opts.onImage ? TOOLS.concat([['sep'], IMAGE_TOOL]) : TOOLS)
+      (opts.uploadImage ? TOOLS.concat([['sep'], IMAGE_TOOL]) : TOOLS)
       .map(([cmd, name, key, icon]) =>
         cmd === 'sep'
           ? '<span class="rte-sep" aria-hidden="true"></span>'
@@ -721,6 +721,75 @@ export function mountEditor(host, opts = {}) {
       'data-placeholder="' + escapeHtml(opts.placeholder || '') + '"></div>';
 
   const input = host.querySelector('.rte-input');
+
+  /* One file input, kept in the DOM rather than made per click.
+   *
+   * The first version built an input on the fly and wrapped it in a promise
+   * that had to guess when a cancelled dialog had been cancelled - browsers
+   * fire no event for that - and the guess raced the upload and lost. A single
+   * long-lived input needs no promise and no guess: a cancel simply fires
+   * nothing, which is exactly the right amount of work to do about it.
+   */
+  const filePicker = document.createElement('input');
+  filePicker.type = 'file';
+  filePicker.accept = 'image/*';
+  filePicker.className = 'sr-only';
+  host.appendChild(filePicker);
+
+  filePicker.addEventListener('change', () => {
+    const file = filePicker.files && filePicker.files[0];
+    filePicker.value = '';
+    if (file) placeImage(file);
+  });
+
+  /** Upload one file through the page's handler and drop it in at the caret. */
+  async function placeImage(file) {
+    if (!opts.uploadImage || !file || !file.type.startsWith('image/')) return;
+
+    let img = null;
+    try { img = await opts.uploadImage(file); } catch (err) { img = null; }
+    if (!img || !img.path || !img.url) return;
+
+    const el = document.createElement('img');
+    el.setAttribute('src', img.url);
+    // The durable half. src is a signed link that expires; this is what gets
+    // saved, and an img without it serialises to nothing.
+    el.setAttribute('data-path', img.path);
+    el.setAttribute('alt', img.alt || '');
+    el.setAttribute('loading', 'lazy');
+
+    input.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && input.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(el);
+      range.setStartAfter(el);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else {
+      // The caret was never in the editor - the click came from the toolbar
+      // with nothing focused. Appending beats refusing.
+      input.appendChild(el);
+    }
+    syncEmpty();
+  }
+
+  /** The first image on a clipboard or a drag, or null. */
+  function imageIn(data) {
+    if (!data) return null;
+    for (const item of data.items || []) {
+      if (item.kind === 'file' && String(item.type).startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) return f;
+      }
+    }
+    for (const f of data.files || []) {
+      if (String(f.type).startsWith('image/')) return f;
+    }
+    return null;
+  }
 
   // <p> rather than <div> for new paragraphs where the browser allows it. Both
   // serialise identically; this only makes the DOM easier to read while
@@ -747,34 +816,9 @@ export function mountEditor(host, opts = {}) {
      * data-path is the durable half and src is the throwaway one. The path is
      * what gets saved; the signed URL only has to survive this editing session.
      */
-    if (cmd === 'image') {
-      Promise.resolve(opts.onImage()).then((img) => {
-        if (!img || !img.path || !img.url) return;
-        input.focus();
-        const el = document.createElement('img');
-        el.setAttribute('src', img.url);
-        el.setAttribute('data-path', img.path);
-        el.setAttribute('alt', img.alt || '');
-        el.setAttribute('loading', 'lazy');
-
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount && input.contains(sel.anchorNode)) {
-          const range = sel.getRangeAt(0);
-          range.deleteContents();
-          range.insertNode(el);
-          range.setStartAfter(el);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        } else {
-          // No caret in the editor - the click went to the toolbar from
-          // outside. Appending beats refusing.
-          input.appendChild(el);
-        }
-        syncEmpty();
-      }, () => {});
-      return;
-    }
+    // The editor owns the picker; the page owns the upload. Opening it is UI,
+    // and where bytes go is not this file's business.
+    if (cmd === 'image') { filePicker.click(); return; }
 
     if (cmd === 'link') {
       const url = window.prompt('Link to what? (must start with http:// or https://)');
@@ -849,10 +893,43 @@ export function mountEditor(host, opts = {}) {
    * saving would not be what gets saved. Plain text is also what people
    * actually want when pasting out of a chat window or a broker export. */
   input.addEventListener('paste', (e) => {
+    /* An image on the clipboard, where the page accepts one.
+     *
+     * Pasting a screenshot is how somebody actually adds a picture to a
+     * notice - the button is the fallback, not the other way round.
+     *
+     * Where the page passes no uploadImage - every reply box - this branch is
+     * skipped and the paste falls through to plain text, which for an image
+     * means nothing is inserted. That is the same rule as the button, arrived
+     * at from the other direction: a reply cannot carry a picture because
+     * nothing on that page is willing to store one. */
+    const picture = opts.uploadImage ? imageIn(e.clipboardData) : null;
+    if (picture) {
+      e.preventDefault();
+      placeImage(picture);
+      return;
+    }
+
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
     document.execCommand('insertText', false, text);
     syncEmpty();
+  });
+
+  /* Dropping a file is the same act with a different gesture, and a browser's
+   * default for a dropped image is to LEAVE THE PAGE and open the file - which
+   * from inside a half-written notice is the worst possible response. So the
+   * drop is taken over whether or not the picture can be used. */
+  input.addEventListener('dragover', (e) => {
+    if (opts.uploadImage && imageIn(e.dataTransfer)) e.preventDefault();
+  });
+
+  input.addEventListener('drop', (e) => {
+    if (!opts.uploadImage) return;
+    const picture = imageIn(e.dataTransfer);
+    if (!picture) return;
+    e.preventDefault();
+    placeImage(picture);
   });
 
   /* Light up whatever the caret is already inside.

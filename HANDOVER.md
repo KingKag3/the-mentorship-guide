@@ -539,6 +539,12 @@ Be honest about this list before trusting anything below it.
   `data-path`, so opening a notice for editing and pressing Save deleted every picture in it — the
   request succeeded and the images were simply gone.
 
+  A picture can be **pasted or dragged in** as well as chosen from the button, and all three go
+  through one `uploadImage(file)` handler the page supplies. The editor owns the picking; the page
+  owns the storage. That split replaced a promise that had to guess when a cancelled file dialog had
+  been cancelled — browsers fire no event for it — where the guess was a timer, the timer raced the
+  upload, and the upload lost: every picture was stored and then discarded.
+
   **Never run against storage.** Watch that the upload lands in `notices/`, that the picture
   survives a save-and-reopen, and that a notice saved a day ago still renders — the stored value is
   a path and every view mints its own link, so a signed URL leaking into the saved text would show

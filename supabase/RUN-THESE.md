@@ -11,14 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-| File | What it does | Why |
-| --- | --- | --- |
-| `profile-avatars.sql` | Adds `profiles.avatar_path`, and three storage policies letting a member write inside `avatars/<their id>/` | Without it, choosing a picture uploads nothing — the storage policy refuses a member writing outside `journal/`. **Nothing breaks**: every face falls back to initials, which is what it already draws |
-
-**No new read policy in it, deliberately.** `storage.sql` already grants any member SELECT on
-anything in `lesson-media` outside `journal/`, and an avatar is exactly that. The RESTRICTIVE
-journal policy does not interfere either: its first clause passes anything whose first folder is
-not `journal`, and it is `for select` only, so it has no opinion about writes.
+Nothing.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a
@@ -68,6 +61,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `profile-avatars.sql` | 17 Aug 2026 | `profiles.avatar_path`, plus three storage policies for `avatars/<own id>/`. **Column confirmed from outside with two controls**: `?select=avatar_path` answers `200 []`, `?select=avatar_nope` answers `400 42703`, and `?select=last_seen_at,avatar_path` still answers `200 []` — so the column exists and the earlier one was not clobbered. **The storage policies are not confirmed and cannot be from outside**: an anonymous upload is refused whether or not a member policy exists, so the refusal carries no information. The proof is choosing a picture on `account.html` and seeing it appear |
 | `funded-accounts.sql` | 17 Aug 2026 | `funded` as a kind, four payout columns and `from_account`. **Columns confirmed from outside with a control**: all five named together answer `200 []`, while `payout_nonsense` answers `400 42703`. **The constraint is NOT confirmed, and cannot be from outside** — inserting `kind='funded'` and inserting `kind='not_a_kind'` both answer `42501`, because row-level security refuses the write before the CHECK is ever evaluated. The two are indistinguishable to an anonymous caller, so the only proof is picking **Funded** in the dropdown on a card and having it save |
 | `trade-review-dismissals.sql` | 17 Aug 2026 | Lets a mentor set a shared trade aside without answering it. The dismissal **expires** — it only holds while it is newer than the member's last edit and their last message, so a follow-up comes back on its own and nothing needs tidying up. **Confirmed from outside the same day, with two controls**: the table with all four columns named answers `200 []`; a table that does not exist answers `404 PGRST205`; a column that does not exist on the real table answers `400 42703`. The first says the table is there and RLS holds, the second says `200 []` is not PostgREST shrugging, and the third says the four columns are real rather than ignored. What none of it shows is a **member** getting nothing from it — RLS does not apply to the table owner, so that needs a second signed-in account |
 | `member-last-seen.sql` | 13 Aug 2026 | Adds `last_seen_at` to `profiles`. **Confirmed from outside the same day**: signed out with the publishable key, `?select=last_seen_at` answers `200 []` while `?select=not_a_real_column` answers `400` with `42703 column profiles.not_a_real_column does not exist`. The control is what makes the pass mean something — without it, `200 []` is equally consistent with PostgREST ignoring an unknown column. So the column exists and the policy holds. What it does **not** show is anything writing to it: that needs a members page opened while signed in, and the Accounts tab is where it shows up |

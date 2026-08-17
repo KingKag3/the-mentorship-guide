@@ -485,8 +485,15 @@ Be honest about this list before trusting anything below it.
   **The payout figures are deliberately not seeded.** No Apex numbers are hardcoded anywhere, and
   none should be added without a source and a date beside them.
 
-- **`supabase/profile-avatars.sql` — written 17 August 2026, never run.** One column and three
-  storage policies. Reads already work through `storage.sql`; only writes were missing.
+- **`supabase/profile-avatars.sql` — run on 17 August 2026. Column confirmed, policies not.**
+  `?select=avatar_path` answers `200 []`, `?select=avatar_nope` answers `400 42703`, and
+  `?select=last_seen_at,avatar_path` still answers `200 []` — the column is real and the earlier
+  one survived.
+
+  **The three storage policies could not be confirmed from outside, and no probe will do it.** An
+  anonymous upload is refused whether or not a member write policy exists, so the refusal says
+  nothing either way. The proof is choosing a picture on `account.html` and having it appear.
+  Reads already worked through `storage.sql`; only writes were missing.
 
   **The trap avoided, which is worth knowing before anyone "tidies" this.** `avatar_path` is
   deliberately NOT added to `getProfile` in `app.js`. That function gates every page: it selects a

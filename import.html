@@ -513,16 +513,53 @@ function foldFills(grid) {
                 'net p&l', 'account', 'id']];
   let dropped = 0;
 
+  /* How many leading characters two order ids share.
+   *
+   * WealthCharts derives the closing order's id from the opening one - they
+   * differ in the last character or two - which is what makes it possible to
+   * tell which close belongs to which open when a bucket holds more than one
+   * round turn. It is used ONLY to disambiguate inside a bucket, never to pair
+   * across buckets, because across the whole export the ids of unrelated
+   * trades can share as little as three characters. */
+  const shared = (a, b) => {
+    let n = 0;
+    while (n < a.length && n < b.length && a[n] === b[n]) n++;
+    return n;
+  };
+
   for (const [, legs] of pairs) {
-    const open  = legs.find((r) => WC_OPEN[cell(r, 'movtype')]);
-    const close = legs.find((r) => !WC_OPEN[cell(r, 'movtype')]);
+    const opens  = legs.filter((r) => WC_OPEN[cell(r, 'movtype')]);
+    const closes = legs.filter((r) => !WC_OPEN[cell(r, 'movtype')]);
 
-    // A trade still open at export time has no closing leg, and one closing
-    // leg with no opener means the range started mid-trade. Neither is a round
-    // turn, and inventing the missing half would be worse than saying so.
-    if (!open || !close) { dropped += legs.length; continue; }
+    /* A BUCKET CAN HOLD MORE THAN ONE ROUND TURN, and the first version of
+     * this assumed it could not.
+     *
+     * `created_on` is stamped per trade rather than per fill, which was
+     * verified on a 126-pair sample - and two trades filled in the same second
+     * share it anyway. In the nine-file export that first found this, 36
+     * buckets held four legs: two complete round turns each. Taking the first
+     * open and the first close emitted one trade and threw the other away in
+     * silence - not counted as dropped, because both halves were present.
+     *
+     * Those 36 discarded closes were worth -8,507.34. Losing trades that never
+     * arrive do not look like missing data; they look like a better month. One
+     * account read 3,760.63 against a true 3,288.00, and the difference was
+     * exactly the losses that had gone missing.
+     *
+     * So every open is paired, each with whichever close shares the longest
+     * order id prefix. */
+    const spare = closes.slice();
+    for (const open of opens) {
+      if (!spare.length) break;
 
-    out.push([
+      let best = 0;
+      for (let i = 1; i < spare.length; i++) {
+        if (shared(cell(open, 'orderid'), cell(spare[i], 'orderid')) >
+            shared(cell(open, 'orderid'), cell(spare[best], 'orderid'))) best = i;
+      }
+      const close = spare.splice(best, 1)[0];
+
+      out.push([
       cell(open, 'createdon'),
       cell(close, 'createdon'),
       // CM.NQU6 - the venue prefix is theirs, the month code is handled later.
@@ -534,7 +571,15 @@ function foldFills(grid) {
       cell(close, 'profit'),
       cell(open, 'name'),
       cell(open, 'orderid') + '-' + cell(close, 'orderid')
-    ]);
+      ]);
+    }
+
+    /* Whatever is left over after pairing. A trade still open at export time
+     * has no closing leg, and a close with no opener means the range started
+     * mid-trade. Neither is a round turn, and inventing the missing half would
+     * be worse than saying so - which is why this is counted and reported
+     * rather than passed over. */
+    dropped += (opens.length - (closes.length - spare.length)) + spare.length;
   }
 
   const made = out.length - 1;

@@ -11,7 +11,12 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `wealthcharts-refold-cleanup.sql` | Deletes 18 trades the old WealthCharts fold invented | **Run it, then re-import every export.** The importer now pairs every round turn in a bucket, so re-importing brings back what was missing — but it cannot remove what was wrong, because those rows carry an `external_id` the fixed fold never produces and the upsert has nothing to overwrite |
+
+Deleting is by `external_id` and touches nothing else. Anything hand-edited is
+untouched unless it is one of the eighteen, and those were never real trades.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

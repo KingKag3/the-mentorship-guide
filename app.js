@@ -798,6 +798,10 @@ export function toNumber(value) {
 const MIGRATIONS = [
   // Listed above the looser patterns: "prop_accounts" contains "account",
   // which would otherwise send the reader to trade-accounts.sql.
+  // Above the prop_accounts rule, which would otherwise claim these: the error
+  // text names the table, and the table is older than the columns.
+  [/payout_threshold|payout_min_days|payout_day_min|lock_at|from_account/i,
+                                         'supabase/funded-accounts.sql'],
   [/prop_accounts|prop_presets/i,        'supabase/prop-accounts.sql'],
   [/chart_url/i,                         'supabase/trade-chart-url.sql'],
   [/closed_at/i,                         'supabase/trade-closed-at.sql'],

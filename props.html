@@ -150,6 +150,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
          accountsHidden, setAccountsHidden, aliasMap,
+         toNumber,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
@@ -312,7 +313,65 @@ function progress(account, cfg, attemptRow, dd) {
   }
 
   const days = new Set(mine.map((t) => localDay(t.opened_at)).filter(Boolean)).size;
-  return { total, worstDip, worstOn, breachedOn, days, counted, trades: mine.length };
+
+  /* Per-day totals, for the payout rules on a funded account.
+   *
+   * A firm counts DAYS, not trades, and usually only days that cleared some
+   * minimum - so four scalping days at $12 are worth nothing towards a payout
+   * however busy they looked. Computed here rather than in the renderer
+   * because it is arithmetic over the same rows the loop above already walked,
+   * and because getting it from two places is how two numbers on one card come
+   * to disagree.
+   */
+  const byDay = new Map();
+  for (const t of mine) {
+    const d = dollars(t);
+    if (d === null) continue;
+    const key = localDay(t.opened_at);
+    if (!key) continue;
+    byDay.set(key, (byDay.get(key) || 0) + d);
+  }
+
+  return { total, worstDip, worstOn, breachedOn, days, counted,
+           trades: mine.length, byDay };
+}
+
+/* How a funded account stands against its payout terms.
+ *
+ * Every threshold is the member's own figure. Null means not set, which is not
+ * the same as zero and is never treated as met - a card that says "eligible"
+ * because nobody filled the form in would be the worst thing on this page.
+ */
+function payoutProgress(cfg, stats) {
+  const threshold = toNumber(cfg.payout_threshold);
+  const needDays = Number(cfg.payout_min_days) || 0;
+  const dayMin = toNumber(cfg.payout_day_min);
+
+  // A day counts when it cleared the minimum. With no minimum set, every day
+  // the account traded counts - which is what some firms do, and is a
+  // different rule from a minimum of zero, since a losing day clears zero and
+  // a firm asking for "profitable days" would not count it.
+  const days = [...(stats.byDay || new Map()).values()];
+  const qualifying = Number.isFinite(dayMin)
+    ? days.filter((v) => v >= dayMin).length
+    : days.length;
+
+  const haveThreshold = Number.isFinite(threshold);
+  const overThreshold = haveThreshold && stats.total >= threshold;
+  const haveDays = needDays > 0;
+  const enoughDays = haveDays && qualifying >= needDays;
+
+  return {
+    threshold, needDays, dayMin, qualifying,
+    haveThreshold, haveDays,
+    overThreshold, enoughDays,
+    // Only claimable when BOTH rules are set and both are met. Unset is never
+    // met: silence is not a pass.
+    ready: haveThreshold && haveDays && overThreshold && enoughDays,
+    // Where the trailing drawdown stops trailing. The number that decides
+    // whether the account is still one bad trade from over.
+    lockAt: toNumber(cfg.lock_at)
+  };
 }
 
 /* ------------------------------- rendering ------------------------------- */
@@ -465,9 +524,11 @@ function sameWayTwice(name, all) {
  */
 function kindTag(kind) {
   const k = kind || 'prop';
-  const tone = k === 'live' ? ' time' : k === 'prop' ? ' info' : '';
+  const tone = k === 'live' ? ' time' : k === 'prop' ? ' info'
+             : k === 'funded' ? ' bull' : '';
   const why = {
     prop: 'A firm set the target and the drawdown',
+    funded: 'A passed evaluation. No target to reach - a payout threshold instead',
     live: 'Your own money. Nothing to pass, and nothing to reset',
     demo: 'Practice. Kept out of anything that claims to be a record'
   }[k] || '';
@@ -487,6 +548,67 @@ function kindTag(kind) {
  * - and colouring that either way would be an opinion about a decision this
  * page knows nothing about.
  */
+/* What a funded account is measured against.
+ *
+ * Two rules, both the firm's, and BOTH have to be set before this says
+ * anything encouraging. An unset threshold is not a met threshold - a card
+ * reading "ready to request" because nobody filled the form in would be the
+ * worst sentence on this site, since the next thing that happens is somebody
+ * asks a firm for money.
+ */
+function payoutBlock(cfg, p, bar) {
+  const q = payoutProgress(cfg, p);
+  const out = [];
+
+  if (!q.haveThreshold && !q.haveDays) {
+    return '<p class="stat-note">No payout terms set yet. Fill in the threshold and the number ' +
+      'of qualifying days below and this starts tracking them &mdash; they are the firm\'s ' +
+      'numbers, so nothing is filled in for you.</p>';
+  }
+
+  if (q.haveThreshold) {
+    out.push(bar('Toward the payout threshold', p.total, q.threshold,
+      p.total < 0 ? 'is-bad' : ''));
+  } else {
+    out.push('<p class="stat-note">No payout threshold set, so how far above the start this ' +
+      'account needs to be is unknown.</p>');
+  }
+
+  if (q.haveDays) {
+    const word = Number.isFinite(q.dayMin)
+      ? 'days over ' + money(q.dayMin)
+      : 'days traded';
+    out.push('<div class="bar-row">' +
+      '<span>Qualifying ' + escapeHtml(word) + '</span>' +
+      '<span class="bar-track"><span class="bar-fill" style="width:' +
+        pctOf(q.qualifying, q.needDays).toFixed(1) + '%"></span></span>' +
+      '<b>' + q.qualifying + ' / ' + q.needDays + '</b>' +
+    '</div>');
+  }
+
+  // Said only when both halves are known and both are met.
+  if (q.ready) {
+    out.push('<div class="callout"><span class="callout-label">Both rules met</span>' +
+      '<p>Closed trades put this account <strong>' + money(p.total) + '</strong> above its start, ' +
+      'over <strong>' + q.qualifying + '</strong> qualifying day' +
+      (q.qualifying === 1 ? '' : 's') + '. Whether a payout is actually granted is the ' +
+      'firm\'s call against terms this page does not hold &mdash; and these are closed trades, ' +
+      'so treat the figure as a floor.</p></div>');
+  }
+
+  if (Number.isFinite(q.lockAt)) {
+    const locked = p.total >= q.lockAt;
+    out.push('<p class="stat-note">' + (locked
+      ? 'Past <strong>' + money(q.lockAt) + '</strong>, so the drawdown should have stopped ' +
+        'trailing and become static. Worth confirming on the firm\'s dashboard rather than ' +
+        'trusting this &mdash; it is computed from closed trades.'
+      : 'The drawdown trails until <strong>' + money(q.lockAt) + '</strong>. Until then every ' +
+        'dollar made moves the floor up behind you.') + '</p>');
+  }
+
+  return out.join('');
+}
+
 function statusTag(status) {
   const map = { active: 'bull', passed: 'bull', failed: 'bear', retired: '' };
   const why = {
@@ -504,7 +626,8 @@ function statusTag(status) {
    thing as passing or failing it. The card shows what is true of each rather
    than greying out half of one shape. */
 const KINDS = [
-  ['prop', 'Prop - has a target and a drawdown set by a firm'],
+  ['prop', 'Evaluation - has a target and a drawdown set by a firm'],
+  ['funded', 'Funded - passed. No target; a payout threshold instead'],
   ['live', 'Live - your own money, nothing to pass'],
   ['demo', 'Demo - practice, kept out of real totals']
 ];
@@ -513,6 +636,11 @@ function card(name) {
   const cfg = saved.get(name) || {};
   const kind = cfg.kind || 'prop';
   const isProp = kind === 'prop';
+  // Funded accounts are scored too, just against different numbers. Anything
+  // that applies to "an account a firm is watching" tests this rather than
+  // isProp - the drawdown above all, which is the rule that ends both.
+  const isFunded = kind === 'funded';
+  const isWatched = isProp || isFunded;
   const live = currentAttempt(name);
   const p = progress(name, cfg, live, Number((live && live.drawdown) ?? cfg.drawdown) || 0);
 
@@ -557,7 +685,8 @@ function card(name) {
         '</p></div>'
       : '') +
 
-    (!isProp
+    (isFunded ? payoutBlock(cfg, p, bar)
+      : !isProp
       ? '<p class="stat-note">Your own money. Nothing to reach and nothing to breach, so this ' +
         'account is reported rather than scored.</p>'
       : target
@@ -565,7 +694,7 @@ function card(name) {
         : '<p class="stat-note">No target set yet, so there is nothing to measure against. ' +
           'If this account has no target at all, mark it live below.</p>') +
 
-    (isProp && dd
+    (isWatched && dd
       ? bar('Worst dip so far', p.worstDip, dd, 'is-bad')
       : '') +
 
@@ -579,7 +708,29 @@ function card(name) {
         '</div><p>From closed trades. A floor, not the figure the firm holds</p></div>' +
     '</div>' +
 
+    // Where a passed evaluation turns into the thing it earned. Only on a
+    // passed prop account, because that is the only state in which the
+    // question has an answer.
+    (isProp && outcome === 'passed'
+      ? '<div class="callout"><span class="callout-label">It passed</span>' +
+        '<p>The funded account the firm gives you has a different number and different rules ' +
+        '&mdash; no target, a payout threshold instead. Set it up here and the firm and size ' +
+        'carry over, this evaluation is retired, and the two stay linked.</p>' +
+        '<div class="row-actions">' +
+          '<input type="text" class="order-input" data-funded-name="' + escapeHtml(name) + '" ' +
+            'placeholder="the funded account number" aria-label="Funded account number">' +
+          '<button type="button" class="btn-secondary" data-start-funded="' +
+            escapeHtml(name) + '">Start the funded account</button>' +
+          '<span class="form-status" data-funded-status="' + escapeHtml(name) + '"></span>' +
+        '</div></div>'
+      : '') +
+
     (isProp ? attemptsBlock(name, live) : '') +
+
+    (isFunded && cfg.from_account
+      ? '<p class="stat-note">Passed from <strong>' +
+        escapeHtml(label(cfg.from_account)) + '</strong>.</p>'
+      : '') +
 
     '<details><summary>What this account has to do</summary>' +
       '<form class="auth-form auth-form-wide" data-form="' + escapeHtml(name) + '">' +
@@ -613,9 +764,37 @@ function card(name) {
           '<div><label>Counting from</label>' +
             '<input name="started_on" type="date" value="' + (cfg.started_on ?? '') + '"></div>' +
         '</div>' +
+        // Payout terms, on a funded account only. An evaluation has a target
+        // and no payout; showing both to both would be four fields nobody on
+        // either kind of account needs half of.
+        (isFunded
+          ? '<div class="field-pair">' +
+              '<div><label>Payout threshold <span class="opt">&mdash; above the start, the ' +
+                'firm\'s figure</span></label>' +
+                '<input name="payout_threshold" type="number" step="0.01" min="0" value="' +
+                  (cfg.payout_threshold ?? '') + '"></div>' +
+              '<div><label>Qualifying days needed</label>' +
+                '<input name="payout_min_days" type="number" step="1" min="0" value="' +
+                  (cfg.payout_min_days ?? '') + '"></div>' +
+            '</div>' +
+            '<div class="field-pair">' +
+              '<div><label>A day counts if it made at least <span class="opt">&mdash; leave ' +
+                'empty if every day counts</span></label>' +
+                '<input name="payout_day_min" type="number" step="0.01" value="' +
+                  (cfg.payout_day_min ?? '') + '"></div>' +
+              '<div><label>Drawdown locks at <span class="opt">&mdash; above the start; empty ' +
+                'if it never locks</span></label>' +
+                '<input name="lock_at" type="number" step="0.01" value="' +
+                  (cfg.lock_at ?? '') + '"></div>' +
+            '</div>' +
+            '<label>Passed from <span class="opt">&mdash; the evaluation this came from</span></label>' +
+            '<input name="from_account" type="text" value="' +
+              escapeHtml(cfg.from_account || '') + '" placeholder="the evaluation account number">'
+          : '') +
+
         '<label>Status</label>' +
         '<select name="status">' +
-          (isProp ? ['active', 'passed', 'failed', 'retired'] : ['active', 'retired']).map((v) =>
+          (isWatched ? ['active', 'passed', 'failed', 'retired'] : ['active', 'retired']).map((v) =>
             '<option value="' + v + '"' + ((cfg.status || 'active') === v ? ' selected' : '') +
             '>' + v + '</option>').join('') +
         '</select>' +
@@ -935,6 +1114,9 @@ function render() {
   for (const b of mount.querySelectorAll('[data-start]')) {
     b.addEventListener('click', () => startAttempt(b.getAttribute('data-start'), b));
   }
+  for (const b of mount.querySelectorAll('[data-start-funded]')) {
+    b.addEventListener('click', () => startFunded(b.getAttribute('data-start-funded'), b));
+  }
 
   for (const form of mount.querySelectorAll('form[data-form]')) {
     form.addEventListener('submit', save);
@@ -951,16 +1133,120 @@ function render() {
   }
 }
 
+/* A passed evaluation becomes a funded account.
+ *
+ * Two rows written and one of them replaced: the funded account is created,
+ * pointing back at the evaluation, and the evaluation is retired in the same
+ * press. Apex does not let you keep trading an evaluation once it has passed,
+ * so leaving it `active` would be a card describing an account that no longer
+ * exists - and it would keep counting towards nothing for ever.
+ *
+ * WHAT CARRIES OVER, AND WHAT DOES NOT
+ *
+ * Firm and size carry: they are facts about the same funded seat. The profit
+ * target does NOT - a funded account has no target, and copying one would
+ * recreate exactly the bug this whole migration exists to fix. Drawdown does
+ * not carry either, because the funded drawdown is usually a different number
+ * and a wrong one here is worse than a blank: a blank prompts, a wrong figure
+ * gets believed.
+ *
+ * The payout terms are left empty on purpose. They are the firm's numbers,
+ * they change, and this site guesses none of them.
+ */
+async function startFunded(from, btn) {
+  const sel = '[data-funded-status="' + CSS.escape(from) + '"]';
+  const box = document.querySelector('[data-funded-name="' + CSS.escape(from) + '"]');
+  const name = (box && box.value || '').trim();
+
+  if (!name) {
+    setStatus(sel, 'Type the funded account number first.', 'error');
+    if (box) box.focus();
+    return;
+  }
+  if (name === from) {
+    setStatus(sel, 'That is the evaluation\'s own number. The funded account has a different one.',
+      'error');
+    return;
+  }
+
+  const cfg = saved.get(from) || {};
+  btn.disabled = true;
+  setStatus(sel, 'Setting it up…', 'info');
+
+  const funded = {
+    user_id: profile.id,
+    account: name,
+    kind: 'funded',
+    firm: cfg.firm || null,
+    size: cfg.size ?? null,
+    from_account: from,
+    status: 'active',
+    started_on: new Date().toISOString().slice(0, 10)
+  };
+
+  // The funded account first. If retiring the evaluation fails afterwards the
+  // worst case is one stale card the member can fix from its own form; doing
+  // it the other way round could retire an evaluation and then fail to create
+  // anything, which loses the account entirely.
+  const made = await supabase.from('prop_accounts')
+    .upsert(funded, { onConflict: 'user_id,account' });
+
+  if (made.error) {
+    btn.disabled = false;
+    setStatus(sel, made.error.message, 'error');
+    return;
+  }
+
+  const retired = await supabase.from('prop_accounts')
+    .upsert({ ...cfg, user_id: profile.id, account: from, status: 'retired' },
+            { onConflict: 'user_id,account' });
+
+  btn.disabled = false;
+
+  /* Local state, then render - the pattern every other action on this page
+   * uses. There is no reload: the page fetches once, and a round trip to
+   * redraw a card whose contents are already known is a round trip. */
+  saved.set(name, funded);
+  saved.set(from, { ...cfg, status: 'retired' });
+  if (!names.includes(name)) {
+    names.push(name);
+    names.sort();
+  }
+
+  if (retired.error) {
+    setStatus(sel, 'The funded account was created, but this one could not be retired: ' +
+      retired.error.message, 'error');
+    // Only the half that actually happened is reflected.
+    saved.set(from, cfg);
+  } else {
+    setStatus(sel, 'Done. ' + name + ' is set up, and this evaluation is retired.', 'ok');
+  }
+
+  render();
+}
+
 async function save(e) {
   e.preventDefault();
   const form = e.currentTarget;
   const name = form.dataset.form;
   const sel = '[data-status="' + CSS.escape(name) + '"]';
+  /* Tolerant of a field that is not on this card.
+   *
+   * The payout inputs only exist on a funded account, so on any other kind
+   * querySelector returns null - and reading .value off null throws, which
+   * would take the whole save with it. Missing reads as null, which is also
+   * what clears those columns if an account is moved back to being an
+   * evaluation: figures that described a funded account it no longer is.
+   */
   const num = (k) => {
-    const v = form.querySelector('[name="' + k + '"]').value;
-    return v === '' ? null : Number(v);
+    const el = form.querySelector('[name="' + k + '"]');
+    if (!el || el.value === '') return null;
+    return Number(el.value);
   };
-  const txt = (k) => form.querySelector('[name="' + k + '"]').value.trim() || null;
+  const txt = (k) => {
+    const el = form.querySelector('[name="' + k + '"]');
+    return el ? (el.value.trim() || null) : null;
+  };
 
   setStatus(sel, 'Saving…', 'info');
 
@@ -974,7 +1260,13 @@ async function save(e) {
     drawdown: num('drawdown'),
     min_days: num('min_days'),
     started_on: txt('started_on'),
-    status: txt('status') || 'active'
+    status: txt('status') || 'active',
+    // Present only on a funded card; null everywhere else. See num()/txt().
+    payout_threshold: num('payout_threshold'),
+    payout_min_days: num('payout_min_days'),
+    payout_day_min: num('payout_day_min'),
+    lock_at: num('lock_at'),
+    from_account: txt('from_account')
   };
   if (row.status !== 'active' && !saved.get(name)?.settled_on) {
     row.settled_on = new Date().toISOString().slice(0, 10);

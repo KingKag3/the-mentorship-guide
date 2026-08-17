@@ -344,6 +344,19 @@ shared row saying *awaiting reply* or *replied*. It uses the same `isWaitingForM
 queue does, imported rather than rewritten — a journal reading "replied" while the queue still
 shows the trade as owed would be the two pages disagreeing about one fact.
 
+### 5.0b Funded accounts — **built**
+
+Passing an evaluation earns a different account with a different number and different rules, and
+the site had nowhere to put either fact. `funded` is now a kind of its own, a passed evaluation
+carries a **Start the funded account** button that creates it, links the two and retires the
+evaluation in one press, and a funded card is measured against a payout threshold and a count of
+qualifying days rather than a profit target it does not have.
+
+**Every payout number is the member's, not ours.** Nothing about any firm's terms is hardcoded
+anywhere, and nothing should be added without a source and a date beside it — a threshold baked in
+is right until the day it silently is not, and the failure is somebody reading *"eligible"* off
+stale rules and going to ask for money.
+
 ### 5.1 Who is still turning up — attrition on the admin side — **level one built**
 
 **The honest answer to "can we do this today" is no, and the reason is worth knowing.** `profiles`

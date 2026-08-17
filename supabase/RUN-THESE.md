@@ -11,7 +11,15 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+| File | What it does | Why |
+| --- | --- | --- |
+| `funded-accounts.sql` | Adds `funded` as a kind, plus payout terms and a link back to the evaluation | Until it runs, a funded account has to be filed as an evaluation, which means the page expects a profit target it does not have — so it reads as half configured for ever. **Nothing breaks without it**: the columns are absent, the fields do not render, and everything already there is untouched |
+
+Every payout number in it is a **field the member fills**, not a constant. Firms
+change these terms without telling anybody who wrote them down, and a threshold
+baked into a migration is right until the day it is silently wrong — where the
+failure is somebody reading *"eligible for a payout"* off last year's rules and
+going to ask a firm for money.
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

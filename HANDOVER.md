@@ -456,6 +456,25 @@ Be honest about this list before trusting anything below it.
   asking for `trade_review_dismissals` and getting `[]`. The two accounts are already set up, so
   this is one console line away.
 
+- **`supabase/funded-accounts.sql` — written 17 August 2026, never run.** Adds `funded` to the
+  `kind` constraint, four payout columns and `from_account`. Nothing in it is destructive and
+  nothing is reclassified: every existing row keeps `kind = 'prop'` and gets nulls.
+
+  The maths is verified — 17 checks over `payoutProgress`, and the ones that matter are about
+  **unset**. A card must never read as ready because a form was left blank: a threshold of `''` is
+  NaN rather than zero, and *ready* requires both rules to be set **and** both met. The
+  distinction between "no daily minimum set" (every day traded counts) and "a minimum of zero" (a
+  losing day fails it) is pinned, because those are different rules and firms use both.
+
+  **Not verified against a database.** The whole flow — press *Start the funded account*, get a new
+  card, watch the evaluation retire — has never run. Two things to watch: the upsert uses
+  `onConflict: 'user_id,account'`, which is the unique constraint `prop_accounts` already has, and
+  the funded account is written **before** the evaluation is retired, so a half-failure leaves a
+  stale evaluation rather than a lost account.
+
+  **The payout figures are deliberately not seeded.** No Apex numbers are hardcoded anywhere, and
+  none should be added without a source and a date beside them.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

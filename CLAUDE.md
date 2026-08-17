@@ -34,8 +34,8 @@ So the split is by **repo, not by feature**:
 
 | Machine | Repo | Current piece |
 | --- | --- | --- |
-| `NERV-NEKO` | both, until the other picks one up | Handed over 13 Aug 2026, 21:38. Everything pushed |
-| the second PC | — | Put its `$env:COMPUTERNAME` here the first time it runs, and take this row's word for it |
+| `NERV-NEKO` | idle since the handover | Handed over 13 Aug 2026, 21:38 with everything pushed. Wrote this table on 17 Aug |
+| `DESKTOP-6S0E97B` | `the-mentorship-guide` | Picked up 17 Aug 2026. Phase 5.1 attendance, and the four checkers in `tools/` |
 
 **Rows name machines, they do not say "this one".** They used to, and it was wrong in the only
 situation the table exists for: this file loads automatically on both PCs, so a row reading *"This

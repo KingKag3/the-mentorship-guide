@@ -324,7 +324,8 @@ export async function renderAccountStrip(selector = '#account-strip') {
   }
 
   const adminLink = profile.role === 'admin'
-    ? '<a class="acct-link" href="admin.html">Admin</a>'
+    ? '<a class="acct-link" href="admin.html" id="admin-link">Admin' +
+      '<span class="acct-count" id="review-waiting" hidden></span></a>'
     : '';
 
   // "Account" is spelled out rather than hidden behind the email address.
@@ -342,6 +343,116 @@ export async function renderAccountStrip(selector = '#account-strip') {
 
   const btn = document.getElementById('sign-out');
   if (btn) btn.addEventListener('click', signOut);
+
+  /* The waiting count, filled in after the strip is already drawn.
+   *
+   * Not awaited, on purpose. It is two queries, and the masthead must not wait
+   * on them - the strip is the first thing that made a hung page look like a
+   * broken one, and adding a slow call to it would recreate that.
+   *
+   * It stays hidden at zero rather than showing a 0. A badge reading zero is
+   * furniture; a badge that only appears when there is something to do is a
+   * notification. */
+  if (profile.role === 'admin') {
+    countWaitingReviews().then((n) => {
+      const dot = document.getElementById('review-waiting');
+      if (!dot || !n) return;
+      dot.textContent = String(n);
+      dot.hidden = false;
+      const link = document.getElementById('admin-link');
+      if (link) {
+        link.title = n === 1
+          ? '1 shared trade is waiting on a reply'
+          : n + ' shared trades are waiting on a reply';
+      }
+    }, () => {});
+  }
+}
+
+/* --------------------------- the mentor's queue ---------------------------
+ *
+ * The rule for "is this trade still waiting on a reply" lives here rather than
+ * on the admin page, because two places now ask it: the Review tab, and the
+ * count in the masthead on every members page.
+ *
+ * That is the same reason distinctDecisions moved here. Two copies of a rule
+ * this fiddly do not stay equal - and a badge saying three while the tab shows
+ * two is worse than no badge, because it sends somebody looking for work that
+ * is not there.
+ */
+
+/**
+ * Who wrote a message: the trade's owner, or somebody else.
+ *
+ * By comparing ids, never by looking the author's role up. A role is current
+ * and a message is history, so asking "is this author an admin" would turn
+ * every question a member ever asked into a mentor's answer on the day they
+ * were promoted. This comparison cannot go stale - neither side of it changes.
+ */
+export function fromMember(msg, trade) {
+  return msg.author_id === trade.user_id;
+}
+
+/**
+ * Three ways a shared trade is waiting, and the second is the one that made
+ * this a conversation rather than a drop box:
+ *
+ *   a) nobody has written anything;
+ *   b) the newest message is from the member - they had the last word, whether
+ *      that is the first question or an answer to a reply;
+ *   c) the newest MENTOR message predates the trade's updated_at, so editing a
+ *      trade after it was answered puts it back.
+ *
+ * `msgs` must be newest first, which is how both callers query it.
+ */
+export function isWaitingForMentor(trade, msgs) {
+  if (!msgs || !msgs.length) return true;
+  if (fromMember(msgs[0], trade)) return true;
+
+  const newestMentor = msgs.find((m) => !fromMember(m, trade));
+  if (!newestMentor) return true;
+  return !trade.updated_at ||
+         new Date(newestMentor.created_at) < new Date(trade.updated_at);
+}
+
+/**
+ * How many shared trades are waiting on the mentor.
+ *
+ * Two queries rather than a view, deliberately. A view would be one round trip
+ * and would also be a migration to run before the badge worked at all - and
+ * this is a number in a masthead, not a report. The rule above is shared, so
+ * the thing a view would really have bought (one definition) is already had.
+ *
+ * Returns 0 rather than throwing on any failure. A badge that cannot be
+ * computed must not take the masthead down with it.
+ */
+export async function countWaitingReviews() {
+  if (!supabase) return 0;
+  try {
+    const { data: trades, error } = await supabase
+      .from('trades')
+      .select('id, user_id, updated_at')
+      .eq('shared_with_mentor', true)
+      .limit(1000);
+
+    if (error || !trades || !trades.length) return 0;
+
+    const { data: msgs } = await supabase
+      .from('trade_reviews')
+      .select('trade_id, author_id, created_at')
+      .in('trade_id', trades.map((t) => t.id))
+      .order('created_at', { ascending: false });
+
+    const byTrade = new Map();
+    for (const m of msgs || []) {
+      if (!byTrade.has(m.trade_id)) byTrade.set(m.trade_id, []);
+      byTrade.get(m.trade_id).push(m);
+    }
+
+    return trades.filter((t) => isWaitingForMentor(t, byTrade.get(t.id))).length;
+  } catch (err) {
+    return 0;
+  }
 }
 
 /* -------------------------------- media ---------------------------------- */

@@ -86,8 +86,14 @@
 
   <p class="stat-note" id="review-count">&nbsp;</p>
 
-  <p class="field-note"><label><input type="checkbox" id="review-answered"> Show trades already
-  answered</label></p>
+  <div class="seg" role="tablist" aria-label="Which shared trades to show" id="review-filter">
+    <button type="button" class="seg-btn is-on" role="tab" data-queue="waiting" aria-selected="true">
+      Waiting<span class="seg-count" id="seg-waiting"></span></button>
+    <button type="button" class="seg-btn" role="tab" data-queue="answered" aria-selected="false">
+      Replied<span class="seg-count" id="seg-answered"></span></button>
+    <button type="button" class="seg-btn" role="tab" data-queue="all" aria-selected="false">
+      All<span class="seg-count" id="seg-all"></span></button>
+  </div>
 
   <div id="review-pager-top"></div>
   <div id="review-list"></div>
@@ -439,7 +445,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          looksLikeDiscordMarkup, getSetting, setSetting,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
          copyText, toPineTrades,
-         pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
+         fromMember, isWaitingForMentor } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -468,7 +475,14 @@ let reviewPer = pageSize('review', 10, CARD_SIZES);
 // sharedTrades because they arrive from a different table under different
 // policies, and because a failed reply load should cost the queue nothing.
 let reviewsByTrade = new Map();
-let showAnswered = false;
+/* Which of the three lists is on screen: 'waiting', 'answered' or 'all'.
+ *
+ * It replaced a "show trades already answered" checkbox, which could say two
+ * things and needed to say three. The one it could not say is the useful one -
+ * "show me only what I have already replied to" - which is how you find a
+ * critique you wrote last week without scrolling past everything you have not
+ * answered yet. */
+let queue = 'waiting';
 
 // One reply editor per card on the current page, keyed by trade id as a string.
 // Declared here rather than beside renderShared for the reason at the top of
@@ -618,48 +632,12 @@ async function loadReviews() {
   }
 }
 
-/**
- * Who wrote a message.
- *
- * The author against the trade's owner, and nothing else. Looking the author's
- * role up in `profiles` would be wrong in a way that is invisible until it
- * happens: a role is current and a message is history, so promoting a member
- * to admin would turn every question they had ever asked into an answer from
- * the mentor. This comparison cannot go stale, because neither side of it
- * changes.
- *
- * A mentor writing on their own shared trade reads as the member. On that
- * trade they are.
- */
-function fromMember(msg, t) {
-  return msg.author_id === t.user_id;
-}
-
-/**
- * Is this trade still waiting on the mentor?
- *
- * Derived rather than stored, which is what keeps this page out of the trades
- * table. Three ways in, and the second is the one that made this a thread:
- *
- *   a) nobody has written anything;
- *   b) the newest message is from the member - they had the last word, whether
- *      that is the first question or an answer to a reply;
- *   c) the newest MENTOR message predates the trade's updated_at - the original
- *      rule, so editing a trade after it was answered still reopens it.
- *
- * Without (b) a member's reply would mark their own question answered, because
- * it would be the newest row in trade_reviews and the old rule looked no
- * further than that. The question would never appear in the queue and nothing
- * on this page would show it had been asked.
- */
+/* The queue rule lives in app.js, because the masthead badge on every members
+ * page asks the same question. Two copies of a rule this fiddly do not stay
+ * equal, and a badge saying three while this tab shows two is worse than no
+ * badge - it sends somebody looking for work that is not there. */
 function isWaiting(t) {
-  const msgs = reviewsByTrade.get(t.id);            // ordered newest first
-  if (!msgs || !msgs.length) return true;
-  if (fromMember(msgs[0], t)) return true;
-
-  const newestMentor = msgs.find((m) => !fromMember(m, t));
-  if (!newestMentor) return true;
-  return !t.updated_at || new Date(newestMentor.created_at) < new Date(t.updated_at);
+  return isWaitingForMentor(t, reviewsByTrade.get(t.id));
 }
 
 /** Whoever sent it. `profiles` is already loaded for the Accounts tab. */
@@ -875,24 +853,48 @@ async function renderShared() {
   const list = document.getElementById('review-list');
   const badge = document.getElementById('review-badge');
 
-  // The badge counts what is owed, not what is visible. An answered trade left
-  // on screen by the checkbox is not work waiting to be done.
+  // The badge counts what is OWED, never what is on screen. Standing in the
+  // Replied tab does not mean there is no work; a badge that followed the tab
+  // would say zero while three people waited.
   const waiting = sharedTrades.filter(isWaiting);
-  const shown = showAnswered ? sharedTrades : waiting;
+  const answered = sharedTrades.filter((t) => !isWaiting(t));
+  const shown = queue === 'all' ? sharedTrades
+              : queue === 'answered' ? answered
+              : waiting;
 
   badge.hidden = waiting.length === 0;
   badge.textContent = String(waiting.length);
 
+  // Counts on the tabs themselves, so choosing one is an informed click rather
+  // than a guess followed by an empty list.
+  const put = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n ? ' ' + n : '';
+  };
+  put('seg-waiting', waiting.length);
+  put('seg-answered', answered.length);
+  put('seg-all', sharedTrades.length);
+
+  for (const b of document.querySelectorAll('#review-filter .seg-btn')) {
+    const on = b.getAttribute('data-queue') === queue;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+
   if (!shown.length) {
     document.getElementById('review-count').textContent = '';
-    list.innerHTML = sharedTrades.length
-      ? '<div class="callout"><span class="callout-label">All answered</span>' +
+    list.innerHTML = !sharedTrades.length
+      ? '<div class="callout"><span class="callout-label">Nothing shared yet</span>' +
+        '<p>No member has shared a trade. The button is on each row of their ' +
+        'journal, marked <em>ask</em>.</p></div>'
+      : queue === 'answered'
+      ? '<div class="callout"><span class="callout-label">Nothing replied to yet</span>' +
+        '<p>Answers you write appear here, so you can read one back without ' +
+        'scrolling past everything still waiting.</p></div>'
+      : '<div class="callout"><span class="callout-label">All caught up</span>' +
         '<p>On every shared trade the last word is yours, written since the trade ' +
-        'was last edited. Tick <em>show trades already answered</em> to read them ' +
-        'back &mdash; a member replying to any of them brings it back here.</p></div>'
-      : '<div class="callout"><span class="callout-label">Nothing waiting</span>' +
-        '<p>No member has shared a trade yet. The tick is on the journal form, ' +
-        'beside the notes field.</p></div>';
+        'was last edited. They are under <em>Replied</em> &mdash; and a member ' +
+        'answering any of them brings it back here on its own.</p></div>';
     renderPager('#review-pager-top', { ...pageSlice([], 1, reviewPer), per: reviewPer },
       () => {}, CARD_SIZES);
     renderPager('#review-pager-bottom', { ...pageSlice([], 1, reviewPer), per: reviewPer },
@@ -908,12 +910,11 @@ async function renderShared() {
   shotUrls = await signedUrlMap(state.rows.map((r) => r.screenshot_path));
 
   const people = new Set(shown.map((r) => r.user_id)).size;
-  const answered = sharedTrades.length - waiting.length;
   document.getElementById('review-count').textContent =
     shown.length + (shown.length === 1 ? ' trade' : ' trades') +
     ' from ' + people + (people === 1 ? ' member' : ' members') +
-    (answered && !showAnswered
-      ? ' — ' + answered + ' already answered, hidden'
+    (queue === 'waiting' && answered.length
+      ? ' — ' + answered.length + ' already replied to, under Replied'
       : '');
 
   list.innerHTML = state.rows.map(reviewCard).join('');
@@ -957,8 +958,14 @@ async function renderShared() {
   renderPager('#review-pager-bottom', state, onPage, CARD_SIZES);
 }
 
-document.getElementById('review-answered').addEventListener('change', (e) => {
-  showAnswered = e.target.checked;
+document.getElementById('review-filter').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-queue]');
+  if (!btn) return;
+  const next = btn.getAttribute('data-queue');
+  if (next === queue) return;
+  queue = next;
+  // Back to page one. Page four of Waiting is not page four of Replied, and
+  // landing on an empty page reads as a broken tab.
   reviewPage = 1;
   renderShared();
 });

@@ -336,6 +336,14 @@ as a key in `settings` — no table, because settings.sql exists for exactly thi
 editor and the same whitelist renderer, which matters more here than anywhere: that one string is
 written once and rendered into every member's browser.
 
+A notice can carry a **picture**, and a reply cannot &mdash; enforced by construction rather than by
+a rule about who may write what. `renderBody` draws an image only when the page rendering it hands
+over a signed URL for that exact path, so the members page (which signs first) shows pictures and
+the reply threads (which pass nothing) cannot. External addresses never render at all, because the
+map is keyed on our own bucket paths and there is nothing an arbitrary URL could match. That closes
+the tracking pixel: a member writing an image into a reply produces words, and the mentor's browser
+makes no request.
+
 Beside it, and only ever seen by an admin, a derived notice saying how many shared trades are
 waiting, with a link into the queue. The masthead badge says *that* there is work; this says *what*.
 

@@ -1895,6 +1895,24 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 .callout.motd .reply-prose > *:first-child { margin-top: 0; }
 .callout.motd .reply-prose > *:last-child { margin-bottom: 0; }
 
+/* A picture in a notice, and the same rule inside the editor writing it, so
+   what an admin sees while composing is what a member sees afterwards. Capped
+   rather than full-bleed: a notice is a paragraph with a picture in it, not a
+   banner, and a screenshot pasted at native size would push everything below
+   it off the first screen. */
+.reply-prose img,
+.rte-input img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  width: auto;
+  height: auto;
+  margin: var(--s-3) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset);
+}
+
 /* ---------------------------------------------------------------
    Segmented control
 

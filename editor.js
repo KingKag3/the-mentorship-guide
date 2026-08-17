@@ -107,9 +107,23 @@ const BLOCKS = new Set(['p', 'div', 'ul', 'ol', 'blockquote', 'pre',
  * nothing, because it looks like the sender wrote it. See DECISIONS.md,
  * 13 August 2026, for why the swap happened and why it came back.
  */
-export function renderBody(body) {
+export function renderBody(body, images) {
   const doc = asDocument(body);
-  return doc ? blocksToHtml(doc.blocks) : mdToHtml(body);
+  return doc ? blocksToHtml(doc.blocks) : mdToHtml(body, images);
+}
+
+/* Every image path a message refers to.
+ *
+ * The caller signs these and hands the map back to renderBody. A page that
+ * does not call this - every page that renders a reply - passes nothing, and
+ * nothing is what its images render as.
+ */
+export function imagePathsIn(src) {
+  const out = [];
+  const re = /!\[[^\]]*\]\(([^)\s]+)\)/g;
+  let m;
+  while ((m = re.exec(String(src == null ? '' : src)))) out.push(m[1]);
+  return out;
 }
 
 /** An Editor.js document, or null if this is not one. */
@@ -232,7 +246,23 @@ function walkInline(parent) {
 }
 
 
-export function mdToHtml(src) {
+/* `images` is a Map of path -> signed URL, or absent.
+ *
+ * AN IMAGE RENDERS ONLY IF THE CALLER SUPPLIED A URL FOR ITS PATH, and that is
+ * the whole security model rather than a convenience. The render site decides
+ * whether pictures appear; the author does not.
+ *
+ * So a notice, rendered by a page that signed its paths first, shows images. A
+ * member's reply, rendered by a page that passes nothing, cannot - not because
+ * the syntax is stripped, but because there is no URL to point at. A member
+ * writing `![](https://their-server/x.png)` into a reply gets the alt text and
+ * the mentor's browser makes no request, which is the point: that request
+ * would hand a stranger the mentor's IP and the moment they read it.
+ *
+ * External addresses never render at all. The map is keyed on our own bucket
+ * paths, so there is nothing an arbitrary URL could match.
+ */
+export function mdToHtml(src, images) {
   const lines = String(src == null ? '' : src).replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let i = 0;
@@ -252,7 +282,7 @@ export function mdToHtml(src) {
         held.push(lines[i].replace(/^\s{0,3}>\s?/, ''));
         i++;
       }
-      out.push('<blockquote>' + para(held) + '</blockquote>');
+      out.push('<blockquote>' + para(held, images) + '</blockquote>');
       continue;
     }
 
@@ -267,7 +297,7 @@ export function mdToHtml(src) {
       }
       const tag = ordered ? 'ol' : 'ul';
       out.push('<' + tag + '>' +
-        items.map((t) => '<li>' + inlineToHtml(t) + '</li>').join('') +
+        items.map((t) => '<li>' + inlineToHtml(t, images) + '</li>').join('') +
         '</' + tag + '>');
       continue;
     }
@@ -279,16 +309,16 @@ export function mdToHtml(src) {
       held.push(lines[i]);
       i++;
     }
-    out.push('<p>' + held.map(inlineToHtml).join('<br>') + '</p>');
+    out.push('<p>' + held.map((t) => inlineToHtml(t, images)).join('<br>') + '</p>');
   }
 
   return out.join('');
 }
 
-function para(lines) {
+function para(lines, images) {
   // Inside a quote, keep the line breaks rather than reflowing: somebody
   // quoting two lines of their own notes means two lines.
-  return '<p>' + lines.map(inlineToHtml).join('<br>') + '</p>';
+  return '<p>' + lines.map((t) => inlineToHtml(t, images)).join('<br>') + '</p>';
 }
 
 /* One pass, left to right. A regex-replace chain is the usual way to do this
@@ -296,7 +326,7 @@ function para(lines) {
  * cannot see that it is inside something else. This can: a code span consumes
  * its own contents and hands back escaped text, so backticks win over
  * asterisks the way they should. */
-function inlineToHtml(src) {
+function inlineToHtml(src, images) {
   let out = '';
   let i = 0;
 
@@ -323,7 +353,7 @@ function inlineToHtml(src) {
     if (c === '*' && src[i + 1] === '*') {
       const end = src.indexOf('**', i + 2);
       if (end > i + 1) {
-        out += '<strong>' + inlineToHtml(src.slice(i + 2, end)) + '</strong>';
+        out += '<strong>' + inlineToHtml(src.slice(i + 2, end), images) + '</strong>';
         i = end + 2;
         continue;
       }
@@ -332,8 +362,36 @@ function inlineToHtml(src) {
     if (c === '*') {
       const end = src.indexOf('*', i + 1);
       if (end > i + 1) {
-        out += '<em>' + inlineToHtml(src.slice(i + 1, end)) + '</em>';
+        out += '<em>' + inlineToHtml(src.slice(i + 1, end), images) + '</em>';
         i = end + 1;
+        continue;
+      }
+    }
+
+    /* An image: ![alt](path).
+     *
+     * Rendered ONLY when the caller supplied a URL for that exact path. No map,
+     * or a path the map does not know, and the alt text is all that appears -
+     * so a member writing this into a reply produces words, and their server is
+     * never contacted. See the note on mdToHtml for why that matters.
+     *
+     * Checked before the link branch because `![x](y)` starts with `!` and the
+     * link branch would otherwise take the `[x](y)` that follows it. */
+    if (c === '!' && src[i + 1] === '[') {
+      const m = /^!\[([^\]]*)\]\(([^)\s]+)\)/.exec(src.slice(i));
+      if (m) {
+        const url = images && images.get ? images.get(m[2]) : null;
+        /* data-path is written here as well as by the editor, and leaving it
+         * out was a silent data loss: loading a notice for editing renders it
+         * through this function, and the serialiser reads the path from the
+         * attribute. Without it, opening a notice and pressing Save deleted
+         * every picture in it - the request succeeded, and the images were
+         * simply gone. */
+        out += url
+          ? '<img src="' + escapeHtml(url) + '" data-path="' + escapeHtml(m[2]) +
+            '" alt="' + escapeHtml(m[1]) + '" loading="lazy">'
+          : escapeHtml(m[1]);
+        i += m[0].length;
         continue;
       }
     }
@@ -343,11 +401,11 @@ function inlineToHtml(src) {
       if (m) {
         if (SAFE_SCHEME.test(m[2])) {
           out += '<a href="' + escapeHtml(m[2]) + '" target="_blank" ' +
-                 'rel="noopener noreferrer">' + inlineToHtml(m[1]) + '</a>';
+                 'rel="noopener noreferrer">' + inlineToHtml(m[1], images) + '</a>';
         } else {
           // A refused scheme loses the link and keeps the words. Dropping the
           // text as well would hide that something was said.
-          out += inlineToHtml(m[1]);
+          out += inlineToHtml(m[1], images);
         }
         i += m[0].length;
         continue;
@@ -487,6 +545,23 @@ function inlineOf(node) {
   if (tag === 'br') return '\n';
   if (tag === 'script' || tag === 'style') return '';
 
+  /* An image serialises to its PATH, never to its src.
+   *
+   * The src is a signed link that expires within the hour, so saving it would
+   * store something already dying - the notice would show a picture today and
+   * a broken one tomorrow. data-path is what the editor wrote when it inserted
+   * the picture.
+   *
+   * An <img> with no data-path is not ours - a paste from elsewhere - and
+   * contributes nothing, which keeps the rule that only our own bucket can
+   * appear in a message. */
+  if (tag === 'img') {
+    const path = node.getAttribute('data-path');
+    if (!path) return '';
+    const alt = (node.getAttribute('alt') || '').replace(MD_SPECIAL, '\\$1');
+    return '![' + alt + '](' + path + ')';
+  }
+
   // Code is taken verbatim, so its contents are NOT escaped as Markdown - they
   // are already inside backticks. A backtick in the text would break out of
   // the span, so it is the one thing removed.
@@ -569,6 +644,19 @@ const TOOLS = [
         '<path d="M20 7h-3.5A1.5 1.5 0 0 0 15 8.5v3a1.5 1.5 0 0 0 1.5 1.5H19v1.5a2.5 2.5 0 0 1-2.5 2.5"/>')]
 ];
 
+/* The picture button, which is NOT in TOOLS.
+ *
+ * It appears only when the caller passes an `onImage` handler, and only one
+ * caller does: the notice editor on the admin page. The reply boxes are never
+ * given one, so members and mentors do not get the button - which matters,
+ * because a notice is written by an administrator to everybody and a reply is
+ * written by anybody to one person. Different trust, different tools.
+ */
+const IMAGE_TOOL = ['image', 'Picture', '',
+  ICON('<rect x="3" y="4" width="18" height="16" rx="2"/>' +
+       '<circle cx="8.5" cy="9.5" r="1.4"/>' +
+       '<path d="m21 16-4.5-4.5L9 19"/>')];
+
 /* Which buttons can light up.
  *
  * A toolbar that never shows state is a row of guesses - there is no way to
@@ -619,7 +707,8 @@ export function mountEditor(host, opts = {}) {
   host.classList.add('rte');
   host.innerHTML =
     '<div class="rte-tools" role="toolbar" aria-label="Formatting">' +
-      TOOLS.map(([cmd, name, key, icon]) =>
+      (opts.onImage ? TOOLS.concat([['sep'], IMAGE_TOOL]) : TOOLS)
+      .map(([cmd, name, key, icon]) =>
         cmd === 'sep'
           ? '<span class="rte-sep" aria-hidden="true"></span>'
           : '<button type="button" class="rte-tool" data-cmd="' + cmd + '" ' +
@@ -648,6 +737,44 @@ export function mountEditor(host, opts = {}) {
 
   const run = (cmd) => {
     input.focus();
+
+    /* Inserting a picture.
+     *
+     * The handler does the uploading - this file has no idea what a bucket is,
+     * and should not: it is the editor, and where bytes go is the page's
+     * business. It returns { path, url } or nothing.
+     *
+     * data-path is the durable half and src is the throwaway one. The path is
+     * what gets saved; the signed URL only has to survive this editing session.
+     */
+    if (cmd === 'image') {
+      Promise.resolve(opts.onImage()).then((img) => {
+        if (!img || !img.path || !img.url) return;
+        input.focus();
+        const el = document.createElement('img');
+        el.setAttribute('src', img.url);
+        el.setAttribute('data-path', img.path);
+        el.setAttribute('alt', img.alt || '');
+        el.setAttribute('loading', 'lazy');
+
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && input.contains(sel.anchorNode)) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(el);
+          range.setStartAfter(el);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          // No caret in the editor - the click went to the toolbar from
+          // outside. Appending beats refusing.
+          input.appendChild(el);
+        }
+        syncEmpty();
+      }, () => {});
+      return;
+    }
 
     if (cmd === 'link') {
       const url = window.prompt('Link to what? (must start with http:// or https://)');
@@ -777,7 +904,13 @@ export function mountEditor(host, opts = {}) {
   return {
     element: input,
     getMarkdown: () => toMarkdown(input).trim(),
-    setMarkdown: (md) => { input.innerHTML = mdToHtml(md || ''); syncEmpty(); },
+    // `images` is the same path -> signed URL map renderBody takes. Without it
+    // a notice being edited shows its pictures as alt text, which looks like
+    // they were lost.
+    setMarkdown: (md, images) => {
+      input.innerHTML = mdToHtml(md || '', images);
+      syncEmpty();
+    },
     clear: () => { input.innerHTML = ''; syncEmpty(); },
     focus: () => input.focus(),
     setDisabled: (off) => {

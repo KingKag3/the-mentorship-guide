@@ -140,7 +140,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, signedUrlMap,
          renderToolCards, newScriptCount, getSetting, MOTD_KEY,
          countWaitingReviews } from './app.js';
-import { renderBody } from './editor.js';
+import { renderBody, imagePathsIn } from './editor.js';
 
 renderAccountStrip();
 
@@ -161,12 +161,25 @@ if (profile) {
    * Failing to load it must not cost anybody the curriculum, so getSetting
    * already swallows its own errors and returns null.
    */
-  getSetting(MOTD_KEY).then((text) => {
+  getSetting(MOTD_KEY).then(async (text) => {
     const box = document.getElementById('motd');
     if (!box || !text || !text.trim()) return;
+
+    /* Signed before rendering, and this is the only page that does it.
+     *
+     * renderBody draws an image only when it is handed a URL for that exact
+     * path, so a page that signs nothing shows no pictures - which is how the
+     * reply threads stay free of them without any rule about who may write
+     * what. The render site decides, not the author.
+     *
+     * The bucket is private, so there is no durable URL to store: the notice
+     * holds paths and every view mints its own links.
+     */
+    const images = await signedUrlMap(imagePathsIn(text));
+
     box.innerHTML =
       '<div class="callout motd"><span class="callout-label">Notice</span>' +
-      '<div class="reply-prose">' + renderBody(text) + '</div></div>';
+      '<div class="reply-prose">' + renderBody(text, images) + '</div></div>';
   }, () => {});
 
   /* And the one only a mentor sees: how much is waiting.

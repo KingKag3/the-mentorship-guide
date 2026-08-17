@@ -465,7 +465,7 @@
 <script type="module">
 import Quill from 'https://esm.sh/quill@2.0.3';
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
-         formatCode, youtubeId, compressImage, uploadMedia, signedUrl,
+         formatCode, youtubeId, compressImage, uploadMedia, signedUrl, MEDIA_BUCKET,
          hydrateStorageImages, humanSize, discordToHtml, dataUrlToFile,
          looksLikeDiscordMarkup, getSetting, setSetting,
          signedUrlMap, tradeValue, money, toNumber, dbError, chartLink,
@@ -473,7 +473,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
          fromMember, isWaitingForMentor, isSetAside, MOTD_KEY,
          faceHtml } from './app.js';
-import { mountEditor, renderBody } from './editor.js';
+import { mountEditor, renderBody, imagePathsIn } from './editor.js';
 
 renderAccountStrip();
 
@@ -1730,13 +1730,74 @@ async function loadMotd() {
     motdEditor = mountEditor(host, {
       id: 'motd-body',
       label: 'Message of the day',
-      placeholder: 'Anything every member should see when they sign in'
+      placeholder: 'Anything every member should see when they sign in',
+      // The picture button exists here and nowhere else. A notice is written by
+      // an administrator to everybody; a reply is written by anybody to one
+      // person, and the reply boxes are never given this handler.
+      onImage: pickNoticeImage
     });
   }
 
   const text = await getSetting(MOTD_KEY);
-  motdEditor.setMarkdown(text || '');
+  // Signed before the editor is filled, or the pictures already in the notice
+  // come back as their alt text - the render refuses any path it has no URL
+  // for, which is the same rule that keeps them out of replies.
+  motdEditor.setMarkdown(text || '',
+    await signedUrlMap(imagePathsIn(text || '')));
   setMotdStatus(text && text.trim() ? 'A notice is showing.' : 'No notice is showing.');
+}
+
+/* Choosing a picture for a notice.
+ *
+ * Uploaded to notices/, where an admin already has insert rights through
+ * storage.sql - so this needed no migration at all. Members can read it,
+ * because the same file grants SELECT on anything in the bucket outside
+ * journal/, which is exactly what a notice image should be.
+ *
+ * Returns { path, url } for the editor to insert, or nothing if the person
+ * changed their mind. The path is what gets saved; the URL is a signed link
+ * that only has to last as long as this editing session.
+ */
+function pickNoticeImage() {
+  return new Promise((resolve) => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+
+    picker.addEventListener('change', async () => {
+      const file = picker.files && picker.files[0];
+      if (!file) { resolve(null); return; }
+
+      setMotdStatus('Uploading the picture...');
+
+      // 1200px: a notice image is read at the width of the members page, not
+      // pinched into a 30px circle like an avatar.
+      const small = await compressImage(file, 1200, 0.82);
+      const ext = small.type === 'image/png' ? 'png' : 'jpg';
+      const path = 'notices/' + crypto.randomUUID() + '.' + ext;
+
+      const up = await supabase.storage.from(MEDIA_BUCKET)
+        .upload(path, small, { contentType: small.type, upsert: false });
+
+      if (up.error) {
+        setMotdStatus('The picture would not upload: ' + up.error.message);
+        resolve(null);
+        return;
+      }
+
+      const url = await signedUrl(path);
+      setMotdStatus('Picture added. Save the notice to keep it.');
+      resolve({ path, url, alt: file.name.replace(/\.[^.]+$/, '') });
+    });
+
+    // Cancelling a file dialog fires nothing at all in most browsers, so the
+    // promise would hang for ever. Resolving on the window regaining focus is
+    // the usual way out of that; the change handler wins when there is one.
+    window.addEventListener('focus', () => setTimeout(() => resolve(null), 400),
+      { once: true });
+
+    picker.click();
+  });
 }
 
 function setMotdStatus(msg) {

@@ -524,6 +524,26 @@ Be honest about this list before trusting anything below it.
   and deleting the object (removes the bytes) — two separate actions on purpose. Neither has a
   button yet; both are one line in the SQL editor.
 
+- **Pictures in a notice — built 17 August 2026, never used against storage.** No migration: an
+  admin already holds insert across the bucket through `storage.sql`, and members already hold
+  SELECT on anything outside `journal/`, so `notices/` needed nothing new.
+
+  The rule worth remembering is that **the render site decides whether images appear, not the
+  author.** `renderBody(body, images)` draws an `<img>` only when handed a signed URL for that exact
+  path. `members.html` signs first and shows pictures; the reply threads pass nothing and cannot,
+  whatever a member writes. That is what keeps a tracking pixel out of the mentor's browser, and it
+  needs no rule about who may write what.
+
+  Verified: 18 checks in a browser, including four external address shapes that render as words
+  with and without a map. **One real bug it caught before shipping:** `mdToHtml` did not emit
+  `data-path`, so opening a notice for editing and pressing Save deleted every picture in it — the
+  request succeeded and the images were simply gone.
+
+  **Never run against storage.** Watch that the upload lands in `notices/`, that the picture
+  survives a save-and-reopen, and that a notice saved a day ago still renders — the stored value is
+  a path and every view mints its own link, so a signed URL leaking into the saved text would show
+  as a picture today and a broken one tomorrow.
+
 - **Whether a member who is not an admin is refused.** Not run directly, and not planned. An admin
   holds every grant a member holds and one more, so the admin being refused an unshared object means
   a member is too — their grants are a strict subset. Recorded as reasoning rather than as an

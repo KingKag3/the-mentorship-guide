@@ -1826,6 +1826,59 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 
 .reply-when .face { width: 20px; height: 20px; font-size: 0.54rem; }
 
+/* ---------------------------------------------------------------
+   The picture control on the account page
+
+   The markup shipped before these rules did, so both halves were
+   bare divs: the note ran under the circle, the button sat against
+   the left edge, and nothing lined up with the form below it.
+   --------------------------------------------------------------- */
+
+.avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  /* 640px and radius-lg because this sits directly above .auth-form-wide and
+     has to be the same object as it. Measured at 814px against the form's 674
+     before this line existed, which reads as two pages stacked rather than one
+     section with two parts. */
+  max-width: 640px;
+  padding: var(--s-4);
+  margin: var(--s-4) 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line-lo);
+  border-radius: var(--radius-lg);
+}
+
+/* min-width: 0 or the text half refuses to wrap and pushes the box wider than
+   the form it sits above - the same flex default that bit the reply actions. */
+.avatar-controls {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.avatar-controls > *:first-child { margin-top: 0; }
+.avatar-controls > *:last-child { margin-bottom: 0; }
+
+/* The row-actions inside sit between the two notes, so it needs air on both
+   sides rather than inheriting a margin meant for the end of a form. */
+.avatar-controls .row-actions { margin: var(--s-3) 0; }
+
+/* A file input styled as a button is a label pointing at a hidden input, so it
+   needs the parts of a button that a label does not have. */
+.avatar-controls label.btn-secondary {
+  display: inline-block;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* The circle must not be squeezed when the note beside it is long. */
+.avatar-row .face { flex: 0 0 auto; }
+
+@media (max-width: 620px) {
+  .avatar-row { flex-direction: column; gap: var(--s-3); }
+}
+
 /* The members' notice.
 
    A plain callout rather than a coloured one. `.callout.warn` and

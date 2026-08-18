@@ -478,9 +478,15 @@ about having nothing to say yet.</p>
 
 <h3>Statistic bars</h3>
 
-<p>Used throughout <code>stats.html</code>. Green is a positive expectancy, red negative — the same
-colour code the diagrams use. Slices under ten trades carry an <code>n=</code> tag and stay visible
-rather than being hidden, so a thin sample teaches instead of disappearing.</p>
+<p>Used on <code>stats.html</code>, <code>calendar.html</code> and <code>props.html</code>, all
+through <code>barTrack()</code> in <code>app.js</code> rather than four hand-built copies. Slices
+under ten trades carry an <code>n=</code> tag and stay visible rather than being hidden, so a thin
+sample teaches instead of disappearing.</p>
+
+<p><strong>A negative bar grows from the right wall, not the left.</strong> Colour still tracks the
+sign, but it is not the only thing that does: red against green is exactly the distinction a
+red-green colourblind reader does not get, and these end up in screenshots handed to other people.
+Which wall the block is touching survives greyscale.</p>
 
 <div class="demo">
   <div class="bar-row">
@@ -495,10 +501,32 @@ rather than being hidden, so a thin sample teaches instead of disappearing.</p>
   </div>
   <div class="bar-row">
     <span>2022 model <span class="tag">n=4</span></span>
-    <span class="bar-track"><span class="bar-fill is-bad" style="width:24%"></span></span>
+    <span class="bar-track"><span class="bar-fill is-bad is-neg" style="width:24%"></span></span>
     <span>−0.35R</span>
   </div>
   <p class="stat-note">Anything under ten trades is marked, not suppressed.</p>
+</div>
+
+<p>A magnitude that is not a loss stays on the left and is coloured by hand — <code>props.html</code>
+draws a worst dip that way, because a dip is a distance rather than a negative number.</p>
+
+<div class="demo">
+  <div class="bar-row">
+    <span>Worst dip so far</span>
+    <span class="bar-track"><span class="bar-fill is-bad" style="width:53%"></span></span>
+    <span>$3,439.00 / $6,500.00</span>
+  </div>
+  <div class="bar-row">
+    <span>Room left</span>
+    <span class="bar-track"><span class="bar-fill" style="width:98%"></span></span>
+    <span>$6,380.00 / $6,500.00</span>
+  </div>
+  <div class="bar-row">
+    <span>Toward target</span>
+    <span class="bar-track"><span class="bar-fill is-bad is-neg" style="width:13%"></span></span>
+    <span>−$2,000.00 / $15,000.00</span>
+  </div>
+  <p class="stat-note">The last row is the case that used to draw nothing at all.</p>
 </div>
 
 <h3>Field notes</h3>

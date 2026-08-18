@@ -2849,6 +2849,7 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 .bar-row > span:first-child { color: var(--ink-500); }
 
 .bar-track {
+  position: relative;
   background: var(--inset);
   border: 1px solid var(--line-lo);
   border-radius: 999px;
@@ -2877,6 +2878,27 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 }
 
 .bar-fill.is-bad { background: var(--bear); }
+
+/* A NEGATIVE BAR GROWS FROM THE OTHER WALL.
+
+   Before this, every bar filled from the left and sign was carried by colour
+   alone - and on the pages with a ceiling it was not carried at all, because
+   the percentage was clamped at zero and a losing account drew an empty track
+   indistinguishable from break-even.
+
+   Anchoring the other end is what makes the sign survive the things colour
+   does not: a red-green colourblind reader, a greyscale print, a screenshot
+   sent to somebody else. Which wall the block touches is legible in all three.
+
+   Absolute rather than a float or `margin-left: auto`, because the track is a
+   plain span - it is neither a grid nor a flex container, and a span's
+   children get no alignment from it. The same fact about inline layout that
+   kept these bars empty in the first place. */
+.bar-fill.is-neg {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
 
 .bar-row > b {
   font-family: var(--mono);

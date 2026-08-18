@@ -157,7 +157,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, rende
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
          accountsHidden, setAccountsHidden, aliasMap,
          toNumber, fetchPaged,
-         pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -705,11 +705,15 @@ function card(name) {
   const outcome = live ? live.outcome : (cfg.status || 'active');
   const cheer = isProp && done && outcome === 'active';
 
+  /* The ceiling stays the same in both directions. An evaluation $2,000 down
+   * is drawn as 13.3% of its $15,000 target, in red, from the right - not
+   * rescaled against the drawdown, which would leave the bar measuring one
+   * number and the figure beside it naming another. The floor has its own bar
+   * directly underneath and that is where it belongs. */
   const bar = (label, value, of, tone) =>
     '<div class="bar-row">' +
       '<span>' + escapeHtml(label) + '</span>' +
-      '<span class="bar-track"><span class="bar-fill' + (tone ? ' ' + tone : '') +
-        '" style="width:' + pctOf(value, of).toFixed(1) + '%"></span></span>' +
+      barTrack(value, of, tone) +
       '<b>' + money(value) + (of ? ' / ' + money(of) : '') + '</b>' +
     '</div>';
 
@@ -738,7 +742,7 @@ function card(name) {
       ? '<p class="stat-note">Your own money. Nothing to reach and nothing to breach, so this ' +
         'account is reported rather than scored.</p>'
       : target
-        ? bar('Toward target', p.total, target, p.total < 0 ? 'is-bad' : '')
+        ? bar('Toward target', p.total, target)
         : '<p class="stat-note">No target set yet, so there is nothing to measure against. ' +
           'If this account has no target at all, mark it live below.</p>') +
 
@@ -747,7 +751,7 @@ function card(name) {
       : '') +
 
     (isWatched && dd
-      ? bar('Room left', room, dd, room !== null && room <= dd * 0.25 ? 'is-bad' : '')
+      ? bar('Room left', room, dd, room !== null && room > 0 && room <= dd * 0.25 ? 'is-bad' : '')
       : '') +
 
     '<div class="card-grid">' +

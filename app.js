@@ -829,6 +829,44 @@ export function contractFor(symbol) {
  * $0.00 and then flag a false disagreement against the figure its owner had
  * actually typed, and it made "has a result" true for a row that had neither.
  */
+/* One bar, drawn the same way on all four pages that draw bars.
+ *
+ * WHY A SHARED HELPER RATHER THAN FOUR COPIES
+ *
+ * There were four copies, and they disagreed about the only case that
+ * matters. `stats.html` scaled by `Math.abs`, so a losing group drew a
+ * full-length red bar. `props.html` clamped at zero, so a losing evaluation
+ * drew nothing at all - an account $200 down and an account $5,900 down were
+ * the same picture, and both were the same picture as break-even. The
+ * calendar had the honest version until a profit-target ceiling was added on
+ * 18 August 2026, which quietly replaced it with the clamping one.
+ *
+ * SIGN IS SHOWN BY SIDE, NOT ONLY BY COLOUR
+ *
+ * Positive fills from the left, negative from the right. Colour still tracks
+ * it, but colour is not the only carrier: red-versus-green is exactly the
+ * distinction a red-green colourblind reader does not get, and these bars end
+ * up in screenshots handed to other people. Which wall the block is touching
+ * survives a greyscale print.
+ *
+ * `tone` is separate from sign on purpose. A worst dip is a positive
+ * magnitude that should still be red - it is a distance, not a loss - so the
+ * caller says `is-bad` and the bar stays left-anchored.
+ *
+ * Magnitude is clamped to the ceiling, never the value: a month that beat its
+ * target fills the track rather than overflowing it, and the figure beside the
+ * bar is what reports the excess.
+ */
+export function barTrack(value, ceiling, tone) {
+  const v = Number(value) || 0;
+  const of = Number(ceiling) || 0;
+  const pct = of > 0 ? Math.min(100, (Math.abs(v) / of) * 100) : 0;
+  const cls = (v < 0 ? ' is-bad is-neg' : '') + (tone ? ' ' + tone : '');
+  return '<span class="bar-track"><span class="bar-fill' + cls +
+    '" style="width:' + pct.toFixed(1) + '%"></span></span>';
+}
+
+
 export function toNumber(value) {
   if (value === null || value === undefined || value === '') return NaN;
   return Number(value);

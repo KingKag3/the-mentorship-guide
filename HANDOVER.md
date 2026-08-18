@@ -433,9 +433,21 @@ Be honest about this list before trusting anything below it.
   still wrong.
 
 - **The per-account bars on `calendar.html` now take a profit target as their ceiling.** Same date.
-  The percentage arithmetic is in the fifteen above; the `prop_accounts` read that feeds it has not
-  been watched against a project where the table is absent, which is the case it is written to
-  survive silently.
+  The `prop_accounts` read that feeds it has not been watched against a project where the table is
+  absent, which is the case it is written to survive silently.
+
+- **Every bar on the site is drawn by `barTrack()` in `app.js`, and negatives grow from the right.**
+  18 August 2026, and measured rather than assumed: seventeen assertions against the real
+  stylesheet confirm which wall each fill touches, its width to a tenth of a percent, that a
+  positive and a negative differ in position as well as colour, that a magnitude marked `is-bad` by
+  hand stays left, and that over-ceiling clamps instead of overflowing. `design.html` carries all
+  three shapes.
+
+  The four hand-built copies this replaced disagreed about the only case that matters. `stats.html`
+  scaled by `Math.abs` and drew a losing group at full length in red; `props.html` clamped at zero
+  and drew a losing evaluation as nothing at all, so $200 down, $5,900 down and break-even were one
+  picture. The calendar had the honest version until the profit-target ceiling landed earlier the
+  same day and quietly replaced it with the clamping one.
 
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.

@@ -158,7 +158,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError, fetchPaged,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
-         pageSize, setPageSize, pageSlice, renderPager } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, barTrack } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -511,13 +511,9 @@ function accountBreakdown(rows) {
     split.map((s) => {
       const v = dayValue(s.t);
       const of = useTargets ? targets.get(s.name) : undefined;
-      const pct = of
-        ? Math.max(0, Math.min(100, ((v ?? 0) / of) * 100))
-        : Math.abs(v ?? 0) / scale * 100;
       return '<div class="bar-row">' +
         '<span>' + escapeHtml(label(s.name)) + '</span>' +
-        '<span class="bar-track"><span class="bar-fill' + ((v ?? 0) < 0 ? ' is-bad' : '') +
-          '" style="width:' + pct.toFixed(1) + '%"></span></span>' +
+        barTrack(v ?? 0, of || scale) +
         '<b>' + fmt(v) + (of ? ' <span class="acct-muted">/ ' + money(of) + '</span>' : '') + '</b>' +
       '</div>';
     }).join('') +

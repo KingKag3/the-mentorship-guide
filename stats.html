@@ -190,7 +190,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
-         fetchPaged } from './app.js';
+         fetchPaged, barTrack } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
@@ -1158,16 +1158,11 @@ function renderSlice(title, note, map) {
   const scale = Math.max(...entries.map(([, s]) => Math.abs(s.total)), 1);
 
   const rows = entries.map(([key, s]) => {
-    const pct = Math.abs(s.total) / scale * 100;
-    const bad = s.total < 0;
     const thin = s.n < MIN_SAMPLE;
 
     return '<div class="bar-row">' +
       '<span>' + escapeHtml(key) + (thin ? ' <span class="tag">n=' + s.n + '</span>' : '') + '</span>' +
-      '<span class="bar-track">' +
-        '<span class="bar-fill' + (bad ? ' is-bad' : '') + '" style="width:' + pct.toFixed(1) + '%">' +
-        '</span>' +
-      '</span>' +
+      barTrack(s.total, scale) +
       '<b>' + UNIT[unit].fmt(s.total) + '</b>' +
     '</div>';
   }).join('');

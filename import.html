@@ -1208,10 +1208,52 @@ async function runImport() {
     return;
   }
 
+  /* READ THEM BACK. The upsert not returning an error is not the same as the
+   * rows being there.
+   *
+   * This page used to report "1,142 trades imported" on the strength of one
+   * call not erroring, which is an assertion rather than a check - and the day
+   * that stopped being true, the page said exactly what it says when it works.
+   * A silent partial write is the worst shape a bug can take here, because the
+   * number it prints is the number you wanted to see.
+   *
+   * Asked in chunks because a query naming a thousand ids is a URL nobody's
+   * proxy is obliged to accept.
+   */
+  let found = 0;
+  try {
+    const ids = payload.map((r) => r.external_id);
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: back } = await supabase
+        .from('trades')
+        .select('external_id')
+        .eq('user_id', profile.id)
+        .in('external_id', ids.slice(i, i + 200));
+      found += (back || []).length;
+    }
+  } catch (err) {
+    found = -1;   // could not check, which is not the same as a failure
+  }
+
   const accounts = [...new Set(payload.map((r) => r.account))];
+  const into = accounts.length > 4
+    ? accounts.length + ' accounts'
+    : accounts.join(', ');
+
+  if (found >= 0 && found < payload.length) {
+    // The number that matters is the gap, and it is stated first.
+    setStatus('#import-status',
+      (payload.length - found) + ' of ' + payload.length + ' rows did not save. ' +
+      'The database now holds ' + found + '. Nothing here can say why — try again, and if the ' +
+      'same number comes back, the file and the count are worth reporting together.', 'error');
+    btn.disabled = false;
+    return;
+  }
+
   setStatus('#import-status',
-    payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' +
-    accounts.join(', ') + '. They are in the journal and on the calendar now.', 'ok');
+    payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' + into +
+    (found >= 0 ? ', and all ' + found + ' read back from the database' : '') +
+    '. Reload the journal or the calendar to see them.', 'ok');
   btn.textContent = 'Imported';
 }
 

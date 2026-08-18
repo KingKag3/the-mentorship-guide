@@ -2856,7 +2856,26 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   overflow: hidden;
 }
 
-.bar-fill { height: 100%; background: var(--bull); border-radius: 999px; }
+/* `display: block` is what makes this visible at all, and its absence is why
+   every bar on the site drew an empty track.
+
+   Both track and fill are spans. The TRACK gets away with it: `.bar-row` is a
+   grid, so its direct children are blockified and `height: 9px` applies. The
+   FILL is a child of the track, which is not a grid or flex container, so it
+   stayed inline - and width and height do nothing whatever on an inline box.
+   The style attribute said `width: 27.4%` and the browser was right to ignore
+   it.
+
+   It looked like a data problem for as long as it existed: a bar reading
+   $4,102.70 / $15,000.00 beside a track with nothing in it reads as a figure
+   that has not been computed. */
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--bull);
+  border-radius: 999px;
+}
+
 .bar-fill.is-bad { background: var(--bear); }
 
 .bar-row > b {

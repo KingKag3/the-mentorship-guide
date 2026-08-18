@@ -398,8 +398,18 @@ order and two pages can overlap or miss. Verified against a stand-in that enforc
 thousand-row wall — 10 checks including contiguity across 3,333 rows and an error on the second
 page being surfaced rather than swallowed.
 
+**Confirmed the same day.** With paging in place the calendar reads 1672 as 25/11/5/3/6/12 trades
+across 11–18 August, totalling 4,102.70 — WealthCharts' Realized PnL for that account, to the cent,
+with both week subtotals right.
+
 **The lesson worth keeping: a limit is a request, not a guarantee.** Anything reading a table that
 could exceed a thousand rows goes through `fetchPaged`.
+
+**And one that cost a round trip either side of it: GitHub Pages serves `Cache-Control: max-age=600`.**
+For ten minutes after a deploy a browser can keep the old files, and a normal reload will happily
+reuse a cached ES module — so a fix that is live on the site is not yet live in the tab looking at
+it. "Nothing has changed" after a deploy means hard-refresh or a private window before it means
+anything else.
 
 ---
 

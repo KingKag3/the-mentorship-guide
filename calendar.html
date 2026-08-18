@@ -199,6 +199,28 @@ if (error) {
   throw error;
 }
 
+/* The profit target each account is being judged against, where one is set.
+ *
+ * Only used as a CEILING for the per-account bars. The table may not exist on
+ * a project that has never run `prop-accounts.sql`, and an account may be
+ * configured with no target at all, so every failure here is silent and the
+ * bars fall back to comparing accounts with each other. A missing target is
+ * not an error; it is a member who has not filled the form in.
+ */
+const targets = new Map();
+{
+  const { data: accts } = await supabase
+    .from('prop_accounts')
+    .select('account, kind, profit_target');
+  for (const a of accts || []) {
+    const t = toNumber(a.profit_target);
+    // `funded` has no target by definition, and `live` is your own money.
+    if ((a.kind || 'prop') === 'prop' && Number.isFinite(t) && t > 0) {
+      targets.set(a.account, t);
+    }
+  }
+}
+
 // Everything downstream was written against oldest-first, so it is handed
 // back that way rather than teaching each part a second order.
 const rows5 = (data || []).slice().sort(
@@ -462,20 +484,52 @@ function accountBreakdown(rows) {
   const split = accountSplit(rows);
   if (split.length < 2) return '';
 
+  /* A CEILING, WHERE ONE EXISTS, RATHER THAN THE BIGGEST ACCOUNT.
+   *
+   * This used to scale every bar against the largest month total, which makes
+   * the best account 100% by construction and says nothing else. Run eighteen
+   * copies of the same trade, as anybody on a copier does, and you get
+   * eighteen full bars separated by rounding - a chart whose only content is a
+   * ranking, drawn as though it were a measurement.
+   *
+   * With a profit target the bar has an outside meaning: how much of the
+   * target this month put on the board. Two accounts are then comparable
+   * because both are measured against their own goal, not against each other.
+   *
+   * THE WINDOW IS THE MONTH AND THE TARGET IS NOT. An evaluation that started
+   * in July has progress this bar cannot see, so it reads low - which is why
+   * the note below says so and the props page, which windows by attempt, is
+   * where the real figure lives.
+   *
+   * R has no target to compare against - a target is a dollar figure - so in R
+   * mode every bar keeps the old relative scale.
+   */
+  const useTargets = metric !== 'r' && split.some((s) => targets.has(s.name));
   const scale = Math.max(...split.map((s) => Math.abs(dayValue(s.t) ?? 0)), 1);
 
   return '<h2>By account</h2>' +
     split.map((s) => {
       const v = dayValue(s.t);
-      const pct = Math.abs(v ?? 0) / scale * 100;
+      const of = useTargets ? targets.get(s.name) : undefined;
+      const pct = of
+        ? Math.max(0, Math.min(100, ((v ?? 0) / of) * 100))
+        : Math.abs(v ?? 0) / scale * 100;
       return '<div class="bar-row">' +
         '<span>' + escapeHtml(label(s.name)) + '</span>' +
         '<span class="bar-track"><span class="bar-fill' + ((v ?? 0) < 0 ? ' is-bad' : '') +
           '" style="width:' + pct.toFixed(1) + '%"></span></span>' +
-        '<b>' + fmt(v) + '</b>' +
+        '<b>' + fmt(v) + (of ? ' <span class="acct-muted">/ ' + money(of) + '</span>' : '') + '</b>' +
       '</div>';
     }).join('') +
-    '<p class="stat-note">' + split.length + ' accounts traded this month.</p>';
+    '<p class="stat-note">' + split.length + ' accounts traded this month. ' +
+      (useTargets
+        ? 'Bars with a figure after them are scaled to that account&rsquo;s profit target &mdash; ' +
+          'this month&rsquo;s share of it, not the whole evaluation, which may have started before ' +
+          'the month did. The rest have no target set and are scaled against the largest month.'
+        : 'No profit targets are set, so each bar is scaled against the largest month rather than ' +
+          'against anything outside this page. Set a target on the accounts page and they become ' +
+          'progress instead of a ranking.') +
+    '</p>';
 }
 
 function bestWorst(days, pick) {

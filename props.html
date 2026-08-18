@@ -70,6 +70,12 @@
     <strong>floor</strong>: the real one is at least this bad and can be considerably worse. Use it
     to see a trend, never to decide whether an account is still alive. The firm's own dashboard is
     the only thing that can answer that.</p>
+    <p><strong>&ldquo;Room left&rdquo; leans the other way, and that is the dangerous one.</strong>
+    It is the same arithmetic read forwards &mdash; the drawdown less the fall from the high-water
+    mark, which your firm calls distance to drawdown. Because this peak is the lowest the real peak
+    can be, the room shown is the <strong>most</strong> you could possibly have. A higher real peak
+    means a higher floor and less room than this says. It can tell you that you are in trouble; it
+    can never tell you that you are safe.</p>
   </div>
 
   <div class="cal-toggle">
@@ -336,7 +342,17 @@ function progress(account, cfg, attemptRow, dd) {
     byDay.set(key, (byDay.get(key) || 0) + d);
   }
 
-  return { total, worstDip, worstOn, breachedOn, days, counted,
+  /* The dip it is sitting in NOW, which is a different question from the
+   * deepest it ever went. An account can carry an ugly `worstDip` and have
+   * full room today, because it climbed back out; the firm only ever charges
+   * you for the distance between the high-water mark and where you are.
+   *
+   * `peak` comes out with it because a trailing floor is anchored to the peak
+   * rather than to the start, and the renderer needs the anchor to say where
+   * the floor actually sits. */
+  const dipNow = peak - total;
+
+  return { total, peak, dipNow, worstDip, worstOn, breachedOn, days, counted,
            trades: mine.length, byDay };
 }
 
@@ -655,6 +671,34 @@ function card(name) {
   const done = target > 0 && p.total >= target;
   const daysShort = cfg.min_days ? Math.max(0, cfg.min_days - p.days) : 0;
 
+  /* HOW MUCH ROOM IS LEFT - what the firm's dashboard calls distance to
+   * drawdown, and the only figure on this card that answers "can tomorrow go
+   * wrong". Worst dip cannot: it is the deepest hole the account was ever in,
+   * and it stays at that number for ever, including on a day the account has
+   * fully recovered and is perfectly safe.
+   *
+   *     room = drawdown - (peak - total)
+   *
+   * A trailing floor follows the high-water mark, so the anchor is the peak.
+   * Once it LOCKS it stops following, and the anchor becomes `lock_at`
+   * instead - which is why a locked account's floor sits just above where it
+   * started rather than a full drawdown below its best day. Apex locks at the
+   * allowance plus a hundred; nothing here assumes that, it reads the field.
+   *
+   * IT IS A CEILING, WHICH IS THE OPPOSITE OF EVERY OTHER NUMBER ON THIS PAGE.
+   *
+   * Worst dip is a floor - the real one is at least that bad. This is the
+   * other way up. The journal holds closed trades, so this peak is the LOWEST
+   * the real peak can be, and a higher real peak means a higher floor and less
+   * room than this claims. It can tell you that you are in trouble. It can
+   * never tell you how safe you are, so the last few hundred of it are not
+   * yours to trade.
+   */
+  const lockAt = toNumber(cfg.lock_at);
+  const locked = Number.isFinite(lockAt) && p.peak >= lockAt;
+  const anchor = locked ? lockAt : p.peak;
+  const room = dd ? dd - (anchor - p.total) : null;
+
   // Only a target that has actually been reached earns the celebration, and
   // only while the account is still open - a passed account keeps its badge
   // without re-firing the animation on every page load.
@@ -702,6 +746,10 @@ function card(name) {
       ? bar('Worst dip so far', p.worstDip, dd, 'is-bad')
       : '') +
 
+    (isWatched && dd
+      ? bar('Room left', room, dd, room !== null && room <= dd * 0.25 ? 'is-bad' : '')
+      : '') +
+
     '<div class="card-grid">' +
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +
         '</div><p>' + p.trades + ' closed trade' + (p.trades === 1 ? '' : 's') + '</p></div>' +
@@ -710,6 +758,13 @@ function card(name) {
         : cfg.min_days ? 'Minimum ' + cfg.min_days : 'No minimum set') + '</p></div>' +
       '<div class="card"><h3>Worst dip</h3><div class="readout-big">' + money(p.worstDip) +
         '</div><p>From closed trades. A floor, not the figure the firm holds</p></div>' +
+      (isWatched && dd
+        ? '<div class="card"><h3>Room left</h3><div class="readout-big">' + money(room) +
+          '</div><p>' + (locked
+            ? 'Floor locked ' + money(anchor - dd) + ' above the start'
+            : 'Floor trails ' + money(dd) + ' under ' + money(p.peak)) +
+          '. A ceiling &mdash; the real one is no better</p></div>'
+        : '') +
     '</div>' +
 
     // Where a passed evaluation turns into the thing it earned. Only on a

@@ -619,8 +619,12 @@ Be honest about this list before trusting anything below it.
   unambiguous. It resolved all 72 pairs in the 36 crowded buckets. Used only within a bucket: across
   the whole export, unrelated ids can share as little as three characters.
 
-  **Confirmed end to end.** After re-importing one complete export, all 19 accounts match
-  WealthCharts' Realized PnL to the cent and total 61,302.50, against 69,809.84 before. No cleanup
+  **Confirmed end to end, twice.** After re-importing one complete export, all 19 accounts match
+  WealthCharts' Realized PnL to the cent and total 61,302.50, against 69,809.84 before. Then again
+  on 18 August against a 2,284-row export containing 19 four-leg buckets — the shape that was
+  losing trades — where the fold reproduces **both** of WealthCharts' own columns exactly: Daily
+  PnL per account summing to 15,514.30, and Realized PnL summing to 76,816.80. 19 of 19 on each,
+  no legs dropped. No cleanup
   was needed in the end: re-importing produced the correct ids directly, and the old rows turned out
   to be a subset of the correct ones rather than wrong ones — for 1672, 48 of 50, missing exactly
   the −472.63 of losses.

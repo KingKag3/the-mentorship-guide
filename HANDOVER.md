@@ -374,6 +374,35 @@ changed pairing leaves the old row behind under a dead id.
 
 ---
 
+### PostgREST returns a thousand rows and says nothing — 18 August 2026
+
+**Supabase sets `db-max-rows` to 1000.** A `.limit(5000)` is not an error and produces no warning:
+the request succeeds, a thousand rows come back, and the page draws them as though that were
+everything.
+
+Five reads were over that: the calendar at 5,001, the journal at 5,001 and its export at 20,000,
+the statistics page at 2,001, and `props.html` at 5,000. **Every one had been reading a thousand
+for as long as anybody had a thousand trades.** The statistics page was computing win rates,
+Wilson intervals and a 3,000-run bootstrap over a truncated set while printing "showing the most
+recent 2,000". `props.html` was measuring trailing drawdowns from a slice, which is the worst place
+on the site to be quietly short of data.
+
+It surfaced by accident. The calendar was flipped from oldest-first to newest-first so that
+exceeding the cap would drop old trades rather than today's — and that moved which end fell off, so
+11 August lost eight trades per account. 1,142 rows minus the thousand allowed is 142; spread over
+that day's 450 it leaves 17 of 25 per account, which is exactly what appeared.
+
+`fetchPaged` in `app.js` pages with `.range()` and reports `capped` only when the cap is genuinely
+reached. It needs an ORDER on the query, not optionally: without one Postgres may return rows in any
+order and two pages can overlap or miss. Verified against a stand-in that enforces the same
+thousand-row wall — 10 checks including contiguity across 3,333 rows and an error on the second
+page being surfaced rather than swallowed.
+
+**The lesson worth keeping: a limit is a request, not a guarantee.** Anything reading a table that
+could exceed a thousand rows goes through `fetchPaged`.
+
+---
+
 ## Untested
 
 Be honest about this list before trusting anything below it.

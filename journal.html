@@ -387,7 +387,8 @@ import {
   compressImage, signedUrlMap, MEDIA_BUCKET, renderToolRail,
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
-  pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor } from './app.js';
+  pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor,
+  fetchPaged } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -751,21 +752,18 @@ let shotUrls = new Map();
 let replies = new Map();
 
 async function load() {
-  const { data, error } = await supabase
+  /* Paged. PostgREST returns a thousand rows whatever the limit says, so
+   * `.limit(5001)` was reading 1,000 and the "showing the most recent 5,000"
+   * note was describing a cap that never applied. See fetchPaged in app.js.
+   *
+   * The cap was five hundred when the page drew every row it held. Paging
+   * retired that reason, and filtering makes a low cap actively misleading:
+   * narrowing to one prop account out of the newest five hundred rows shows a
+   * fraction of that account's history under a heading that does not say so. */
+  const { data, error, capped: overCap } = await fetchPaged(() => supabase
     .from('trades')
     .select('*')
-    .order('opened_at', { ascending: false })
-    /* One more than is kept, purely to find out whether there were more. A list
-     * silently cut looks complete, and the trades it drops are the oldest -
-     * the ones somebody goes looking for.
-     *
-     * The cap was five hundred when the page drew every row it held. Paging
-     * retired that reason, and filtering makes a low cap actively misleading:
-     * narrowing to one prop account out of the newest five hundred rows shows
-     * a fraction of that account's history under a heading that does not say
-     * so. Five thousand matches what the calendar and the statistics page
-     * already load. */
-    .limit(5001);
+    .order('opened_at', { ascending: false }), 5000);
 
   const mount = $('list');
 
@@ -774,7 +772,7 @@ async function load() {
     return;
   }
 
-  const capped = (data || []).length > 5000;
+  const capped = overCap;
   rows = (data || []).slice(0, 5000);
 
   // Offered back as suggestions so the second trade in an account is a pick
@@ -1533,11 +1531,12 @@ $('export-journal').addEventListener('click', async () => {
   btn.disabled = true;
   setStatus('#status', 'Gathering...', 'info');
 
-  const { data, error } = await supabase
+  // Paged, so an export of a big journal is the whole journal rather than its
+  // first thousand rows - which is the one file somebody keeps.
+  const { data, error } = await fetchPaged(() => supabase
     .from('trades')
     .select('*')
-    .order('opened_at', { ascending: true })
-    .limit(20000);
+    .order('opened_at', { ascending: true }), 50000);
 
   btn.disabled = false;
   if (error) { setStatus('#status', error.message, 'error'); return; }

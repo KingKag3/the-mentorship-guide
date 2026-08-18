@@ -369,6 +369,53 @@ export async function renderAccountStrip(selector = '#account-strip') {
   }
 }
 
+/* --------------------------- reading more than a thousand rows -------------
+ *
+ * POSTGREST REFUSES TO RETURN MORE THAN A THOUSAND ROWS, AND SAYS NOTHING.
+ *
+ * Supabase sets `db-max-rows` to 1000. A `.limit(5000)` is not an error and
+ * does not warn: the request succeeds, a thousand rows come back, and the page
+ * draws whatever it was given as though that were everything.
+ *
+ * Five pages here asked for 2,001, 5,000, 5,001 and 20,000. Every one of them
+ * has been reading a thousand for as long as anybody has had a thousand
+ * trades. The calendar showed it first - eight trades short on the oldest day
+ * it displayed, which is exactly 1,142 rows minus the thousand it was allowed.
+ * Nothing else showed it at all, and the statistics page was computing win
+ * rates and bootstraps over a truncated set while saying it had read them all.
+ *
+ * `.range(from, to)` pages past it. The builder is single-use, so this takes a
+ * function that makes a fresh one rather than a query.
+ *
+ *     const { data, error, capped } = await fetchPaged(
+ *       () => supabase.from('trades').select('*').order('opened_at'), 5000);
+ *
+ * An ORDER is required, not optional: without one Postgres may return rows in
+ * any order and two pages can then overlap or miss.
+ *
+ * `capped` is true only when the cap was genuinely reached, so a page can say
+ * so honestly rather than guessing from a round number.
+ */
+const PAGE = 1000;
+
+export async function fetchPaged(build, cap = 20000) {
+  const out = [];
+
+  for (let from = 0; from < cap; from += PAGE) {
+    const to = Math.min(from + PAGE, cap) - 1;
+    const { data, error } = await build().range(from, to);
+    if (error) return { data: null, error, capped: false };
+
+    const got = data || [];
+    out.push(...got);
+
+    // Short page means the end of the table, whatever the cap says.
+    if (got.length < to - from + 1) return { data: out, error: null, capped: false };
+  }
+
+  return { data: out, error: null, capped: true };
+}
+
 /* --------------------------- the mentor's queue ---------------------------
  *
  * The rule for "is this trade still waiting on a reply" lives here rather than

@@ -156,7 +156,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
-         tradeValue, money, localDay, hasResult, toNumber, dbError,
+         tradeValue, money, localDay, hasResult, toNumber, dbError, fetchPaged,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager } from './app.js';
 
@@ -189,21 +189,19 @@ cursor.setDate(1);
  */
 const CAP = 5000;
 
-const { data, error } = await supabase
+const { data, error, capped } = await fetchPaged(() => supabase
   .from('trades')
   .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz, account, fees, net_pnl')
-  .order('opened_at', { ascending: false })
-  .limit(CAP + 1);
+  .order('opened_at', { ascending: false }), CAP);
 
 if (error) {
   $('summary').innerHTML = dbError(error);
   throw error;
 }
 
-const capped = (data || []).length > CAP;
 // Everything downstream was written against oldest-first, so it is handed
 // back that way rather than teaching each part a second order.
-const rows5 = (data || []).slice(0, CAP).sort(
+const rows5 = (data || []).slice().sort(
   (a, b) => new Date(a.opened_at) - new Date(b.opened_at));
 
 // A trade counts once it has a result: an R multiple, or a dollar figure typed

@@ -189,7 +189,8 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
-         accountsHidden, setAccountsHidden, aliasMap, distinctDecisions } from './app.js';
+         accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
+         fetchPaged } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
@@ -208,14 +209,21 @@ const MIN_SAMPLE = 10;
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const { data, error } = await supabase
+/* Paged, because PostgREST returns a thousand rows however large the limit is
+ * and says nothing about it. `.limit(2001)` was reading 1,000 - so a member
+ * with more than that had their win rate, their bootstrap and every finding on
+ * this page computed over a slice of their journal, presented as all of it.
+ * See fetchPaged in app.js.
+ *
+ * One over the cap still, so truncation is detected rather than assumed away.
+ * Statistics on a silently truncated set are worse than none: they look
+ * authoritative and describe a period the member did not ask about. */
+const STATS_CAP = 20000;
+
+const { data, error, capped: readAll } = await fetchPaged(() => supabase
   .from('trades')
   .select('*')
-  .order('opened_at', { ascending: true })
-  // One over the cap, so truncation can be detected rather than assumed away.
-  // Statistics computed on a silently truncated set are worse than none: they
-  // look authoritative and describe a period the member did not ask about.
-  .limit(2001);
+  .order('opened_at', { ascending: true }), STATS_CAP);
 
 if (error) {
   document.getElementById('summary').innerHTML = dbError(error);
@@ -238,8 +246,8 @@ if (error) {
  * is a page that opens empty for the people with the most trades.
  */
 
-const capped = (data || []).length > 2000;
-const rows = (data || []).slice(0, 2000);
+const capped = readAll;
+const rows = data || [];
 
 /* Declared here, at the top, and not next to the function that reads it.
  *

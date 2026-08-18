@@ -72,10 +72,25 @@ let seenColumn = true;
 async function loadUsers() { return seenColumn ? 'a' : 'b'; }
 </script>""", True),
 
-    # And the false positive that fix caused on the first attempt. A listener
-    # registered at the top level opens its body at depth ZERO, and testing that
-    # depth for truthiness rather than for None read every listener in
-    # stats.html as setup - 39 phantom bugs on a page that works.
+    # A property name on the left of a destructure is not a read of a variable
+    # that happens to share its name. stats.html was reported as reading a
+    # `capped` declared thirty lines further down; `capped:` was the key.
+    'destructure key is not a read': ("""<script type="module">
+const { data, capped: readAll } = await load();
+const capped = readAll;
+function load() { return {}; }
+</script>""", False),
+
+    # And the real bug still has to be caught on the right of the same `=`.
+    'right of the equals still counts': ("""<script type="module">
+const { data } = await load();
+let later = 1;
+function load() { return later; }
+</script>""", True),
+
+    # A listener registered at the top level opens its body at depth ZERO, and
+    # testing that depth for truthiness rather than for None read every listener
+    # in stats.html as setup - 39 phantom bugs on a page that works.
     'multi-line listener body at depth zero': ("""<script type="module">
 document.getElementById('unit-toggle').addEventListener('change', (e) => {
   if (e.target.name !== 'unit') return;

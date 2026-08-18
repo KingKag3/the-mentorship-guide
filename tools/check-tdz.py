@@ -214,6 +214,18 @@ def scan_text(raw):
         # during setup, so following it invented three bugs in calendar.html
         # that cannot happen. Everything before the first => is immediate.
         immediate = clean.split('=>')[0] if '=>' in clean else clean
+
+        # On a declaration, only the RIGHT of the first `=` is a read. The left
+        # is what is being declared - and in a destructure the key side is not
+        # even a variable: `const { capped: readAll } = f()` reads `f`, not
+        # `capped`. Without this the checker reported stats.html as reading a
+        # `capped` declared thirty lines below, which is a property name that
+        # happens to match. A checker that invents a bug gets ignored, and then
+        # the real one is ignored with it.
+        if DECL.match(clean) or DESTRUCTURE.match(clean):
+            eq = immediate.find('=')
+            immediate = immediate[eq + 1:] if eq >= 0 else ''
+
         names = set(WORD.findall(immediate)) - KEYWORDS
         names |= reachable(names & touches.keys())
         for word in sorted(names):

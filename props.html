@@ -150,7 +150,7 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
          accountsHidden, setAccountsHidden, aliasMap,
-         toNumber,
+         toNumber, fetchPaged,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES } from './app.js';
 
 renderAccountStrip();
@@ -176,11 +176,15 @@ const mount = $('accounts');
 
 /* ------------------------------- the data -------------------------------- */
 
+/* Paged. PostgREST caps a response at a thousand rows however large the limit
+ * is, so this was reading 1,000 - and every drawdown, day count and payout
+ * figure on the page was computed from a slice of the journal without saying
+ * so. On an account being judged against a trailing drawdown that is the worst
+ * place on the site to be quietly short of data. See fetchPaged in app.js. */
 const [tradesRes, propsRes, presetRes, attemptRes] = await Promise.all([
-  supabase.from('trades')
+  fetchPaged(() => supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
-    .order('opened_at', { ascending: true })
-    .limit(5000),
+    .order('opened_at', { ascending: true }), 50000),
   supabase.from('prop_accounts')
     .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, min_days, status, started_on, settled_on'),
   supabase.from('prop_presets').select('firm, size, profit_target').order('size'),

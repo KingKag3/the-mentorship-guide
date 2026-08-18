@@ -177,21 +177,51 @@ cursor.setDate(1);
 
 // --- data ------------------------------------------------------------------
 
+/* NEWEST first, then sorted back. The order matters more than it looks.
+ *
+ * This used to ask for the oldest 5,000 - ascending with a cap - so the first
+ * trade to be dropped once somebody passes five thousand would be the one they
+ * placed this morning. A calendar losing the current month while keeping every
+ * January is precisely backwards, and it would do it in silence.
+ *
+ * One over the cap, purely to find out whether there were more. The same trick
+ * the journal and the statistics page already use; the calendar was missed.
+ */
+const CAP = 5000;
+
 const { data, error } = await supabase
   .from('trades')
   .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz, account, fees, net_pnl')
-  .order('opened_at', { ascending: true })
-  .limit(5000);
+  .order('opened_at', { ascending: false })
+  .limit(CAP + 1);
 
 if (error) {
   $('summary').innerHTML = dbError(error);
   throw error;
 }
 
+const capped = (data || []).length > CAP;
+// Everything downstream was written against oldest-first, so it is handed
+// back that way rather than teaching each part a second order.
+const rows5 = (data || []).slice(0, CAP).sort(
+  (a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+
 // A trade counts once it has a result: an R multiple, or a dollar figure typed
 // straight from the account. Somebody reconciling a prop account at the end of
 // the day has the second and not the first, and their day is not "unfinished".
-const closed = (data || []).filter(hasResult);
+const closed = rows5.filter(hasResult);
+
+// Said out loud rather than left to be noticed. A month that is missing trades
+// looks like a quiet month, and there is nothing on the page to say otherwise.
+if (capped) {
+  const note = document.getElementById('count-note') || $('summary');
+  if (note) {
+    note.insertAdjacentHTML('afterbegin',
+      '<div class="callout warn"><span class="callout-label">Showing the most recent 5,000</span>' +
+      '<p>There are more trades than that. The oldest are not on this calendar &mdash; the ' +
+      'statistics page reads all of them.</p></div>');
+  }
+}
 
 const accounts = [...new Set(closed.map((r) => r.account).filter(Boolean))].sort();
 

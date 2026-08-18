@@ -417,6 +417,26 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **&ldquo;Room left&rdquo; on `props.html` — the arithmetic is proved, the rendering is not.**
+  Added 18 August 2026. Fifteen assertions ran in a browser against the exact loop `progress()`
+  uses, and it reproduces the figures Kag3's firm shows for a $250k Apex account from closed trades
+  alone: `$6,380.00` of room and a `$247,722.70` threshold, with nothing pasted in. What has *not*
+  been seen is the card drawing it against live rows, or a locked account — `lock_at` is a
+  funded-account field and no funded account has ever been configured, so the `locked` branch has
+  only ever run against fixtures.
+
+  Two things to know before believing a number it prints. **It is a ceiling, not a floor**, which
+  is backwards from every other figure on that page: the peak it measures from is the lowest the
+  real peak can be, so a higher real peak means less room than shown. And it is only as right as
+  the `drawdown` field — the account in the screenshot was configured at `6,000` where the
+  balances imply Apex's `6,500`, which understates the room by $500. Wrong in the safe direction,
+  still wrong.
+
+- **The per-account bars on `calendar.html` now take a profit target as their ceiling.** Same date.
+  The percentage arithmetic is in the fifteen above; the `prop_accounts` read that feeds it has not
+  been watched against a project where the table is absent, which is the case it is written to
+  survive silently.
+
 - **The screenshot upload and the `journal/<user id>/` storage policy** — unexercised unless an
   image has been attached. Still assumes `(storage.foldername(name))[1]` is the first path segment.
 - **`supabase/journal-media-privacy.sql` — applied and verified on 12 August 2026, and no longer on

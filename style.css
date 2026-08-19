@@ -2395,13 +2395,37 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 .pick-cell { width: 1%; padding-right: 0 !important; }
 .pick-cell input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand-500); }
 
+/* THE -14px BELONGS TO A FORM FIELD, NOT TO THIS CLASS.
+
+   It exists so a note sits tight under the input it is about, closing the gap
+   the input's own bottom margin leaves. That is right, and it was applied to
+   every `.field-note` on the site - of which two thirds do not follow an input
+   at all. Everywhere else it drags the note 14px up into whatever came before.
+
+   Mostly that was invisible, because the thing above happened to end in 14px
+   of margin and the note merely sat snug against it. On the review card in
+   `admin.html` the thing above is `.review-tags`, which has no bottom margin,
+   so "Planned 3.1R, took 0.84R" was drawn straight through the middle of the
+   tag row. It looked like a card that had been thrown together rather than a
+   single wrong number in a shared rule.
+
+   So the pull is scoped to the shape it was written for. Everything else gets
+   ordinary paragraph spacing. */
 .field-note {
   font-family: var(--sans);
   font-size: 0.8rem;
-  margin: -14px 0 var(--s-3);
+  margin: var(--s-2) 0 var(--s-3);
   min-height: 1em;
   color: var(--ink-500);
 }
+
+/* `.field-pair` is a grid of two inputs and ends in their margin, so it counts
+   as a field for this purpose - the note lands on the inputs' visual bottom
+   rather than over anything drawn. */
+input + .field-note,
+textarea + .field-note,
+select + .field-note,
+.field-pair + .field-note { margin-top: -14px; }
 
 .field-note-ok  { color: var(--bull); font-weight: 500; }
 .field-note-bad { color: var(--warn); font-weight: 500; }

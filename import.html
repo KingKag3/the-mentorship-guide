@@ -132,6 +132,11 @@
     <p class="form-status" id="status"></p>
   </form>
 
+  <!-- Filled in by renderPreview, so it cannot appear before a file has been
+       read and understood. Importing is one button either way; this one just
+       saves scrolling past the column mapping to reach it. -->
+  <div id="actions-top"></div>
+
   <div id="shape"></div>
   <div id="mapping"></div>
   <div id="preview"></div>
@@ -1012,6 +1017,7 @@ function reset() {
   $('shape').innerHTML = '';
   $('mapping').innerHTML = '';
   $('preview').innerHTML = '';
+  $('actions-top').innerHTML = '';
 }
 
 function afterRows() {
@@ -1075,6 +1081,7 @@ function renderPreview(dayFirst) {
       '<p>No row survived: ' + escapeHtml(reasons.map(([r, n]) => n + ' with ' + r).join(', ')) +
       '. Check the mapping above — the sample value beside each dropdown shows what that column ' +
       'really holds.</p></div>';
+    $('actions-top').innerHTML = '';
     return;
   }
 
@@ -1149,6 +1156,28 @@ function renderPreview(dayFirst) {
     '<p class="form-status" id="import-status"></p>' +
     '<p class="stat-note"><a href="#import-form">Back to the top</a></p>';
 
+  /* THE SAME PAIR OF BUTTONS, UP BESIDE THE FILE PICKER.
+   *
+   * The code below has always wired `do-import-top` and `cancel-top` and they
+   * were never built, so `$('do-import-top')` was null and the loop threw on
+   * its second turn - before it reached the line that wires Cancel. Cancel has
+   * therefore done nothing at all, on a page where the only way out of a wrong
+   * file was to reload it.
+   *
+   * It is rendered here rather than in the form because that keeps the one
+   * rule worth keeping: the button exists only when a file has been read and
+   * something survived the mapping. It cannot be pressed early, only reached
+   * without scrolling past the column list. */
+  $('actions-top').innerHTML =
+    '<div class="row-actions">' +
+      '<button class="btn-primary" type="button" id="do-import-top">Import ' +
+        (parsed.length - collapsed) + ' trade' +
+        (parsed.length - collapsed === 1 ? '' : 's') + '</button>' +
+      '<button class="link-button" type="button" id="cancel-top">Cancel</button>' +
+      '<span class="stat-note">or read what it made of the file first, below.</span>' +
+    '</div>' +
+    '<p class="form-status" id="import-status-top"></p>';
+
   const cancel = () => {
     $('file').value = '';
     reset();
@@ -1183,9 +1212,20 @@ function card(label, value, note) {
 /* -------------------------------- the write ------------------------------- */
 
 async function runImport() {
-  const btn = $('do-import');
-  btn.disabled = true;
-  setStatus('#import-status', 'Importing…', 'info');
+  /* Two buttons now, and every one of them has to move together. A page that
+   * disables the button you pressed and leaves its twin live invites a second
+   * import of the same file while the first is still in flight - and a status
+   * written to one end of the page is invisible from the other, which is the
+   * whole reason the second button exists. */
+  const buttons = ['do-import', 'do-import-top'].map($).filter(Boolean);
+  const busy = (state) => buttons.forEach((b) => { b.disabled = state; });
+  const say = (message, tone) => {
+    setStatus('#import-status', message, tone);
+    if ($('import-status-top')) setStatus('#import-status-top', message, tone);
+  };
+
+  busy(true);
+  say('Importing…', 'info');
 
   // Collapsed before the write, not after. Postgres refuses an upsert whose
   // payload touches the same key twice, and the error it gives for it explains
@@ -1200,11 +1240,10 @@ async function runImport() {
 
   if (error) {
     const file = migrationHint(error);
-    setStatus('#import-status',
-      file ? error.message + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
+    say(file ? error.message + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
            : error.message,
       'error');
-    btn.disabled = false;
+    busy(false);
     return;
   }
 
@@ -1242,19 +1281,17 @@ async function runImport() {
 
   if (found >= 0 && found < payload.length) {
     // The number that matters is the gap, and it is stated first.
-    setStatus('#import-status',
-      (payload.length - found) + ' of ' + payload.length + ' rows did not save. ' +
+    say((payload.length - found) + ' of ' + payload.length + ' rows did not save. ' +
       'The database now holds ' + found + '. Nothing here can say why — try again, and if the ' +
       'same number comes back, the file and the count are worth reporting together.', 'error');
-    btn.disabled = false;
+    busy(false);
     return;
   }
 
-  setStatus('#import-status',
-    payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' + into +
+  say(payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' + into +
     (found >= 0 ? ', and all ' + found + ' read back from the database' : '') +
     '. Reload the journal or the calendar to see them.', 'ok');
-  btn.textContent = 'Imported';
+  buttons.forEach((b) => { b.textContent = 'Imported'; });
 }
 
 /* ------------------------------- the template ------------------------------ */

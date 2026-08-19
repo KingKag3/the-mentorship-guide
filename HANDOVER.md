@@ -417,6 +417,17 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **The Import button beside the file picker on `import.html`, and Cancel with it.** 18 August
+  2026. The page could not be driven here - it is behind `requireRole` and there is no session on
+  this machine - so what is proved is that the file parses, that nothing looks up an element the
+  page never renders, and that the checker which says so catches the exact bug on the pre-fix file.
+  Pressing either button against a real file has not been done.
+
+  Worth knowing what was actually wrong: the wiring for `do-import-top` and `cancel-top` was
+  already there and the buttons were not, so `$('do-import-top')` was null, the loop threw, and the
+  line that wires **Cancel** never ran. Cancel has therefore never worked on that page.
+  `tools/check-element-ids.py` exists now to catch that shape.
+
 - **&ldquo;Room left&rdquo; on `props.html` — the arithmetic is proved, the rendering is not.**
   Added 18 August 2026. Fifteen assertions ran in a browser against the exact loop `progress()`
   uses, and it reproduces the figures Kag3's firm shows for a $250k Apex account from closed trades

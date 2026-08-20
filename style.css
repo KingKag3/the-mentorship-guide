@@ -2811,6 +2811,32 @@ select + .field-note,
 
 .tool-grid .auth-form-wide { max-width: none; margin: 0; }
 
+/* The repeated Import button on import.html, between the card that takes the
+   file and the card that names the header row.
+
+   Those cards carry no margin of their own - measured, not assumed: dropped
+   straight after one another they touch, and every gap on that page comes from
+   whatever sits between them. So a bare block placed there arrives flush
+   against the card above and reads as part of it, which is the last thing a
+   button that writes a thousand rows should look like.
+
+   Held to the same 640px as .auth-form-wide so the note beside the button ends
+   where the cards end rather than running past them into the margin. */
+#actions-top {
+  max-width: 640px;
+  margin: var(--s-4) 0 var(--s-5);
+}
+
+/* Wider than the default row spacing. Import writes a thousand rows and Cancel
+   throws the file away; eight pixels between them is not enough to be sure
+   which one is under the cursor. */
+#actions-top .row-actions { gap: var(--s-3) var(--s-4); }
+
+/* Empty for as long as no file has been read, which is most of the time this
+   page is open. Margins on an empty block still push the cards apart, and a
+   gap with nothing in it reads as something that failed to load. */
+#actions-top:empty { margin: 0; }
+
 .readout {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);

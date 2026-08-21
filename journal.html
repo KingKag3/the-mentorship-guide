@@ -296,6 +296,8 @@
     <button type="button" class="link-button" id="bulk-clear">Clear selection</button>
   </div>
 
+  <div id="in-view"></div>
+
   <div id="pager-top"></div>
   <div id="list"></div>
   <div id="pager-bottom"></div>
@@ -388,7 +390,7 @@ import {
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor,
-  fetchPaged } from './app.js';
+  distinctDecisions, hasResult, localDay, fetchPaged } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -799,12 +801,30 @@ async function load() {
    * load() sets it once; syncViewTabs replaces it while the Sent for review
    * tab is open. Without keeping the original, switching back to All left the
    * review sentence sitting under a list it no longer described. */
+  /* DECISIONS, WHERE THEY DIFFER FROM ROWS.
+   *
+   * This is the first sentence on the page and it counted rows, so a member
+   * running nineteen copied accounts was told they had logged 6,650 trades
+   * when they had taken 350. The calendar and the statistics page both stopped
+   * doing that months ago; the journal never did, and it is the one a member
+   * reads first.
+   *
+   * The advice attached to the number has to follow it. "Fifty is roughly
+   * where the statistics start meaning something" is about fifty pieces of
+   * evidence, and nineteen copies of one trade are one - so a copier being
+   * told at 950 rows that they have plenty is being told the opposite of the
+   * truth. */
+  const taken = distinctDecisions(rows).length;
+
   baseCountNote = !rows.length ? ''
     : capped
       ? 'Showing the most recent 5,000. There are more - the statistics and the calendar read all ' +
         'of them, and the export below takes the lot.'
-      : rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ' +
-        (rows.length < 50
+      : (taken < rows.length
+          ? taken + ' decision' + (taken === 1 ? '' : 's') + ' logged, held across ' +
+            rows.length + ' rows. A copy is not a second trade. '
+          : rows.length + ' trade' + (rows.length === 1 ? '' : 's') + ' logged. ') +
+        (taken < 50
           ? 'Fifty is roughly where the statistics start meaning something.'
           : 'Enough for the statistics to be worth reading.');
 
@@ -952,8 +972,94 @@ function th(label, key) {
     '</button></th>';
 }
 
+/* WHAT YOU ARE LOOKING AT, ABOVE THE THING YOU ARE LOOKING AT.
+ *
+ * The journal could tell you every fact about one trade and nothing at all
+ * about the set of them. Narrow to an account, or to the ones sent for review,
+ * and the page changed underneath you without saying what the new selection
+ * was worth - so answering "how did that account actually do" meant leaving
+ * for the statistics page, which does not have the same filter.
+ *
+ * Deliberately four figures and no analysis. Anything that reads a pattern out
+ * of these belongs on the statistics page, behind the permutation gate, not
+ * inside a filter control. This says what is in front of you and stops.
+ */
+function inViewSummary(list) {
+  const mount = $('in-view');
+  if (list.length < 2) { mount.innerHTML = ''; return; }
+
+  const taken = distinctDecisions(list).length;
+  const closed = list.filter(hasResult);
+  const open = list.length - closed.length;
+
+  const cash = (r) => tradeValue({
+    symbol: r.symbol, points: r.points, contracts: r.contracts,
+    fees: r.fees, netPnl: r.net_pnl
+  }).dollars;
+
+  // MONEY OVER ROWS, COUNTS OVER DECISIONS - the split the rest of the site
+  // uses. Nineteen accounts really did lose nineteen times, so the total is
+  // pooled. They did not lose nineteen separate times, so "285 up, 304 down"
+  // would be one decision reported nineteen times as if it were evidence.
+  let total = 0;
+  let known = 0;
+  for (const r of closed) {
+    const dollars = cash(r);
+    if (dollars === null) continue;
+    known++;
+    total += dollars;
+  }
+
+  let wins = 0;
+  let losses = 0;
+  for (const r of distinctDecisions(closed)) {
+    const dollars = cash(r);
+    if (dollars === null) continue;
+    if (dollars > 0) wins++; else if (dollars < 0) losses++;
+  }
+
+  const days = [...new Set(list.map((r) => localDay(r.opened_at)).filter(Boolean))].sort();
+  const nice = (key) => new Date(key + 'T12:00:00').toLocaleDateString(undefined,
+    { day: 'numeric', month: 'short', year: 'numeric' });
+  const span = days.length
+    ? (days.length === 1 ? nice(days[0]) : nice(days[0]) + ' to ' + nice(days[days.length - 1]))
+    : '';
+
+  const decided = wins + losses;
+  const card = (label, value, note) =>
+    '<div class="card"><h3>' + escapeHtml(label) + '</h3>' +
+    '<div class="readout-big">' + escapeHtml(value) + '</div>' +
+    '<p>' + note + '</p></div>';
+
+  mount.innerHTML =
+    '<div class="card-grid">' +
+      card('In view', String(taken),
+        taken < list.length
+          ? 'decisions, across ' + list.length + ' rows'
+          : (taken === 1 ? 'trade' : 'trades') +
+            (open ? ', ' + open + ' still open' : '')) +
+      card('Total', known ? money(total) : '—',
+        known < closed.length
+          ? known + ' of ' + closed.length + ' rows carry a figure'
+          // Only true when copies are actually in view. Filtered to one
+          // account there is nothing to pool, and saying so anyway is the
+          // page describing a different page.
+          : taken < list.length ? 'pooled across every account'
+            : 'across ' + known + ' closed') +
+      card('Green', decided ? Math.round(wins / decided * 100) + '%' : '—',
+        decided ? wins + ' up, ' + losses + ' down' : 'nothing with a result yet') +
+      card('Spanning', String(days.length) + (days.length === 1 ? ' day' : ' days'),
+        escapeHtml(span)) +
+    '</div>' +
+    '<p class="stat-note">The rows below, whatever the filters are set to. Money is pooled ' +
+    'across accounts; the count is not, because a copy is not a second decision. Nothing here ' +
+    'reads a pattern &mdash; that is <a href="stats.html">the statistics page</a>, which tests ' +
+    'one before it prints it.</p>';
+}
+
 function drawPage() {
   const list = visible();
+  inViewSummary(list);
   const state = { ...pageSlice(list, page, per), per };
   page = state.page;
 

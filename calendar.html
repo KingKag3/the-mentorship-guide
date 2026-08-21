@@ -159,6 +159,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError, fetchPaged,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager, barTrack } from './app.js';
+import { longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'calendar.html');
@@ -290,7 +291,20 @@ function dayTotals(rows) {
     });
     if (v.dollars !== null) { dollars += v.dollars; dollarsKnown = true; }
   }
-  return { n: rows.length, r, rKnown, dollars, dollarsKnown };
+  /* `n` is DECISIONS, not rows.
+   *
+   * The week column already refused to count trades, and says why in a comment
+   * three hundred lines above this one: eighteen copied accounts turn one
+   * decision into eighteen rows, so a trade count reads as activity that never
+   * happened. The summary card was fixed the same way. The day cell and the
+   * day heading were both missed, and they are the two a member looks at most
+   * - a Tuesday reading "19 trades" when they took one is the page telling
+   * them something false about their own morning.
+   *
+   * `rows` keeps the raw figure, because "one decision, held in 19 accounts"
+   * is worth being able to say. */
+  return { n: distinctDecisions(rows).length, rows: rows.length,
+           r, rKnown, dollars, dollarsKnown };
 }
 
 // Per-account split for the month, so two accounts on the same day stay
@@ -305,6 +319,16 @@ function accountSplit(rows) {
   return [...map.entries()]
     .map(([name, list]) => ({ name, t: dayTotals(list) }))
     .sort((a, b) => (dayValue(b.t) ?? 0) - (dayValue(a.t) ?? 0));
+}
+
+/* "3 trades", or "3 decisions" when copies are involved.
+ *
+ * The word has to change with the number. Saying "3 trades" where 57 rows sit
+ * behind three decisions is only half fixed - the count is right and the noun
+ * is still telling somebody they placed three orders. */
+function countLabel(t) {
+  if (t.rows > t.n) return t.n + (t.n === 1 ? ' decision' : ' decisions');
+  return t.n + (t.n === 1 ? ' trade' : ' trades');
 }
 
 function dayValue(t) {
@@ -402,7 +426,7 @@ function render() {
       '<button type="button" class="cal-cell has-trades ' + cls + '" data-day="' + key + '">' +
         '<span class="cal-date">' + d + '</span>' +
         '<span class="cal-value">' + fmt(value) + '</span>' +
-        '<span class="cal-count">' + t.n + (t.n === 1 ? ' trade' : ' trades') + '</span>' +
+        '<span class="cal-count">' + countLabel(t) + '</span>' +
       '</button>'
     );
   }
@@ -457,8 +481,8 @@ function renderSummary(rows) {
       // accounts really did make eighteen lots of money; the count does not,
       // because you made the decision once.
       card('Trades', String(decisionCount),
-        decisionCount === t.n ? 'closed this month'
-          : 'decisions this month, held across ' + t.n + ' rows') +
+        decisionCount === t.rows ? 'closed this month'
+          : 'decisions this month, held across ' + t.rows + ' rows') +
       card('Total', fmt(total), metric === 'r' ? 'sum of R' : 'sum across known contracts') +
       card('Best day', fmt(best), best === null ? 'nothing to compare yet'
         : days.length === 1 ? 'the only day this month' : 'largest single day') +
@@ -470,10 +494,87 @@ function renderSummary(rows) {
           : worst >= 0 ? 'no losing day this month'
           : 'largest single loss') +
     '</div>' +
+    monthPath(days) +
     accountBreakdown(rows) +
     (t.dollarsKnown || metric === 'r' ? '' :
       '<p class="stat-note">No dollar figures this month. Either record the result in dollars on ' +
       'the trade, or use a symbol with a known contract spec — ES, MES, NQ or MNQ.</p>');
+}
+
+/* THE PATH, NOT THE DESTINATION.
+ *
+ * A calendar is thirty independent squares and a total at the end. It cannot
+ * show the one thing a month actually does, which is go somewhere and come
+ * back: +$4,100 on the last day is a different month depending on whether it
+ * was ever $6,000 down on the way there, and on a trailing drawdown account
+ * that difference is the account.
+ *
+ * Everything here is a walk over the daily totals in date order. Days without
+ * a figure are skipped rather than treated as flat, because "no dollar value
+ * recorded" is not the same as "made nothing".
+ *
+ * IT IS THE SAME FLOOR THE PROPS PAGE CARRIES. Closed trades only, so a dip
+ * that happened intraday and recovered before the close is invisible here. The
+ * real one is at least this bad.
+ */
+function monthPath(days) {
+  const ordered = [...days].sort()
+    .map((key) => [key, dayValue(dayTotals(byDay.get(key)))])
+    .filter(([, v]) => v !== null);
+
+  if (ordered.length < 3) return '';
+
+  let curve = 0;
+  let peak = 0;
+  let peakOn = null;
+  let dip = 0;
+  let dipOn = null;
+  let low = 0;
+  let lowOn = null;
+
+  for (const [key, value] of ordered) {
+    curve += value;
+    if (curve > peak) { peak = curve; peakOn = key; }
+    if (curve < low) { low = curve; lowOn = key; }
+    if (peak - curve > dip) { dip = peak - curve; dipOn = key; }
+  }
+
+  const nice = (key) => key
+    ? new Date(key + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    : '';
+
+  /* The longest run of losing DAYS, against what that win rate produces on its
+   * own. Days rather than trades, because that is what a calendar is made of
+   * and what a member actually experiences - four red squares in a row is the
+   * thing that changes behaviour, and it is usually unremarkable. */
+  const values = ordered.map(([, v]) => v);
+  const greens = values.filter((v) => v > 0).length;
+  const run = longestRun(values, (v) => v < 0);
+  const odds = streakOdds(values.length, greens / values.length, run, 2000);
+
+  const streak = odds && run >= 2
+    ? '<p class="stat-note"><strong>' + run + ' losing days in a row was the worst run.</strong> ' +
+      (odds.atLeastObserved >= 0.2
+        ? 'Dealing ' + values.length + ' days at this month&rsquo;s win rate produces a run that ' +
+          'long or longer ' + Math.round(odds.atLeastObserved * 100) + ' times in 100, so it is ' +
+          'what this win rate looks like rather than a sign something broke.'
+        : 'Only ' + (odds.atLeastObserved * 100).toFixed(1) + ' in 100 months at this win rate ' +
+          'contain a run that long. Worth asking what those days had in common.') + '</p>'
+    : '';
+
+  return '<h2>How the month got here</h2>' +
+    '<div class="card-grid">' +
+      card('Best it reached', fmt(peak),
+        peak > 0 ? 'on ' + nice(peakOn) : 'never above where it started') +
+      card('Deepest dip', dip > 0 ? fmt(-dip) : '—',
+        dip > 0 ? 'from that peak, by ' + nice(dipOn) : 'never gave back a peak') +
+      card('Furthest down', low < 0 ? fmt(low) : '—',
+        low < 0 ? 'below the start, on ' + nice(lowOn) : 'never below where it started') +
+    '</div>' +
+    streak +
+    '<p class="stat-note">Closed trades in date order. A dip that opened and closed inside one ' +
+    'day is invisible to this, so the deepest dip is a floor rather than the figure your firm ' +
+    'held &mdash; the same caveat the <a href="props.html">accounts page</a> carries.</p>';
 }
 
 // Only worth drawing when there is more than one account to compare, and only
@@ -601,7 +702,7 @@ function dayGroup(key, rows) {
       '<span>' + escapeHtml(new Date(key + 'T12:00:00').toLocaleDateString(undefined,
         { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
       '<span class="day-group-sum">' + fmt(value) + '</span>' +
-      '<span class="day-group-n">' + t.n + (t.n === 1 ? ' trade' : ' trades') + '</span>' +
+      '<span class="day-group-n">' + countLabel(t) + '</span>' +
     '</h3>' +
     '<div class="table-scroll"><table><thead><tr>' +
       '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +

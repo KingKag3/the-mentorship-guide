@@ -417,6 +417,17 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **The calendar's month path and the journal's in-view summary.** 18 August 2026, driven through
+  the same probe as the statistics page: the shipped files with only their `./app.js` import
+  repointed at a session stub. On a fixture of 31 decisions held in 19 accounts, over a month built
+  to rise then fall, the calendar reported *best it reached $16,649.32 on Aug 4, deepest dip
+  $58,580.42 by Aug 23* against a month that ended at **-$23,247.07** — which is the whole reason
+  the block exists. The day cells read "2 decisions" where they used to read the row count, and the
+  journal's first line reads *31 decisions logged, held across 589 rows*.
+
+  Not verified against a live journal, and the fixture is synthetic. The streak comparison reuses
+  `streakOdds`, which was already proved; the walk itself is new and has no test beyond the probe.
+
 - **The statistics page now gates every finding, and it was driven end to end against the real page
   source rather than a retyping of it.** 18 August 2026. `stats.html` is behind `requireRole`, so it
   was run through a probe: the shipped page with only its `./app.js` import repointed at a shim that

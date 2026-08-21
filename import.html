@@ -1018,6 +1018,16 @@ function reset() {
   $('mapping').innerHTML = '';
   $('preview').innerHTML = '';
   $('actions-top').innerHTML = '';
+
+  /* THE STATUS LINE IS PART OF THE STATE, AND IT USED TO SURVIVE THIS.
+   *
+   * Everything else went and "1256 round turns folded from 2512 fills." stayed
+   * — in green, above an empty page, describing a file that had just been
+   * thrown away. That is worse than no message: it is a page reporting success
+   * for something that is no longer there, and the only reason it went unseen
+   * is that Cancel never worked, so nothing ever reached this. */
+  lastFile = null;
+  setStatus('#status', '', 'info');
 }
 
 function afterRows() {
@@ -1178,9 +1188,14 @@ function renderPreview(dayFirst) {
     '</div>' +
     '<p class="form-status" id="import-status-top"></p>';
 
+  /* Say what happened. Cancel empties most of the page, and a page that empties
+   * in silence reads as one that broke rather than one that did as it was
+   * told - especially here, where the button had never once answered before. */
   const cancel = () => {
     $('file').value = '';
     reset();
+    setStatus('#status', 'File discarded, and nothing was imported. ' +
+      'Choose another to start again.', 'info');
   };
   for (const id of ['do-import', 'do-import-top']) {
     $(id).addEventListener('click', runImport);

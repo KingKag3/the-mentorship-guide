@@ -84,17 +84,44 @@ alter table public.prop_presets
 
 comment on column public.prop_presets.lock_at is
   'How far above the starting balance the trailing drawdown stops trailing. '
-  'Apex locks at the allowance plus 100, which is why the locked floor sits '
-  'just above where the account started rather than a full drawdown below its '
-  'best day. Null means it never locks, or that nobody has recorded it.';
+  'Left null for every Apex size: the firm''s own account table shows an '
+  'evaluation still trailing at a full allowance under its high-water mark '
+  'well past the point the published rule says it should have locked. Null '
+  'means nobody has recorded a lock, which the accounts page reads as never '
+  'locking - the safe way to be wrong, because a lock invents room.';
 
 
 -- ---------------------------------------------------------------------------
 -- 2. The Apex ladder
 --
--- `lock_at` is drawdown + 100 throughout, which is Apex's rule rather than an
--- arithmetic coincidence - the threshold locks at the starting balance plus
--- $100 once the account has climbed a full allowance above where it began.
+-- `lock_at` IS DELIBERATELY NULL, AND THIS FILE ONCE SAID drawdown + 100.
+--
+-- That is the published Apex rule - the threshold stops trailing and locks at
+-- the starting balance plus $100 once the account has climbed a full allowance
+-- above where it began - and it was seeded across the ladder on that basis.
+--
+-- The firm's own account table says it does not happen on an evaluation.
+-- Nineteen $250,000 evaluations, every one of them between $6,746 and $8,242
+-- in profit, all comfortably past the $6,600 the lock is supposed to fire at,
+-- and every single threshold still sitting exactly one allowance under the
+-- high-water mark:
+--
+--     account   max balance   threshold   max - threshold   firm's distance
+--     1672       258,491.80  251,991.80          6,500.00          6,230.00
+--     1673       258,105.50  251,605.50          6,500.00          6,445.00
+--     1690       256,806.00  250,306.00          6,500.00          6,440.00
+--
+-- Computed as a pure trailing floor, `6500 - (peak - current)` reproduces the
+-- firm's own distance-to-drawdown figure to the cent on all five accounts
+-- checked. Computed with the lock at 6,600 it overstates the room by $1,891 on
+-- the first of them.
+--
+-- So on an evaluation the drawdown trails the whole way. Whatever the lock
+-- applies to - a funded account, a different product, a rule that changed -
+-- it is not this, and the wrong direction to guess in is the one that invents
+-- room. Null means "nobody has recorded a lock for this", the accounts page
+-- treats that as never locking, and a member who knows better sets it per
+-- account.
 --
 -- Written as an upsert on the primary key so re-running this file cannot
 -- create duplicates, and so a corrected number here replaces the old one
@@ -102,13 +129,13 @@ comment on column public.prop_presets.lock_at is
 -- ---------------------------------------------------------------------------
 
 insert into public.prop_presets (firm, size, profit_target, drawdown, lock_at) values
-  ('Apex',  25000,  1500, 1500, 1600),
-  ('Apex',  50000,  3000, 2500, 2600),
-  ('Apex',  75000,  4250, 2750, 2850),
-  ('Apex', 100000,  6000, 3000, 3100),
-  ('Apex', 150000,  9000, 5000, 5100),
-  ('Apex', 250000, 15000, 6500, 6600),   -- verified 18 Aug 2026, see above
-  ('Apex', 300000, 20000, 7500, 7600)
+  ('Apex',  25000,  1500, 1500, null),
+  ('Apex',  50000,  3000, 2500, null),
+  ('Apex',  75000,  4250, 2750, null),
+  ('Apex', 100000,  6000, 3000, null),
+  ('Apex', 150000,  9000, 5000, null),
+  ('Apex', 250000, 15000, 6500, null),   -- drawdown verified 18 Aug 2026, see above
+  ('Apex', 300000, 20000, 7500, null)
 on conflict (firm, size) do update
   set profit_target = excluded.profit_target,
       drawdown      = excluded.drawdown,
@@ -139,15 +166,41 @@ on conflict (firm, size) do update
 --  where firm = 'Apex'
 --  order by size;
 
--- b) lock_at is a hundred above the drawdown on every row, which is the rule.
+-- b) No lock is seeded, on any row.
 --
--- select firm, size, drawdown, lock_at, lock_at - drawdown as gap
+-- select firm, size, drawdown, lock_at
 --   from public.prop_presets
---  where drawdown is not null
---  order by firm, size;
+--  where lock_at is not null;      -- expect zero rows
 
--- c) Nobody's account was touched. Whatever this returned before this file was
---    run, it returns now.
+-- c) CLEARING A LOCK ALREADY SET ON YOUR OWN ACCOUNTS
+--
+-- Only needed if an earlier run of this file put 6,600 into the bulk form and
+-- it was applied. The accounts page can set that field and cannot clear it -
+-- the bulk form leaves blanks alone by design - so this is the way back.
+--
+-- SCOPED TO ONE USER, AND NOT OPTIONAL. The SQL editor connects as the table
+-- owner and row-level security does not apply to the owner, so an update
+-- without a user_id filter reaches every member's accounts. See the top of
+-- RUN-THESE.md for the same warning in full.
+--
+-- Two steps. Find the id first, read it, then paste it into the second.
+--
+-- select id, email from auth.users where email = 'you@example.com';
+--
+-- update public.prop_accounts
+--    set lock_at = null
+--  where user_id = '00000000-0000-0000-0000-000000000000'   -- <- the id above
+--    and kind = 'prop';
+--
+-- Then check what changed, before believing it:
+--
+-- select account, kind, drawdown, lock_at
+--   from public.prop_accounts
+--  where user_id = '00000000-0000-0000-0000-000000000000'
+--  order by account;
+
+-- d) Nobody's account was touched by the seed itself. Whatever this returned
+--    before this file was run, it returns now.
 --
 -- select account, size, profit_target, drawdown
 --   from public.prop_accounts

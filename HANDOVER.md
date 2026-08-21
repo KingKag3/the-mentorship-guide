@@ -417,6 +417,25 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **The drawdown lock does NOT fire on an Apex evaluation, and the site said it did.** 18 August
+  2026. `prop-preset-drawdown.sql` seeded `lock_at` as drawdown + 100 across the ladder, on the
+  published rule, and the advice given was to apply 6,600 to all nineteen accounts. It was applied.
+
+  The firm's own account table contradicts it. Nineteen $250,000 evaluations between $6,746 and
+  $8,242 in profit — all well past the $6,600 the lock is supposed to fire at — and every threshold
+  still sitting exactly $6,500 under its high-water mark. Computed as a pure trailing floor,
+  `6500 - (peak - current)` reproduces the firm's own distance-to-drawdown **to the cent on all five
+  accounts checked**. Computed with the lock it overstates room by $1,891 on the first of them,
+  which is the direction that ends an account.
+
+  Preset corrected to null. The bulk form gained a **Clear the drawdown lock** checkbox, because it
+  could set a field across nineteen accounts and not unset it, and the only way back was a
+  hand-written `update` in the SQL editor — the one place on this project where a missing `where`
+  reaches every member.
+
+  **The lock may still be real on a funded account.** Nothing here tested that; there has never been
+  a funded account on this project. What is established is that an evaluation trails the whole way.
+
 - **Five columns on `prop_accounts` were written by the form and never selected back.** Found 18
   August 2026 by trying to answer "where is the lock_at field". `save()` had always sent `lock_at`,
   the three `payout_*` fields and `from_account`; the query asked for none of them. So a member

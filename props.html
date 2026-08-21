@@ -1008,6 +1008,26 @@ function renderBulk() {
         '</div>' +
 
         '<label>Apply to</label>' +
+        /* SETTING NINETEEN ACCOUNTS AT ONCE NEEDS A WAY BACK.
+         *
+         * "Anything left blank is left alone" is the right default - it is what
+         * makes this form safe to use for a single field - and it means a value
+         * applied across nineteen accounts cannot be taken off them again
+         * except one card at a time.
+         *
+         * That is not hypothetical. A drawdown lock was applied to nineteen
+         * evaluations on advice that turned out to be wrong, and the only way
+         * back was a hand-written UPDATE in the SQL editor, which is the one
+         * place on this project where a missing WHERE clause reaches every
+         * member. A checkbox is a better answer than a query.
+         *
+         * Explicit and separate from the field, because "clear it" and "set it
+         * to nothing" have to look different from each other. */
+        '<label class="check-line"><input type="checkbox" name="clear_lock">' +
+          '<span>Clear the drawdown lock instead &mdash; use this to undo a lock that was ' +
+          'applied by mistake. An evaluation whose floor never stops trailing should have ' +
+          'this empty.</span></label>' +
+
         '<div class="row-actions">' +
           '<button class="link-button" type="button" data-pick="all">All ' + names.length + '</button>' +
           '<button class="link-button" type="button" data-pick="none">None</button>' +
@@ -1103,6 +1123,12 @@ async function applyBulk(e) {
   for (const k of Object.keys(candidate)) {
     if (candidate[k] !== undefined) patch[k] = candidate[k];
   }
+
+  // The one field that can be removed rather than only set. Overrides whatever
+  // is typed in the box above it, because asking to clear something and typing
+  // a value for it at the same time is a mistake, and clearing is the safer
+  // reading of it.
+  if (form.querySelector('[name="clear_lock"]').checked) patch.lock_at = null;
 
   if (!Object.keys(patch).length) {
     setStatus('#bulk-status', 'Nothing filled in, so there is nothing to apply.', 'error');

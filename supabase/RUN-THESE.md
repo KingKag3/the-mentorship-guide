@@ -26,14 +26,20 @@ correctly and automatically, which is exactly why it survived.
 that is a figure a member entered, and a migration quietly changing somebody's risk settings is a
 worse idea than the wrong number it fixes. The accounts page now shows the disagreement instead.
 
-**After running it**, on the accounts page: fill in `Drawdown` = `6500` and `Drawdown locks at` =
-`6600` in the bulk form, pick all nineteen, apply. Everything left blank is left alone.
+**After running it**, on the accounts page: fill in `Drawdown` = `6500` in the bulk form, pick all
+nineteen, apply. Everything left blank is left alone.
 
-The lock matters more than it looks. Apex stops trailing once the account is a full allowance plus
-$100 above where it started, and until that field is set the page keeps measuring room from a peak
-that has in reality stopped moving. On identical trades the difference was **$8,300 of room against
-$6,320** — the page was understating by nearly two thousand dollars, in the safe direction, on an
-account that had already locked.
+**Leave `Drawdown locks at` empty.** An earlier version of this file said to set it to `6600`, on
+the published Apex rule that the threshold stops trailing once the account is a full allowance plus
+$100 above its start. The firm's own account table says that does not happen on an evaluation —
+nineteen of them between $6,746 and $8,242 in profit, every one still trailing a full $6,500 under
+its high-water mark. Computed as a pure trailing floor the page reproduces the firm's own
+distance-to-drawdown to the cent on all five accounts checked; computed with the lock it overstates
+by **$1,891**, which is the dangerous direction.
+
+**If the lock was already applied**, tick *"Clear the drawdown lock instead"* in the bulk form, pick
+all nineteen and apply. That checkbox exists because of this. There is also a scoped `update` at the
+bottom of the migration if you would rather do it in SQL — read the warning above it first.
 
 **One row is verified and six are not.** Apex $250,000 was checked against a live account table on
 18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets

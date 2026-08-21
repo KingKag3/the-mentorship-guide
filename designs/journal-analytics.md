@@ -252,6 +252,36 @@ and it is worth writing down why: it shuffled the order the rows were *generated
 `sequenceOfDecisions` sorts by timestamp, so 11:00 was still always the fourth trade. The fold was
 right and the test was wrong.
 
+### Caught on live data, 18 August 2026
+
+Kag3's own journal produced the shape neither fixture had: **one finding shown, and none cleared.**
+
+    You win often and lose big. A 71% win rate, but the average loser (-$504.01) is larger
+    than the average winner ($364.32).
+
+    7 habits were tested against chance and none cleared the bar.
+
+Two faults in one screen.
+
+**The denominator said seven and six exist.** When the leading tail of the clock gate failed, the
+code fell through to a block that re-asked *both* tails on `second` — and with nothing settled,
+`second` is the same object as `first`. The losing tail was counted twice, on identical data, for
+an identical answer. The clock now asks exactly two questions whichever way round they go.
+
+**A finding sat above the words "none cleared the bar".** The shape of the edge is deliberately
+ungated: it describes the whole record rather than picking a slice, so there is nothing to correct
+for. But the page never said so, and the intro above it claimed *everything here had to survive a
+test*. Read together that is the page contradicting itself, which is the fastest way to lose
+somebody who was starting to trust it.
+
+`gated` is now a flag of its own rather than being inferred from whether a finding has a key set —
+conflating them was the actual bug. Hold time has no key set and *is* gated; the shape of the edge
+has no key set and is not. The note now says which, and the intro no longer overclaims.
+
+**113 decisions from 1,379 rows, and nothing distinguishable from chance, is the gate working.**
+That is the honest answer at that sample size and it is worth more than a pattern that would have
+turned up anyway.
+
 ### Still to do on this
 
 - **Complement confounding, which containment cannot see.** On the independent fixture, "your edge

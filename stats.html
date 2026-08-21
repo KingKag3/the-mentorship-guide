@@ -1010,9 +1010,16 @@ function computeFindings(list) {
    * long you hold and the shape of your edge describe an axis through all of
    * them; their set is everything, so containment against them is always total
    * and folding on it would swallow the page. */
-  const add = (impact, name, html, lesson, keys = null) =>
+  /* `gated` is separate from `keys`, and conflating them was the bug.
+   *
+   * How long you hold has no key set - its trades are all of them - but it IS
+   * gated. The shape of your edge has no key set and is NOT gated, because it
+   * picks nothing and there is nothing to correct for. Reading "no keys" as
+   * "not tested" would have exempted the wrong one; reading it as "tested"
+   * printed a finding above a line saying none had cleared. */
+  const add = (impact, name, html, lesson, keys = null, gated = true) =>
     found.push({ impact: Math.abs(impact), name,
-                 html: html + lessonLink(lesson), keys });
+                 html: html + lessonLink(lesson), keys, gated });
 
   const keysWhere = (test) => new Set(ev.filter(test).map(decisionKey));
 
@@ -1063,64 +1070,61 @@ function computeFindings(list) {
   const byHour = (r) => hhmm(hourOf(r));
   {
     const first = gateGroups(byHour);
-    const worstLeads = !first.best || (first.worst && first.worst.p <= first.best.p);
-
-    const worstGate = worstLeads ? first : null;
-    const bestGate = worstLeads ? null : first;
-
     const worstOk = (g) => g && g.worst && g.worst.p < GATE_P && g.worst.value < 0;
     const bestOk = (g) => g && g.best && g.best.p < GATE_P && g.best.value > 0;
 
-    // The leading tail, judged on everything.
-    let ledWorst = worstLeads && asked(worstOk(first));
-    let ledBest = !worstLeads && asked(bestOk(first));
-
-    if (ledWorst) {
-      const cost = impactOf(byHour, first.worst.key);
-      add(cost, 'the ' + first.worst.key + ' hour',
-        '<strong>' + escapeHtml(String(first.worst.key)) + ' is costing you.</strong> ' +
-        first.worst.n + ' decisions in that hour across ' + first.worst.days + ' days, ' +
+    const worstFinding = (g, note) => {
+      const cost = impactOf(byHour, g.worst.key);
+      add(cost, 'the ' + g.worst.key + ' hour',
+        '<strong>' + escapeHtml(String(g.worst.key)) + ' is costing you.</strong> ' +
+        g.worst.n + ' decisions in that hour across ' + g.worst.days + ' days, ' +
         fmt(cost) + ' between them. Leave the hour alone and the period reads ' +
         fmt(total - cost) + ' instead of ' + fmt(total) + ' &mdash; though dropping your worst ' +
-        'hour in hindsight flatters a random trader too, by ' +
-        fmt(first.worst.gainByChance) + ' on this journal. ' + chanceNote(first.worst.p),
-        'clock', keysWhere((r) => byHour(r) === first.worst.key));
-    }
-    if (ledBest) {
-      const made = impactOf(byHour, first.best.key);
+        'hour in hindsight flatters a random trader too, by ' + fmt(g.worst.gainByChance) +
+        ' on this journal. ' + chanceNote(g.worst.p) + note, 'clock',
+        keysWhere((r) => byHour(r) === g.worst.key));
+    };
+
+    const bestFinding = (g, note) => {
+      const made = impactOf(byHour, g.best.key);
       add(made, 'your best hour',
-        '<strong>Your edge is concentrated in ' + escapeHtml(String(first.best.key)) +
-        '.</strong> ' + first.best.n + ' decisions there made ' + fmt(made) + ', against ' +
+        '<strong>Your edge is concentrated in ' + escapeHtml(String(g.best.key)) +
+        '.</strong> ' + g.best.n + ' decisions there made ' + fmt(made) + ', against ' +
         fmt(total) + ' for the whole period. Most of what you make, you make in one hour. ' +
-        chanceNote(first.best.p), 'clock',
-        keysWhere((r) => byHour(r) === first.best.key));
+        chanceNote(g.best.p) + note, 'clock',
+        keysWhere((r) => byHour(r) === g.best.key));
+    };
+
+    /* EXACTLY TWO QUESTIONS, WHICHEVER WAY ROUND THEY GO.
+     *
+     * The first version asked three whenever the leading tail failed: it fell
+     * through to a block that re-asked BOTH tails on `second`, and with nothing
+     * settled `second` is the same gate object as `first`. So the losing tail
+     * was counted twice against the denominator, on identical data, for an
+     * identical answer - which is how the page came to say "7 habits were
+     * tested" when six exist. */
+    const leadIsWorst = !first.best || (first.worst && first.worst.p <= first.best.p);
+    const leadOk = leadIsWorst ? worstOk : bestOk;
+    const trailOk = leadIsWorst ? bestOk : worstOk;
+    const leadAdd = leadIsWorst ? worstFinding : bestFinding;
+    const trailAdd = leadIsWorst ? bestFinding : worstFinding;
+
+    let settled = null;
+    if (asked(leadOk(first))) {
+      leadAdd(first, '');
+      settled = leadIsWorst ? first.worst.key : first.best.key;
     }
 
-    /* The trailing tail, asked again without the hour that just won. */
-    const settled = ledWorst ? first.worst.key : ledBest ? first.best.key : null;
-    const rest = settled ? ev.filter((r) => byHour(r) !== settled) : ev;
-    const second = settled ? gateGroups(byHour, rest) : first;
+    // Stepped down only if the leading tail actually won something. With
+    // nothing set aside there is nothing to step down from, so the trailing
+    // tail is judged on the gate already computed rather than a second one.
+    const second = settled ? gateGroups(byHour, ev.filter((r) => byHour(r) !== settled)) : first;
     const stepped = settled
       ? ' <span class="acct-muted">Asked again with ' + escapeHtml(String(settled)) +
         ' set aside, so this is not simply the shadow of that one.</span>'
       : '';
 
-    if (!ledWorst && asked(worstOk(second))) {
-      const cost = impactOf(byHour, second.worst.key);
-      add(cost, 'the ' + second.worst.key + ' hour',
-        '<strong>' + escapeHtml(String(second.worst.key)) + ' is costing you.</strong> ' +
-        second.worst.n + ' decisions in that hour across ' + second.worst.days + ' days, ' +
-        fmt(cost) + ' between them. ' + chanceNote(second.worst.p) + stepped, 'clock',
-        keysWhere((r) => byHour(r) === second.worst.key));
-    }
-    if (!ledBest && asked(bestOk(second))) {
-      const made = impactOf(byHour, second.best.key);
-      add(made, 'your best hour',
-        '<strong>Your edge is concentrated in ' + escapeHtml(String(second.best.key)) +
-        '.</strong> ' + second.best.n + ' decisions there made ' + fmt(made) + '. ' +
-        chanceNote(second.best.p) + stepped, 'clock',
-        keysWhere((r) => byHour(r) === second.best.key));
-    }
+    if (asked(trailOk(second))) trailAdd(second, stepped);
   }
 
   // --- overtrading -------------------------------------------------------
@@ -1267,13 +1271,13 @@ function computeFindings(list) {
           '<strong>You are wrong more often than you are right, and it does not matter.</strong> ' +
           'A ' + s.winRate.toFixed(0) + '% win rate, but the average winner is ' + fmt(aw) +
           ' against ' + fmt(-alo) + ' for the average loser. The edge is in the size, not the ' +
-          'frequency, which is worth knowing before you go chasing a higher win rate.', 'shape');
+          'frequency, which is worth knowing before you go chasing a higher win rate.', 'shape', null, false);
       }
       if (s.winRate > 55 && aw < alo) {
         add(0, 'the shape of your edge',
           '<strong>You win often and lose big.</strong> A ' + s.winRate.toFixed(0) +
           '% win rate, but the average loser (' + fmt(-alo) + ') is larger than the average ' +
-          'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.', 'shape');
+          'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.', 'shape', null, false);
       }
     }
   }
@@ -1329,11 +1333,17 @@ function computeFindings(list) {
       '. That is one habit described twice, not two to fix.</span>';
   }
 
+  const items = ranked.filter((f) => !f.folded).slice(0, 5);
+
   return {
-    items: ranked.filter((f) => !f.folded).slice(0, 5),
+    items,
     tested,
     cleared,
     folded,
+    // Shown but never tested, because there was nothing to test. Counted so
+    // the note underneath can say so rather than leaving a finding sitting
+    // above the words "none cleared the bar".
+    described: items.filter((f) => !f.gated).length,
     decisions: ev.length,
     rows: list.length
   };
@@ -1362,10 +1372,27 @@ function renderFindings(list) {
       : result.cleared === 1 ? 'one cleared it' : result.cleared + ' cleared it') + '.'
   ];
 
+
   if (result.decisions < result.rows) {
     sentences.push('Counted over <strong>' + result.decisions + '</strong> decisions rather than ' +
       result.rows + ' rows, because the same trade is held in several accounts and a copy is not ' +
       'extra evidence. The money quoted is still the total across all of them.');
+  }
+
+  /* THE ONE ABOVE MAY NOT BE A HABIT AT ALL.
+   *
+   * The shape of your edge - a 71% win rate with losers bigger than winners -
+   * is not a slice picked out of the journal, it is the whole journal viewed
+   * side on. There is nothing to correct for and no test that would mean
+   * anything, so it is shown ungated. Without this sentence it sat directly
+   * above "none cleared the bar", which reads as the page contradicting
+   * itself and is the fastest way to lose somebody. */
+  if (result.described) {
+    sentences.push((result.described === 1
+      ? 'The finding above describes your whole record rather than picking a slice out of it'
+      : result.described + ' of those above describe your whole record rather than picking a ' +
+        'slice out of it') + ', so there was no selection to correct for and nothing to test ' +
+      'against chance. It is shown because it is true, not because it survived anything.');
   }
 
   if (result.folded && result.folded.length) {
@@ -1393,11 +1420,12 @@ function renderFindings(list) {
 
   mount.innerHTML =
     '<h2>What your journal says</h2>' +
-    '<p class="stat-note">Everything here had to survive a test before it was allowed to appear: ' +
-    'your own results, dealt again in a different order within each day, a thousand times over, ' +
-    'to see how often a pattern this strong turns up by itself. What survived is <strong>ranked ' +
-    'by how much money is involved</strong>, which is a different question from whether it is ' +
-    'real. Each one names the number it came from so you can go and check it.</p>' +
+    '<p class="stat-note">Any finding that picks a slice out of your journal &mdash; an hour, a ' +
+    'weekday, the trades after a loss &mdash; had to survive a test before it was allowed to ' +
+    'appear: your own results, dealt again in a different order within each day, a thousand ' +
+    'times over, to see how often a pattern this strong turns up by itself. What survived is ' +
+    '<strong>ranked by how much money is involved</strong>, which is a different question from ' +
+    'whether it is real. Each one names the number it came from so you can go and check it.</p>' +
     '<div class="findings">' +
       items.map((f) => '<div class="finding"><p>' + f.html + '</p></div>').join('') +
     '</div>' +

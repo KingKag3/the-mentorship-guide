@@ -11,7 +11,30 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+### `prop-preset-drawdown.sql`
+
+Adds `drawdown` and `lock_at` to `prop_presets` and seeds the Apex ladder, so picking a size fills
+in the drawdown the way it already fills in the target.
+
+**Why it exists.** It did not fill in the drawdown, so the drawdown was typed — and a $250,000 Apex
+account was set up with $6,000 where the firm trails $6,500. Confirmed against the firm's own
+account table: `Max Balance 258,491.80 − Liquidation Threshold 251,991.80 = 6,500.00`, and the same
+on all nineteen. Nothing about 6,000 looks wrong sitting next to a target that was filled in
+correctly and automatically, which is exactly why it survived.
+
+**It does not touch `prop_accounts`.** No existing account is rewritten, including the wrong one —
+that is a figure a member entered, and a migration quietly changing somebody's risk settings is a
+worse idea than the wrong number it fixes. The accounts page now shows the disagreement instead.
+
+**After running it**, on the accounts page: fill in only `Drawdown` = `6500` in the bulk form, pick
+all nineteen, apply. Everything left blank is left alone. `lock_at` is worth setting to `6600` the
+same way — Apex stops trailing at the allowance plus $100.
+
+**One row is verified and six are not.** Apex $250,000 was checked against a live account table on
+18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets
+already seeded in `prop-accounts.sql`, which is to say they are a starting point.
+
+---
 
 The privacy migration that was outstanding here has been applied *and* shown to work — see
 **Verified by attack** in `HANDOVER.md` for what was observed, and for the errors that look like a

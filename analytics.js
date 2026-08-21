@@ -234,6 +234,69 @@ export function sequence(chron, dayOf) {
   return { seq, prev };
 }
 
+/**
+ * The same two questions, asked of DECISIONS rather than rows - and on a
+ * copied prop account they are not the same question at all.
+ *
+ * WHAT THIS FIXES
+ *
+ * Nineteen accounts copying one trade produce nineteen rows sharing a
+ * timestamp. Handed to sequence() they become positions one through nineteen
+ * of that morning, so a member who took three trades appears to have taken
+ * fifty-seven and "the fourth trade of the day" is the same trade as the
+ * first.
+ *
+ * The previous-trade map is worse than merely inflated. The row before copy
+ * two is copy one: the same trade, the same result. So a losing decision
+ * becomes eighteen consecutive pairs of "a loss, then a loss", and the tilt
+ * measure reports that the trade after a loss loses - which it does, because
+ * it IS the loss, recorded again. A copier's journal manufactures that finding
+ * out of nothing, and it is the most believable thing on the page.
+ *
+ * HOW IT IS KEYED
+ *
+ * Not by row id. Every copy has to be able to look up the position of the
+ * decision it belongs to, and only one of them carries the id that the
+ * collapse kept. So the caller passes `keyOf` - the same key the collapse
+ * groups on - and every copy resolves to the same answer.
+ *
+ * `prevOf` returns the previous DECISION, which may be a row the caller's
+ * filter has excluded. Test membership by key rather than by id for the same
+ * reason: under an account filter the row that survived the collapse may not
+ * be the row that survived the filter.
+ */
+export function sequenceOfDecisions(rows, { dayOf, keyOf }) {
+  const chron = [];
+  const seen = new Set();
+  for (const row of [...rows].sort(
+    (a, b) => new Date(a.opened_at) - new Date(b.opened_at))) {
+    const key = keyOf(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    chron.push(row);
+  }
+
+  const seq = new Map();
+  const prev = new Map();
+  const counter = new Map();
+  let last = null;
+
+  for (const row of chron) {
+    const day = dayOf(row);
+    const n = (counter.get(day) || 0) + 1;
+    counter.set(day, n);
+    seq.set(keyOf(row), n);
+    prev.set(keyOf(row), last);
+    last = row;
+  }
+
+  return {
+    decisions: chron,
+    seqOf: (row) => seq.get(keyOf(row)),
+    prevOf: (row) => prev.get(keyOf(row)) ?? null
+  };
+}
+
 /** Seconds a position was open, or null when the close was never recorded. */
 export function holdSeconds(row) {
   if (!row.closed_at) return null;
@@ -465,5 +528,90 @@ export function permutationExtremes(rows, {
       gainByChance: median(chanceGains) ?? 0
     },
     best: { ...best, p: (betterRuns + 1) / (runs + 1) }
+  };
+}
+
+/**
+ * The same shuffle, for a statistic that is not a group extreme.
+ *
+ * Three of the six families do not ask "which of these seven groups is worst".
+ * They ask one question with one number:
+ *
+ *   tilt          the trade after a loss, against the trade after a win
+ *   overtrading   the fourth trade onward, against the first three
+ *   disposition   how long a loser is held, against how long a winner is
+ *
+ * `measure` receives the shuffled values and returns that number, so the
+ * caller decides everything about it - which is what lets tilt do the one
+ * thing permutationExtremes cannot.
+ *
+ * TILT HAS TO RELABEL, AND THAT IS WHY THIS EXISTS
+ *
+ * Which trades follow a loss is decided by the outcomes. Hold the labels still
+ * and shuffle the values, as permutationExtremes does, and the null becomes
+ * "trades that originally happened to follow a loss" - a set that still knows
+ * something about the real sequence. The honest null is that the ORDER within
+ * a day is arbitrary, so `measure` recomputes which trades follow a loss from
+ * the shuffled arrangement each time. Doing that needs the shuffled values,
+ * not a fixed set of indexes.
+ *
+ * DISPOSITION SHUFFLES THE OTHER COLUMN
+ *
+ * Its outcome-based split cannot be shuffled - the split IS the outcome. So
+ * the caller passes durations as `valueOf` and leaves win and loss where they
+ * are. The null becomes "how long you held has nothing to do with how it went",
+ * which is exactly the claim the disposition effect makes.
+ *
+ * `tail` is 'low' when a small number is the interesting one, 'high' when a
+ * large one is, and 'both' when either would be. p is (hits + 1) / (runs + 1)
+ * for the reason given above.
+ */
+export function permutationStatistic(rows, {
+  measure, valueOf, dayOf,
+  tail = 'low',
+  runs = 1000,
+  rng = Math.random
+} = {}) {
+  const values = new Float64Array(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const v = Number(valueOf(rows[i]));
+    values[i] = Number.isFinite(v) ? v : 0;
+  }
+
+  const observed = measure(values, rows);
+  if (observed === null || !Number.isFinite(observed)) {
+    return { observed: null, p: 1, runs: 0, chance: null };
+  }
+
+  const byDay = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    const day = dayOf(rows[i]);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(i);
+  }
+  const blocks = [...byDay.values()].filter((block) => block.length > 1);
+  if (!blocks.length) return { observed, p: 1, runs: 0, chance: null };
+
+  const scratch = new Float64Array(rows.length);
+  const drawn = [];
+  let hits = 0;
+
+  for (let run = 0; run < runs; run++) {
+    shuffleWithinBlocks(values, blocks, scratch, rng);
+    const value = measure(scratch, rows);
+    if (value === null || !Number.isFinite(value)) continue;
+    drawn.push(value);
+    if (tail === 'low' ? value <= observed
+      : tail === 'high' ? value >= observed
+        : Math.abs(value) >= Math.abs(observed)) hits++;
+  }
+
+  return {
+    observed,
+    p: (hits + 1) / (drawn.length + 1),
+    runs: drawn.length,
+    // What the same measurement looks like when the label means nothing. The
+    // effect size on its own is unreadable without it.
+    chance: median(drawn)
   };
 }

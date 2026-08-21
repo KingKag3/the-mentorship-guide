@@ -749,11 +749,24 @@ export function sessionAt(when) {
  * treating copies as independent inflates confidence, and this errs toward
  * less.
  */
+/**
+ * What makes two rows the same decision, as one value.
+ *
+ * Exported so nothing has to rebuild it. Anything that needs to ask "which
+ * decision does this row belong to" - a sequence position shared by nineteen
+ * copies, a membership test that must not depend on which copy the collapse
+ * happened to keep - has to agree with the collapse exactly, and the only way
+ * to guarantee that is to use the same key rather than a matching one.
+ */
+export function decisionKey(row) {
+  return [row.opened_at, row.symbol, row.direction, row.entry, row.exit_price,
+          row.contracts].join('|');
+}
+
 export function distinctDecisions(list) {
   const seen = new Map();
   for (const r of list) {
-    const key = [r.opened_at, r.symbol, r.direction, r.entry, r.exit_price,
-                 r.contracts].join('|');
+    const key = decisionKey(r);
     if (!seen.has(key)) seen.set(key, r);
   }
   return [...seen.values()];

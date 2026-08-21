@@ -240,3 +240,230 @@ export function holdSeconds(row) {
   const s = (new Date(row.closed_at) - new Date(row.opened_at)) / 1000;
   return Number.isFinite(s) && s >= 0 ? s : null;
 }
+
+/* ==========================================================================
+   THE PERMUTATION GATE
+   ==========================================================================
+
+   Everything above answers "how big is this". This answers the question that
+   has to be asked first: would a pattern this big have turned up anyway.
+
+   WHY THE PAGE NEEDS IT
+
+   The findings engine tests six families - the clock, position in the day, the
+   trade after a loss, hold time, the shape of the edge, the weekday - then
+   ranks what it found by money and shows the top five. Nothing asks whether
+   the worst of seven hours being bad is surprising. It is not. Pick the worst
+   of seven groups of coin flips and it will look terrible, every time, for
+   everybody. A page that reports that as a habit is inventing one.
+
+   WHAT MOVES, AND WHY ONLY WITHIN A DAY
+
+   The null being tested is "the label carries no information about the
+   outcome". So the labels stay exactly where they are and the OUTCOMES move.
+
+   They move only within their own day. Shuffling across the whole sample would
+   throw away the fact that trades taken on one morning share a market, a
+   regime and a mood - and a null that assumes trades are independent when they
+   are not is too tight, which makes everything look significant. Held within
+   the day, each day's total is untouched and the question narrows to the one
+   worth asking: given what that day did, did it matter which hour, or which
+   position in the sequence, it happened in.
+
+   WHY THE EXTREME AND NOT EACH GROUP ON ITS OWN
+
+   Testing each group separately and reporting whichever came out worst is the
+   multiple-comparison error with extra steps. Instead every shuffle keeps the
+   extreme across ALL eligible groups, and the observed extreme is read against
+   that. The p that falls out has already paid for having looked at seven
+   hours, because the null looked at seven too.
+
+   That is a max-T permutation test, and it is the cheapest honest answer to
+   "the worst of how many".
+
+   WHAT IT CANNOT DO
+
+   It cannot tell you the label caused anything. Size up at 09:30 and the 09:30
+   effect is a size effect - this will call it real, because it is real, it is
+   just not about the clock. Confounders stay the caller's problem.
+   ========================================================================== */
+
+/**
+ * Fisher-Yates over the values inside each day, leaving every other column
+ * where it is.
+ *
+ * Exported because a shuffler is only worth trusting if it can be checked, and
+ * the two properties worth checking - that no value ever crosses a day
+ * boundary, and that each day's total is therefore unchanged - are invisible
+ * from outside a test that only reads a p value at the end.
+ *
+ * `blocks` holds arrays of indexes into `values`, and `out` is written in
+ * place so a caller running two thousand of these allocates once.
+ */
+export function shuffleWithinBlocks(values, blocks, out, rng = Math.random) {
+  out.set(values);
+  for (const block of blocks) {
+    for (let i = block.length - 1; i > 0; i--) {
+      const j = (rng() * (i + 1)) | 0;
+      const a = block[i];
+      const b = block[j];
+      const swap = out[a];
+      out[a] = out[b];
+      out[b] = swap;
+    }
+  }
+  return out;
+}
+
+/**
+ * Which groups are allowed to be looked at.
+ *
+ * Ten trades is the bar the rest of the page uses and on its own it is not
+ * enough: ten trades taken across two days are not ten readings of a habit,
+ * they are two days with a lot going on. So a group clears both a trade count
+ * and a day count before it is eligible to be the extreme.
+ *
+ * Decided once, on the real data, and never recomputed. The shuffle moves
+ * outcomes and leaves labels alone, so group sizes and day counts are
+ * identical in every permutation by construction - which is what makes the
+ * comparison fair, because the null is choosing its extreme from exactly the
+ * same set of groups.
+ */
+function eligibleGroups(rows, labelOf, dayOf, minTrades, minDays) {
+  const seen = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    const key = labelOf(rows[i]);
+    if (key === null || key === undefined || key === '') continue;
+    if (!seen.has(key)) seen.set(key, { key, rows: [], days: new Set() });
+    const group = seen.get(key);
+    group.rows.push(i);
+    group.days.add(dayOf(rows[i]));
+  }
+
+  const kept = [];
+  const rejected = [];
+  for (const group of seen.values()) {
+    const record = { key: group.key, n: group.rows.length,
+                     days: group.days.size, rows: group.rows };
+    (record.n >= minTrades && record.days >= minDays ? kept : rejected).push(record);
+  }
+  return { kept, rejected };
+}
+
+/**
+ * The gate itself. Returns the worst and the best group, each carrying a p
+ * that has already paid for however many groups were looked at.
+ *
+ * `statistic` is 'total' or 'mean'. Total answers "what did this hour cost
+ * me", which is usually the question being asked. Mean answers "what is one
+ * trade in this hour worth", which is the one to reach for when group sizes
+ * differ wildly and a total is really reporting how often something happened.
+ *
+ * p is (hits + 1) / (runs + 1). A permutation p is never zero - the observed
+ * arrangement is itself one of the arrangements - and printing "p = 0" off two
+ * thousand shuffles claims a precision that is not there.
+ *
+ * FEED IT DECISIONS, NOT ROWS. Eighteen copies of one trade are one decision,
+ * for the reason distinctDecisions() gives, and passing the copies inflates
+ * every count eighteenfold - which is the exact mistake this function exists
+ * to prevent. It is also the difference between 170ms and two and a half
+ * seconds at two thousand runs, measured, so the wrong unit is slow as well as
+ * wrong. Six families on a collapsed journal costs about a second in total.
+ */
+export function permutationExtremes(rows, {
+  labelOf, valueOf, dayOf,
+  statistic = 'total',
+  minTrades = 10,
+  minDays = 5,
+  runs = 2000,
+  rng = Math.random
+} = {}) {
+  const { kept, rejected } = eligibleGroups(rows, labelOf, dayOf, minTrades, minDays);
+
+  // One group cannot be an extreme among its peers, and nothing here is worth
+  // saying about it. Reported rather than thrown, because "not enough to look
+  // at yet" is an answer the page has to be able to print.
+  if (kept.length < 2) {
+    return { groups: [], rejected, runs: 0, eligible: kept.length,
+             total: 0, worst: null, best: null };
+  }
+
+  const values = new Float64Array(rows.length);
+  for (let i = 0; i < rows.length; i++) values[i] = Number(valueOf(rows[i])) || 0;
+
+  // One block of indexes per day - the only thing the shuffle is allowed to
+  // move within. A day holding a single trade can never be permuted, so it is
+  // dropped from the block list rather than looped over two thousand times.
+  const byDay = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    const day = dayOf(rows[i]);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(i);
+  }
+  const blocks = [...byDay.values()].filter((block) => block.length > 1);
+
+  const score = (indexes, from) => {
+    let sum = 0;
+    for (const i of indexes) sum += from[i];
+    return statistic === 'mean' ? sum / indexes.length : sum;
+  };
+
+  const observed = kept.map((group) => ({
+    key: group.key, n: group.n, days: group.days, value: score(group.rows, values)
+  }));
+  const observedLow = Math.min(...observed.map((g) => g.value));
+  const observedHigh = Math.max(...observed.map((g) => g.value));
+
+  const total = values.reduce((a, b) => a + b, 0);
+  const chanceGains = [];
+
+  let worseRuns = 0;
+  let betterRuns = 0;
+  const scratch = new Float64Array(rows.length);
+
+  for (let run = 0; run < runs; run++) {
+    shuffleWithinBlocks(values, blocks, scratch, rng);
+
+    let low = Infinity;
+    let high = -Infinity;
+    let lowTotal = 0;
+    for (const group of kept) {
+      const value = score(group.rows, scratch);
+      if (value < low) {
+        low = value;
+        lowTotal = statistic === 'mean' ? value * group.n : value;
+      }
+      if (value > high) high = value;
+    }
+
+    if (low <= observedLow) worseRuns++;
+    if (high >= observedHigh) betterRuns++;
+    chanceGains.push(lowTotal < 0 ? -lowTotal : 0);
+  }
+
+  const worst = observed.find((g) => g.value === observedLow);
+  const best = observed.find((g) => g.value === observedHigh);
+  const worstTotal = statistic === 'mean' ? observedLow * worst.n : observedLow;
+
+  return {
+    groups: [...observed].sort((a, b) => a.value - b.value),
+    rejected,
+    runs,
+    eligible: kept.length,
+    total,
+    worst: {
+      ...worst,
+      p: (worseRuns + 1) / (runs + 1),
+      /* J-03, answered with arithmetic instead of a warning.
+       *
+       * "Leave that hour alone and the period reads better" is true and it is
+       * true for a random trader as well, because dropping the worst of seven
+       * groups in hindsight always flatters the curve. `gainByChance` is by how
+       * much - the same subtraction, done on shuffled outcomes - so the real
+       * gain can be read against it rather than on its own. */
+      gain: worstTotal < 0 ? -worstTotal : 0,
+      gainByChance: median(chanceGains) ?? 0
+    },
+    best: { ...best, p: (betterRuns + 1) / (runs + 1) }
+  };
+}

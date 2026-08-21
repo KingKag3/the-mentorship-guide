@@ -417,6 +417,19 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **`permutationExtremes()` in `analytics.js` is proved and wired to nothing.** 18 August 2026.
+  Thirteen assertions in a browser against the shipped module: no value crosses a day boundary
+  under the shuffle, group eligibility is identical in the real data and the null, p is never zero,
+  the day-count rule refuses 20 trades taken over 2 days, and two seeded runs agree exactly.
+
+  The two numbers that matter. On **200 synthetic journals with no relationship at all** between
+  the hour and the result, one test per group reported a significant worst hour **28% of the time**;
+  the max-T gate reported one **3%** of the time. Against a planted bad hour it fired **40 of 40**,
+  so the correction did not cost the power to see a real effect.
+
+  What is NOT done: `findings()` still ranks on money alone and calls nothing through this. Nothing
+  a member sees has changed. See `designs/journal-analytics.md` for the remaining steps.
+
 - **The Import button beside the file picker on `import.html`, and Cancel with it.** 18 August
   2026. The page could not be driven here - it is behind `requireRole` and there is no session on
   this machine - so what is proved is that the file parses, that nothing looks up an element the

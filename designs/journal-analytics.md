@@ -126,9 +126,60 @@ about totals.
 
 6. **Per-account defaulting**, so seventeen copies do not inflate every aggregate. `J-02`.
 7. **A warning on the counterfactual**, because removing your worst hour in hindsight flatters a
-   random trader too. `J-03` — currently a sentence under each one; it may deserve arithmetic.
+   random trader too. `J-03` — ✅ **answered with arithmetic on 18 August 2026.**
+   `permutationExtremes()` returns `gain` beside `gainByChance`, which is the same subtraction done
+   on shuffled outcomes. On 200 journals built with no relationship between hour and result, the
+   worst hour appeared to be costing $201 and chance alone accounted for $178 of it.
 8. **Streaks against chance.** A seven-loss run feels like a collapse and is unremarkable at a 40%
    win rate. The comparison is cheap and the reassurance is real.
+
+---
+
+## The permutation gate — added 18 August 2026
+
+The findings engine tests six families, ranks by money and shows the top five, and nothing asked
+whether a pattern that size turns up anyway. It does. Pick the worst of seven groups of coin flips
+and it looks terrible, for everybody, every time.
+
+`permutationExtremes()` in `analytics.js` is the gate. Two decisions carry it:
+
+- **Outcomes are shuffled within their own day.** The labels never move — the null is "this label
+  says nothing about the result". Confining it to the day keeps the fact that trades on one morning
+  share a market and a mood; a null that treats them as independent is too tight and makes
+  everything look significant.
+- **Each shuffle keeps the extreme across every eligible group.** Testing groups one at a time and
+  reporting the worst is the multiple-comparison error with extra steps. Comparing the observed
+  extreme against the null's extreme pays for having looked at seven hours, because the null looked
+  at seven too. This is a max-T permutation test.
+
+Eligibility is **≥10 trades and ≥5 distinct days**. The day count is new: ten trades over two days
+are not ten readings of a habit.
+
+Measured on 200 synthetic journals with no real effect, at 200 runs each:
+
+| | fires at p < 0.05 |
+| --- | --- |
+| One test per group, report the worst | 28.0% |
+| Max-T across groups | 3.0% |
+
+Slightly conservative rather than exactly 5%, which is the safe direction. Against a planted bad
+hour it fired 40 times out of 40, so the correction has not cost the power to see a real one.
+
+Feed it `decisions()`, never raw rows — eighteen copies are one decision, and the wrong unit is both
+statistically wrong and fourteen times slower (170ms against 2.4s at 2,000 runs).
+
+**Not yet wired into the page.** The library is proved; `findings()` still ranks on money alone.
+
+### Still to do on this
+
+- Gate every family in `findings()`, then rank the survivors by impact.
+- Say what did not fire. "Six patterns tested, two cleared the bar" — five of six with no
+  denominator implies the sixth was checked and dull.
+- Three cheap kills that catch more than more statistics would: drop the largest trade and see if
+  the finding survives; report the worst single day's share of the group total; check the sign holds
+  in both halves of the sample.
+- A two-group variant for hold time. The disposition test compares medians rather than an extreme
+  across groups, so it needs a difference statistic — shuffle the durations, not the outcomes.
 
 ---
 

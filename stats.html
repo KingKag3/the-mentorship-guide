@@ -993,8 +993,28 @@ function computeFindings(list) {
   const ev = decisions(list)
     .sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
 
-  const add = (impact, html, lesson) =>
-    found.push({ impact: Math.abs(impact), html: html + lessonLink(lesson) });
+  /* Every finding says WHICH decisions it is about.
+   *
+   * Two findings can clear the gate honestly and still be one fact. On the
+   * fixture the bad hour was always the fourth trade of the day, so "11:00 is
+   * costing you" and "the day gets worse the longer it runs" were the same
+   * three hundred and fifty decisions printed twice - both true, both
+   * significant, and one of them redundant. A page that says the same thing
+   * twice in different words reads as two problems, and somebody goes looking
+   * for the second one.
+   *
+   * `name` is how a folded finding gets named inside the one that absorbed it,
+   * so nothing is silently dropped.
+   *
+   * `keys` is null for a finding that is not about a SUBSET of trades. How
+   * long you hold and the shape of your edge describe an axis through all of
+   * them; their set is everything, so containment against them is always total
+   * and folding on it would swallow the page. */
+  const add = (impact, name, html, lesson, keys = null) =>
+    found.push({ impact: Math.abs(impact), name,
+                 html: html + lessonLink(lesson), keys });
+
+  const keysWhere = (test) => new Set(ev.filter(test).map(decisionKey));
 
   /* The denominator is counted per QUESTION, not per gate and not per finding.
    *
@@ -1010,7 +1030,7 @@ function computeFindings(list) {
 
   /* Ask a group-extreme question - which of these is worst, which is best -
    * with the answer already corrected for how many groups were looked at. */
-  const gateGroups = (labelOf) => permutationExtremes(ev, {
+  const gateGroups = (labelOf, rowsIn) => permutationExtremes(rowsIn || ev, {
     labelOf, valueOf: val, dayOf, statistic: 'total', runs: GATE_RUNS
   });
 
@@ -1024,26 +1044,82 @@ function computeFindings(list) {
     list.filter((r) => labelOf(r) === key).reduce((a, r) => a + val(r), 0);
 
   // --- the clock ---------------------------------------------------------
+  //
+  /* STEP DOWN BEFORE BELIEVING THE SECOND ONE.
+   *
+   * Both tails of this gate can clear at once, and the second is not
+   * independent of the first. One catastrophic hour drags the null's whole
+   * distribution toward itself - shuffling spreads those losses across every
+   * hour, so every hour in the null sits low, and an ordinary good hour then
+   * looks extraordinary by contrast. On the fixture that is exactly what
+   * happened: 12:00 cleared at one in two hundred and fifty while being an
+   * unremarkable hour next to a disastrous one.
+   *
+   * So the stronger tail is settled first, its decisions are removed, and the
+   * other tail is asked again on what is left. If it still clears, it is a
+   * second effect rather than the shadow of the first. This is Westfall-Young
+   * step-down, and the only cost is one more gate on the rare journals where
+   * both ends clear at all. */
   const byHour = (r) => hhmm(hourOf(r));
   {
-    const gate = gateGroups(byHour);
-    if (asked(gate.worst && gate.worst.p < GATE_P && gate.worst.value < 0)) {
-      const cost = impactOf(byHour, gate.worst.key);
-      add(cost,
-        '<strong>' + escapeHtml(String(gate.worst.key)) + ' is costing you.</strong> ' +
-        gate.worst.n + ' decisions in that hour across ' + gate.worst.days + ' days, ' +
+    const first = gateGroups(byHour);
+    const worstLeads = !first.best || (first.worst && first.worst.p <= first.best.p);
+
+    const worstGate = worstLeads ? first : null;
+    const bestGate = worstLeads ? null : first;
+
+    const worstOk = (g) => g && g.worst && g.worst.p < GATE_P && g.worst.value < 0;
+    const bestOk = (g) => g && g.best && g.best.p < GATE_P && g.best.value > 0;
+
+    // The leading tail, judged on everything.
+    let ledWorst = worstLeads && asked(worstOk(first));
+    let ledBest = !worstLeads && asked(bestOk(first));
+
+    if (ledWorst) {
+      const cost = impactOf(byHour, first.worst.key);
+      add(cost, 'the ' + first.worst.key + ' hour',
+        '<strong>' + escapeHtml(String(first.worst.key)) + ' is costing you.</strong> ' +
+        first.worst.n + ' decisions in that hour across ' + first.worst.days + ' days, ' +
         fmt(cost) + ' between them. Leave the hour alone and the period reads ' +
         fmt(total - cost) + ' instead of ' + fmt(total) + ' &mdash; though dropping your worst ' +
         'hour in hindsight flatters a random trader too, by ' +
-        fmt(gate.worst.gainByChance) + ' on this journal. ' + chanceNote(gate.worst.p), 'clock');
+        fmt(first.worst.gainByChance) + ' on this journal. ' + chanceNote(first.worst.p),
+        'clock', keysWhere((r) => byHour(r) === first.worst.key));
     }
-    if (asked(gate.best && gate.best.p < GATE_P && gate.best.value > 0)) {
-      const made = impactOf(byHour, gate.best.key);
-      add(made,
-        '<strong>Your edge is concentrated in ' + escapeHtml(String(gate.best.key)) +
-        '.</strong> ' + gate.best.n + ' decisions there made ' + fmt(made) + ', against ' +
+    if (ledBest) {
+      const made = impactOf(byHour, first.best.key);
+      add(made, 'your best hour',
+        '<strong>Your edge is concentrated in ' + escapeHtml(String(first.best.key)) +
+        '.</strong> ' + first.best.n + ' decisions there made ' + fmt(made) + ', against ' +
         fmt(total) + ' for the whole period. Most of what you make, you make in one hour. ' +
-        chanceNote(gate.best.p), 'clock');
+        chanceNote(first.best.p), 'clock',
+        keysWhere((r) => byHour(r) === first.best.key));
+    }
+
+    /* The trailing tail, asked again without the hour that just won. */
+    const settled = ledWorst ? first.worst.key : ledBest ? first.best.key : null;
+    const rest = settled ? ev.filter((r) => byHour(r) !== settled) : ev;
+    const second = settled ? gateGroups(byHour, rest) : first;
+    const stepped = settled
+      ? ' <span class="acct-muted">Asked again with ' + escapeHtml(String(settled)) +
+        ' set aside, so this is not simply the shadow of that one.</span>'
+      : '';
+
+    if (!ledWorst && asked(worstOk(second))) {
+      const cost = impactOf(byHour, second.worst.key);
+      add(cost, 'the ' + second.worst.key + ' hour',
+        '<strong>' + escapeHtml(String(second.worst.key)) + ' is costing you.</strong> ' +
+        second.worst.n + ' decisions in that hour across ' + second.worst.days + ' days, ' +
+        fmt(cost) + ' between them. ' + chanceNote(second.worst.p) + stepped, 'clock',
+        keysWhere((r) => byHour(r) === second.worst.key));
+    }
+    if (!ledBest && asked(bestOk(second))) {
+      const made = impactOf(byHour, second.best.key);
+      add(made, 'your best hour',
+        '<strong>Your edge is concentrated in ' + escapeHtml(String(second.best.key)) +
+        '.</strong> ' + second.best.n + ' decisions there made ' + fmt(made) + '. ' +
+        chanceNote(second.best.p) + stepped, 'clock',
+        keysWhere((r) => byHour(r) === second.best.key));
     }
   }
 
@@ -1071,12 +1147,12 @@ function computeFindings(list) {
       const late = list.filter((r) => seqOf(r) >= 4);
       const lateTotal = late.reduce((a, r) => a + val(r), 0);
       const se = summariseNow(early), sl = summariseNow(late);
-      add(lateTotal,
+      add(lateTotal, 'the fourth trade onward',
         '<strong>The day gets worse the longer it runs.</strong> Your first three trades of a ' +
         'day average ' + fmt(se.avg) + '. The fourth onwards average ' + fmt(sl.avg) + ' across ' +
         late.length + ' trades, ' + fmt(lateTotal) + ' in total. ' +
         (lateTotal < 0 ? 'Everything after the third trade is a net cost. ' : '') +
-        chanceNote(gate.p), 'overtrading');
+        chanceNote(gate.p), 'overtrading', keysWhere((r) => seqOf(r) >= 4));
     }
   }
 
@@ -1112,11 +1188,12 @@ function computeFindings(list) {
         if (pv < 0) afterLoss.push(r); else if (pv > 0) afterWin.push(r);
       }
       const al = summariseNow(afterLoss), aw = summariseNow(afterWin);
-      add(al.total,
+      add(al.total, 'the trade after a loss',
         '<strong>The trade straight after a loss is your worst trade.</strong> ' +
         afterLoss.length + ' of them, averaging ' + fmt(al.avg) + ', against ' + fmt(aw.avg) +
         ' for one taken after a win. Same day only, so this is a reaction rather than a new ' +
-        'morning. ' + chanceNote(gate.p), 'tilt');
+        'morning. ' + chanceNote(gate.p), 'tilt',
+        new Set(afterLoss.map(decisionKey)));
     }
   }
 
@@ -1145,7 +1222,7 @@ function computeFindings(list) {
         (val(r) > 0 ? w : l).push(held);
       }
       const lossTotal = list.filter((r) => val(r) < 0).reduce((a, r) => a + val(r), 0);
-      add(lossTotal,
+      add(lossTotal, 'how long you hold',
         '<strong>You hold losers ' + gate.observed.toFixed(1) +
         ' times as long as winners.</strong> Median winner ' + humanSeconds(median(w)) +
         ', median loser ' + humanSeconds(median(l)) + '. That is the disposition effect: closing ' +
@@ -1160,11 +1237,12 @@ function computeFindings(list) {
     const gate = gateGroups(byWeekday);
     if (asked(gate.worst && gate.worst.p < GATE_P && gate.worst.value < 0)) {
       const cost = impactOf(byWeekday, gate.worst.key);
-      add(cost,
+      add(cost, String(gate.worst.key) + 's',
         '<strong>' + escapeHtml(String(gate.worst.key)) + ' undoes the rest of the week.</strong> ' +
         gate.worst.n + ' decisions across ' + gate.worst.days + ' of them, ' + fmt(cost) +
         '. Worth knowing whether that is the market, or whether it is you by then. ' +
-        chanceNote(gate.worst.p), 'weekday');
+        chanceNote(gate.worst.p), 'weekday',
+        keysWhere((r) => byWeekday(r) === gate.worst.key));
     }
   }
 
@@ -1185,14 +1263,14 @@ function computeFindings(list) {
       const aw = wins.reduce((a, b) => a + b, 0) / wins.length;
       const alo = Math.abs(losses.reduce((a, b) => a + b, 0) / losses.length);
       if (s.winRate < 50 && aw > alo) {
-        add(0,
+        add(0, 'the shape of your edge',
           '<strong>You are wrong more often than you are right, and it does not matter.</strong> ' +
           'A ' + s.winRate.toFixed(0) + '% win rate, but the average winner is ' + fmt(aw) +
           ' against ' + fmt(-alo) + ' for the average loser. The edge is in the size, not the ' +
           'frequency, which is worth knowing before you go chasing a higher win rate.', 'shape');
       }
       if (s.winRate > 55 && aw < alo) {
-        add(0,
+        add(0, 'the shape of your edge',
           '<strong>You win often and lose big.</strong> A ' + s.winRate.toFixed(0) +
           '% win rate, but the average loser (' + fmt(-alo) + ') is larger than the average ' +
           'winner (' + fmt(aw) + '). A run of losses hurts far more than the win rate suggests.', 'shape');
@@ -1200,10 +1278,62 @@ function computeFindings(list) {
     }
   }
 
+  /* FOLD TOGETHER ANYTHING THAT IS ONE FACT WEARING TWO LABELS.
+   *
+   * Measured by CONTAINMENT, not by overlap. Two groups sharing half their
+   * trades are two findings about a busy part of the day; a small group sitting
+   * almost entirely inside a large one is the large one's explanation. On the
+   * fixture every 11:00 decision was also a fourth-trade-of-the-day decision,
+   * so containment was total and the two findings were one.
+   *
+   * Containment is deliberately asymmetric - the smaller set inside the larger.
+   * Jaccard would have scored that pair at 0.5 and let both through, because
+   * Jaccard punishes the larger group for the trades the smaller one does not
+   * have, which is exactly the information being tested for.
+   *
+   * Neither is deleted. The louder one keeps the headline and names the other,
+   * because "these are the same trades" is itself worth reading - a member
+   * whose bad hour is always their fourth trade has one thing to change, not
+   * two, and cannot tell which from either finding alone.
+   */
+  const OVERLAP = 0.7;
+  const ranked = found.sort((a, b) => b.impact - a.impact);
+  const folded = [];
+
+  for (let i = 0; i < ranked.length; i++) {
+    const keep = ranked[i];
+    if (keep.folded || !keep.keys) continue;
+    for (let j = i + 1; j < ranked.length; j++) {
+      const other = ranked[j];
+      if (other.folded || !other.keys) continue;
+
+      const small = keep.keys.size <= other.keys.size ? keep.keys : other.keys;
+      const large = small === keep.keys ? other.keys : keep.keys;
+      let shared = 0;
+      for (const k of small) if (large.has(k)) shared++;
+      if (shared / small.size < OVERLAP) continue;
+
+      other.folded = true;
+      folded.push(other.name);
+      keep.also = (keep.also || []).concat({
+        name: other.name,
+        share: Math.round(shared / small.size * 100)
+      });
+    }
+  }
+
+  for (const f of ranked) {
+    if (!f.also) continue;
+    f.html += '<span class="acct-muted"> The same trades also cleared as ' +
+      f.also.map((a) => escapeHtml(a.name) + ' (' + a.share + '% of them)').join(' and ') +
+      '. That is one habit described twice, not two to fix.</span>';
+  }
+
   return {
-    items: found.sort((a, b) => b.impact - a.impact).slice(0, 5),
+    items: ranked.filter((f) => !f.folded).slice(0, 5),
     tested,
     cleared,
+    folded,
     decisions: ev.length,
     rows: list.length
   };
@@ -1222,15 +1352,31 @@ function renderFindings(list) {
    * Showing five findings and nothing else implies five were looked for. Six
    * were, and the ones that stayed quiet are the more informative half: a
    * habit that was tested and did not show up is a habit you do not have. */
-  const denominator = '<p class="stat-note">' + result.tested +
-    ' habits were tested against chance and ' +
+  /* Three separate sentences, because it used to be one and it did not survive
+   * having anything added to it. Two em-dash clauses and a comma splice in a
+   * row is a line people stop reading halfway through, which defeats the point
+   * of printing a denominator at all. */
+  const sentences = [
+    result.tested + ' habits were tested against chance and ' +
     (result.cleared === 0 ? 'none cleared the bar'
-      : result.cleared === 1 ? 'one cleared it' : result.cleared + ' cleared it') +
-    (result.decisions < result.rows
-      ? ', over <strong>' + result.decisions + '</strong> decisions rather than ' + result.rows +
-        ' rows &mdash; the same trade is held in several accounts, and a copy is not extra ' +
-        'evidence. The money quoted is still the total across all of them.'
-      : '.') + '</p>';
+      : result.cleared === 1 ? 'one cleared it' : result.cleared + ' cleared it') + '.'
+  ];
+
+  if (result.decisions < result.rows) {
+    sentences.push('Counted over <strong>' + result.decisions + '</strong> decisions rather than ' +
+      result.rows + ' rows, because the same trade is held in several accounts and a copy is not ' +
+      'extra evidence. The money quoted is still the total across all of them.');
+  }
+
+  if (result.folded && result.folded.length) {
+    sentences.push(result.folded.length === 1
+      ? 'One of them, ' + escapeHtml(result.folded[0]) + ', described the same trades as another ' +
+        'and is named inside it rather than counted twice.'
+      : result.folded.length + ' of them described the same trades as others and are named ' +
+        'inside those rather than counted twice.');
+  }
+
+  const denominator = '<p class="stat-note">' + sentences.join(' ') + '</p>';
 
   if (!items.length) {
     mount.innerHTML =

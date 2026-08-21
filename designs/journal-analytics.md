@@ -216,15 +216,48 @@ losing decision its own predecessor eighteen times over — see `sequenceOfDecis
 Six gates at 500 runs cost about a second, which is fine once and awful on every filter flip, so
 findings are cached per unit / range / account and cleared when a stated R changes.
 
+### Step-down and folding — 18 August 2026
+
+Both holes above are closed.
+
+**Step-down.** Both tails of the clock gate can clear at once and the second is not independent of
+the first: one catastrophic hour drags the whole null distribution toward itself, because shuffling
+spreads those losses across every hour, and an ordinary good hour then looks extraordinary by
+contrast. The stronger tail is now settled first, its decisions removed, and the other tail asked
+again on what is left. On the fixture that removed *"your edge is concentrated in 12:00"*
+entirely — it had cleared at 1 in 250 while being an unremarkable hour next to a disastrous one.
+Cost is one extra gate, only on the journals where both ends clear.
+
+**Folding.** Each finding now carries the set of decisions it is about, and any pair where the
+smaller set sits ≥70% inside the larger is reported as one. On the fixture 11:00 was always the
+fourth trade of the day, so *"11:00 is costing you"* absorbed *"the day gets worse the longer it
+runs"* with the note **"the same trades also cleared as the fourth trade onward (100% of them);
+that is one habit described twice, not two to fix"**.
+
+Containment, not Jaccard, and deliberately. Jaccard scored that pair at 0.5 and let both through,
+because it punishes the larger group for the trades the smaller one does not have — which is
+exactly the information being tested for.
+
+Nothing is deleted. The louder finding keeps the headline and names what it absorbed, because "these
+are the same trades" is itself the useful part: one thing to change, not two.
+
+Findings whose set is *everything* — how long you hold, the shape of your edge — are exempt. They
+describe an axis rather than a subset, so containment against them is always total and folding on it
+would swallow the page.
+
+**Proved by negative control.** A second fixture with the same two effects made genuinely
+independent — 11:00 landing at position 1, 2, 3 or 4 depending on what else was traded that day —
+folds nothing and reports all four findings separately. The first version of that fixture was wrong
+and it is worth writing down why: it shuffled the order the rows were *generated* in, and
+`sequenceOfDecisions` sorts by timestamp, so 11:00 was still always the fourth trade. The fold was
+right and the test was wrong.
+
 ### Still to do on this
 
-- **Step-down.** With one strong group present, the null's extreme is dragged toward it and the
-  remaining groups can look significant by contrast — on the fixture the "best hour" cleared at
-  1 in 250 partly because every other hour was being dragged down by the bad one in the null.
-  Westfall–Young step-down is the fix: remove the winner, re-run on the rest.
-- **Confounding is still unhandled and it is the biggest one left.** On the fixture, 11:00 was
-  always the fourth trade of the day, so "the day gets worse the longer it runs" and "11:00 is
-  costing you" are one fact reported twice. Both are real; only one is about the clock.
+- **Complement confounding, which containment cannot see.** On the independent fixture, "your edge
+  is concentrated in 08:00" cleared — because 08:00 is usually the first trade of the day and so
+  never follows a loss, which makes it the tilt effect seen from the other side. Containment catches
+  *A is inside B*; it does not catch *A is what is left when B is removed*.
 - Three cheap kills: drop the largest trade and see if the finding survives; report the worst single
   day's share of the group total; check the sign holds in both halves of the sample.
 - Report per-R or per-contract effects, so tilt cannot be a size effect wearing a hat.

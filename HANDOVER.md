@@ -417,6 +417,19 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **Step-down and finding-folding on `stats.html`.** 18 August 2026. Kag3 confirmed the earlier
+  gate work renders correctly against his live journal; these two went in after that and have NOT
+  been seen against live data. Driven through the probe on two fixtures.
+
+  On the confounded fixture, findings went from four to two: *"your edge is concentrated in 12:00"*
+  disappeared under step-down, and *"the day gets worse the longer it runs"* folded into
+  *"11:00 is costing you"* at 100% containment. On a second fixture built with the same two effects
+  made genuinely independent, nothing folds and all four findings stand — which is the check that
+  matters, because a fold that swallows real findings is worse than no fold.
+
+  One known hole remains, written up in `designs/journal-analytics.md`: containment catches
+  *A is inside B* and cannot catch *A is what is left when B is removed*.
+
 - **The calendar's month path and the journal's in-view summary.** 18 August 2026, driven through
   the same probe as the statistics page: the shipped files with only their `./app.js` import
   repointed at a session stub. On a fixture of 31 decisions held in 19 accounts, over a month built

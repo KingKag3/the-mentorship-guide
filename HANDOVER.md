@@ -417,6 +417,20 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **Five columns on `prop_accounts` were written by the form and never selected back.** Found 18
+  August 2026 by trying to answer "where is the lock_at field". `save()` had always sent `lock_at`,
+  the three `payout_*` fields and `from_account`; the query asked for none of them. So a member
+  filled in their payout terms, saved successfully, reloaded, and found the form empty — and every
+  figure computed from those fields was computed from `undefined`, which is why no account could
+  ever show its drawdown as locked. Fixed; the round trip is now proved on a probe.
+
+  `lock_at` also only ever rendered inside the funded-account block, so an **evaluation** — the
+  account that is actually one bad trade from over — had nowhere to record where its floor stops
+  trailing. It is now beside the drawdown on every watched account and in the bulk form.
+
+  Measured on identical trades: with the lock set, room left reads **$8,300** and the floor is
+  locked $100 above the start; without it, **$6,320** trailing $6,500 under a peak of $8,580.
+
 - **Step-down and finding-folding on `stats.html`.** 18 August 2026. Kag3 confirmed the earlier
   gate work renders correctly against his live journal; these two went in after that and have NOT
   been seen against live data. Driven through the probe on two fixtures.

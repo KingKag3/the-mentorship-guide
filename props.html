@@ -192,7 +192,17 @@ const [tradesRes, propsRes, presetRes, attemptRes] = await Promise.all([
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
     .order('opened_at', { ascending: true }), 50000),
   supabase.from('prop_accounts')
-    .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, min_days, status, started_on, settled_on'),
+    /* THE FIVE ON THE SECOND LINE WERE WRITTEN AND NEVER READ.
+     *
+     * `save()` has always sent lock_at, the three payout fields and
+     * from_account; the select did not ask for any of them. So a member filled
+     * in their payout terms, saved, reloaded, and found the form empty again -
+     * the write had worked perfectly and the page simply never looked. Every
+     * figure computed from them was computed from undefined, which is why the
+     * drawdown could never be shown as locked on any account. */
+    .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, ' +
+            'min_days, status, started_on, settled_on, ' +
+            'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account'),
   supabase.from('prop_presets').select('firm, size, profit_target, drawdown, lock_at').order('size'),
   supabase.from('prop_attempts')
     .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
@@ -882,7 +892,19 @@ function card(name) {
             '<input name="drawdown" type="number" step="0.01" min="0" value="' +
               (cfg.drawdown ?? '') + '"></div>' +
         '</div>' +
+        /* THE LOCK IS A PROPERTY OF THE DRAWDOWN, NOT OF A FUNDED ACCOUNT.
+         *
+         * It used to live in the funded-only block, which meant an evaluation
+         * could never be told where its floor stops trailing - and an
+         * evaluation is exactly where that matters, because it is the account
+         * still one bad trade from over. Nineteen evaluations had no way to
+         * record it at all, and the "room left" figure on every one of them
+         * was measured from a peak that in reality had stopped moving. */
         '<div class="field-pair">' +
+          '<div><label>Drawdown locks at <span class="opt">— above the start; empty if it ' +
+            'never stops trailing</span></label>' +
+            '<input name="lock_at" type="number" step="0.01" value="' +
+              (cfg.lock_at ?? '') + '"></div>' +
           '<div><label>Minimum trading days</label>' +
             '<input name="min_days" type="number" step="1" min="0" value="' +
               (cfg.min_days ?? '') + '"></div>' +
@@ -907,10 +929,6 @@ function card(name) {
                 'empty if every day counts</span></label>' +
                 '<input name="payout_day_min" type="number" step="0.01" value="' +
                   (cfg.payout_day_min ?? '') + '"></div>' +
-              '<div><label>Drawdown locks at <span class="opt">&mdash; above the start; empty ' +
-                'if it never locks</span></label>' +
-                '<input name="lock_at" type="number" step="0.01" value="' +
-                  (cfg.lock_at ?? '') + '"></div>' +
             '</div>' +
             '<label>Passed from <span class="opt">&mdash; the evaluation this came from</span></label>' +
             '<input name="from_account" type="text" value="' +
@@ -980,6 +998,10 @@ function renderBulk() {
             '<input name="drawdown" type="number" step="0.01" min="0"></div>' +
         '</div>' +
         '<div class="field-pair">' +
+          // Copied accounts share this too, and until now there was nowhere to
+          // set it on an evaluation at all - let alone on nineteen at once.
+          '<div><label>Drawdown locks at <span class="opt">- above the start</span></label>' +
+            '<input name="lock_at" type="number" step="0.01"></div>' +
           '<div><label>Minimum trading days</label>' +
             '<input name="min_days" type="number" step="1" min="0"></div>' +
           '<div><label>Counting from</label><input name="started_on" type="date"></div>' +
@@ -1043,7 +1065,8 @@ function renderBulk() {
     const hit = presets.find((x) => x.firm === firm && Number(x.size) === Number(size.value));
     if (!hit) return;
     for (const [field, value] of [['profit_target', hit.profit_target],
-                                 ['drawdown', hit.drawdown]]) {
+                                 ['drawdown', hit.drawdown],
+                                 ['lock_at', hit.lock_at]]) {
       const el = form.querySelector('[name="' + field + '"]');
       if (el && !el.value && value !== null && value !== undefined) el.value = value;
     }
@@ -1074,7 +1097,8 @@ async function applyBulk(e) {
   const candidate = {
     kind: txt('kind'),
     firm: txt('firm'), size: num('size'), profit_target: num('profit_target'),
-    drawdown: num('drawdown'), min_days: num('min_days'), started_on: txt('started_on')
+    drawdown: num('drawdown'), lock_at: num('lock_at'),
+    min_days: num('min_days'), started_on: txt('started_on')
   };
   for (const k of Object.keys(candidate)) {
     if (candidate[k] !== undefined) patch[k] = candidate[k];
@@ -1268,7 +1292,8 @@ function render() {
       const hit = presets.find((p) => p.firm === firm && Number(p.size) === Number(size.value));
       if (!hit) return;
       for (const [field, value] of [['profit_target', hit.profit_target],
-                                   ['drawdown', hit.drawdown]]) {
+                                   ['drawdown', hit.drawdown],
+                                   ['lock_at', hit.lock_at]]) {
         const el = form.querySelector('[name="' + field + '"]');
         if (el && !el.value && value !== null && value !== undefined) el.value = value;
       }

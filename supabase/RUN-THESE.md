@@ -26,9 +26,14 @@ correctly and automatically, which is exactly why it survived.
 that is a figure a member entered, and a migration quietly changing somebody's risk settings is a
 worse idea than the wrong number it fixes. The accounts page now shows the disagreement instead.
 
-**After running it**, on the accounts page: fill in only `Drawdown` = `6500` in the bulk form, pick
-all nineteen, apply. Everything left blank is left alone. `lock_at` is worth setting to `6600` the
-same way — Apex stops trailing at the allowance plus $100.
+**After running it**, on the accounts page: fill in `Drawdown` = `6500` and `Drawdown locks at` =
+`6600` in the bulk form, pick all nineteen, apply. Everything left blank is left alone.
+
+The lock matters more than it looks. Apex stops trailing once the account is a full allowance plus
+$100 above where it started, and until that field is set the page keeps measuring room from a peak
+that has in reality stopped moving. On identical trades the difference was **$8,300 of room against
+$6,320** — the page was understating by nearly two thousand dollars, in the safe direction, on an
+account that had already locked.
 
 **One row is verified and six are not.** Apex $250,000 was checked against a live account table on
 18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets

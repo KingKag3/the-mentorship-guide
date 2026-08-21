@@ -168,18 +168,67 @@ hour it fired 40 times out of 40, so the correction has not cost the power to se
 Feed it `decisions()`, never raw rows — eighteen copies are one decision, and the wrong unit is both
 statistically wrong and fourteen times slower (170ms against 2.4s at 2,000 runs).
 
-**Not yet wired into the page.** The library is proved; `findings()` still ranks on money alone.
+### Wired into `findings()` on 18 August 2026
+
+All six questions now have to clear the gate before they may be printed:
+
+| Question | How it is tested |
+| --- | --- |
+| Worst hour / best hour | `permutationExtremes`, max-T across hours |
+| Worst weekday | `permutationExtremes`, max-T across weekdays |
+| The fourth trade onward against the first three | `permutationStatistic`, fixed split |
+| The trade after a loss | `permutationStatistic`, **relabelling** each shuffle |
+| Losers held longer than winners | `permutationStatistic`, **durations** shuffled |
+
+Money still decides the ORDER of what survives, because "which of these should I care about" is a
+money question. It no longer decides what appears, because "is this real" never was.
+
+**The shape of the edge is deliberately not gated.** It describes the whole sample without picking
+anything out of it — your win rate is your win rate — so there is no selection to correct and a
+permutation test would be theatre.
+
+`permutationStatistic` exists for the three that ask one question rather than "which of these seven
+is worst". Tilt is why it has to take a measure rather than a fixed split: which trades follow a
+loss is decided by the outcomes, so the split is recomputed from each shuffled arrangement.
+Disposition inverts it — the win/loss split cannot move, so the durations are shuffled underneath
+it.
+
+**Evidence and impact are different samples on purpose.** Every gate runs on `decisions()`; every
+figure quoted runs on all rows. Money aggregates, behaviour deduplicates — this is the first place
+the page actually does both.
+
+### What changed on a copier's journal
+
+Measured on a fixture of 350 decisions held in 19 accounts, 6,650 rows, with a bad hour and a real
+disposition effect planted in it:
+
+| | before | after |
+| --- | --- | --- |
+| "trades after a loss" | 3,580 | finding withdrawn |
+| trades in the worst hour | 1,330 | 70 decisions across 70 days |
+| findings shown | 5 | 4 |
+| denominator shown | none | 6 tested, 4 cleared |
+| full re-render | 317ms | 162ms |
+
+The tilt finding was the whole point. It came from `sequence()` running over rows, which made every
+losing decision its own predecessor eighteen times over — see `sequenceOfDecisions`.
+
+Six gates at 500 runs cost about a second, which is fine once and awful on every filter flip, so
+findings are cached per unit / range / account and cleared when a stated R changes.
 
 ### Still to do on this
 
-- Gate every family in `findings()`, then rank the survivors by impact.
-- Say what did not fire. "Six patterns tested, two cleared the bar" — five of six with no
-  denominator implies the sixth was checked and dull.
-- Three cheap kills that catch more than more statistics would: drop the largest trade and see if
-  the finding survives; report the worst single day's share of the group total; check the sign holds
-  in both halves of the sample.
-- A two-group variant for hold time. The disposition test compares medians rather than an extreme
-  across groups, so it needs a difference statistic — shuffle the durations, not the outcomes.
+- **Step-down.** With one strong group present, the null's extreme is dragged toward it and the
+  remaining groups can look significant by contrast — on the fixture the "best hour" cleared at
+  1 in 250 partly because every other hour was being dragged down by the bad one in the null.
+  Westfall–Young step-down is the fix: remove the winner, re-run on the rest.
+- **Confounding is still unhandled and it is the biggest one left.** On the fixture, 11:00 was
+  always the fourth trade of the day, so "the day gets worse the longer it runs" and "11:00 is
+  costing you" are one fact reported twice. Both are real; only one is about the clock.
+- Three cheap kills: drop the largest trade and see if the finding survives; report the worst single
+  day's share of the group total; check the sign holds in both halves of the sample.
+- Report per-R or per-contract effects, so tilt cannot be a size effect wearing a hat.
+- Block bootstrap by day in `bootstrap()`, which still resamples individual trades.
 
 ---
 

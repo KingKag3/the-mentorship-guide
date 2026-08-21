@@ -465,10 +465,14 @@ export function permutationExtremes(rows, {
   }
   const blocks = [...byDay.values()].filter((block) => block.length > 1);
 
+  // Indexed loop and the mean flag hoisted out of it. This runs
+  // groups x runs times - a few million on a real journal - and an iterator
+  // plus a branch per element is most of the wall clock.
+  const asMean = statistic === 'mean';
   const score = (indexes, from) => {
     let sum = 0;
-    for (const i of indexes) sum += from[i];
-    return statistic === 'mean' ? sum / indexes.length : sum;
+    for (let k = 0; k < indexes.length; k++) sum += from[indexes[k]];
+    return asMean ? sum / indexes.length : sum;
   };
 
   const observed = kept.map((group) => ({

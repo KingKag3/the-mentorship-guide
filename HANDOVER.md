@@ -417,7 +417,28 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
-- **`permutationExtremes()` in `analytics.js` is proved and wired to nothing.** 18 August 2026.
+- **The statistics page now gates every finding, and it was driven end to end against the real page
+  source rather than a retyping of it.** 18 August 2026. `stats.html` is behind `requireRole`, so it
+  was run through a probe: the shipped page with only its `./app.js` import repointed at a shim that
+  stubs the session and the query. Everything else was the file as committed.
+
+  On a fixture of 350 decisions held in 19 accounts, with a bad hour and a real disposition effect
+  planted in it, the page before and after: **"the trade straight after a loss… 3,580 of them"**
+  became no finding at all; **"1,330 trades in that hour"** became **"70 decisions in that hour
+  across 70 days"**; and a denominator appeared — *6 habits were tested against chance and 4 cleared
+  it, over 350 decisions rather than 6,650 rows*. Full re-render went from 317ms to 162ms, because
+  findings are now cached per unit / range / account.
+
+  **What is still not verified:** none of this has run against a live Supabase journal. The probe
+  proves the code paths, the arithmetic and the rendering; it cannot prove the query returns what
+  the page expects, and the fixture is synthetic.
+
+  Two known holes, both written up in `designs/journal-analytics.md`: a strong group drags the null
+  toward itself and can make a second group look significant by contrast (Westfall–Young step-down
+  is the fix), and confounding is entirely unhandled — on the fixture 11:00 was always the fourth
+  trade of the day, so two findings report one fact.
+
+- **`permutationExtremes()` in `analytics.js` is proved.** 18 August 2026.
   Thirteen assertions in a browser against the shipped module: no value crosses a day boundary
   under the shuffle, group eligibility is identical in the real data and the null, p is never zero,
   the day-count rule refuses 20 trades taken over 2 days, and two seeded runs agree exactly.
@@ -427,8 +448,9 @@ Be honest about this list before trusting anything below it.
   the max-T gate reported one **3%** of the time. Against a planted bad hour it fired **40 of 40**,
   so the correction did not cost the power to see a real effect.
 
-  What is NOT done: `findings()` still ranks on money alone and calls nothing through this. Nothing
-  a member sees has changed. See `designs/journal-analytics.md` for the remaining steps.
+  `permutationStatistic()` alongside it was calibrated the same way: on 150 journals with no
+  relationship in them it fires 6.7% of the time for tilt, 4.7% for overtrading and 5.3% for
+  disposition, and catches planted effects 29 of 30 and 30 of 30.
 
 - **The Import button beside the file picker on `import.html`, and Cancel with it.** 18 August
   2026. The page could not be driven here - it is behind `requireRole` and there is no session on

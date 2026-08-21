@@ -190,9 +190,10 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
-         fetchPaged, barTrack } from './app.js';
+         decisionKey, fetchPaged, barTrack } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
-         wilson, tStat, bootstrap, hhmm, humanSeconds, sequence,
+         wilson, tStat, bootstrap, hhmm, humanSeconds, sequenceOfDecisions,
+         permutationExtremes, permutationStatistic,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
@@ -509,6 +510,9 @@ document.getElementById('risk-save').addEventListener('click', async () => {
   }
 
   stated = new Map(keep.map((k) => [k.account, k.risk_per_trade]));
+  // A stated R changes what every trade is worth, so every cached finding is
+  // now about a journal that no longer exists.
+  clearFindingsCache();
   btn.disabled = false;
   // Both halves inside the current window. "covers 40 of 171" while showing
   // thirty days is two different denominators in one sentence.
@@ -677,21 +681,31 @@ function renderLuck(all) {
    knows what you made. It does not know that your fourth trade of the day is
    where the money goes. */
 
-const chronAll = [...rows].sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
-
-// Sequence and "the trade before" are computed over EVERY trade, then filtered.
-// Computing them inside the window would make the first trade of the window
-// look like the first trade of its day, and invent a tilt pair across the
-// boundary that never happened.
-const chron = chronAll;
-
 const hourOf  = (r) => new Date(r.opened_at).getHours();
 const dayOf   = (r) => localDay(r.opened_at);
 const holdSec = holdSeconds;
 
-// Position within its own day, and what the trade before it did. Computed once
-// over the whole journal in time order, then read back per trade by id.
-const { seq: seqOf, prev: prevOf } = sequence(chron, dayOf);
+/* Position within its own day, and what was taken immediately before it.
+ *
+ * Over EVERY trade in the journal, then filtered. Computing them inside the
+ * window would make the first trade of the window look like the first trade of
+ * its day, and invent a tilt pair across the boundary that never happened.
+ *
+ * And over DECISIONS rather than rows, which is not a refinement - it is the
+ * difference between a measurement and a fabrication. Nineteen accounts
+ * copying one trade produce nineteen rows a millisecond apart, so a morning of
+ * three decisions read as fifty-seven trades AND every losing decision became
+ * its own predecessor eighteen times over. On the fixture that is 57 trades
+ * classified as following a loss with 54 of them the same trade again, which
+ * guarantees the page reports that the trade after a loss loses. See
+ * sequenceOfDecisions in analytics.js. */
+const { decisions: chron, seqOf, prevOf } =
+  sequenceOfDecisions(rows, { dayOf, keyOf: decisionKey });
+
+/* Membership by decision, never by row id. Under an account filter the row the
+ * collapse happened to keep may not be the row the filter kept, and an id test
+ * would quietly drop the pair. */
+const decisionSet = (list) => new Set(list.map(decisionKey));
 
 
 
@@ -732,7 +746,8 @@ function renderBehaviour(list) {
     'Whether the fourth trade of a day is as good as the first. This is what overtrading ' +
     'looks like when it is measured rather than felt.',
     list, (r) => {
-      const n = seqOf.get(r.id);
+      const n = seqOf(r);
+      if (!n) return '';
       return n >= 5 ? '5th or later' : ['1st', '2nd', '3rd', '4th'][n - 1];
     }, true));
 
@@ -756,15 +771,15 @@ function sliceBlock(title, note, list, keyFn, withCounterfactual) {
  * the two things that give it away are speed and size: back in sooner, and
  * bigger. Both are in the data already. */
 function afterLossBlock(list) {
-  const ids = new Set(list.map((r) => r.id));
+  const here = decisionSet(list);
   const after = { loss: [], win: [] };
   const gaps = { loss: [], win: [] };
   const sizes = { loss: [], win: [] };
 
   for (const r of chron) {
-    if (!ids.has(r.id)) continue;
-    const prev = prevOf.get(r.id);
-    if (!prev || !ids.has(prev.id)) continue;
+    if (!here.has(decisionKey(r))) continue;
+    const prev = prevOf(r);
+    if (!prev || !here.has(decisionKey(prev))) continue;
     if (dayOf(prev) !== dayOf(r)) continue;      // a fresh day is not a reaction
 
     const prevValue = UNIT[unit].value(prev);
@@ -902,97 +917,266 @@ function lessonLink(key) {
     '">Read: ' + escapeHtml(entry[1]) + '</a>';
 }
 
+/* What the gate found, said in words rather than as a p value.
+ *
+ * "p = 0.004" is precise and means nothing to somebody reading their own
+ * journal. The shuffle has a plain-English description - deal your own results
+ * again in a different order and see how often this shows up - so the number
+ * is quoted that way. */
+function chanceNote(p) {
+  const once = Math.round(1 / p);
+  return '<span class="acct-muted">Dealing your own results again in a different order ' +
+    'within each day produced a pattern this strong ' +
+    (p < 0.01 ? 'about once in ' + once.toLocaleString() + ' attempts'
+      : 'in ' + (p * 100).toFixed(1) + '% of attempts') + '.</span>';
+}
+
+/* How many shuffles each gate runs.
+ *
+ * A thousand puts p on a grid of about a thousandth, which is far finer than
+ * a 0.05 line needs, and five gates over a collapsed journal cost about half a
+ * second in total - measured at 85ms per gate on thirteen hundred decisions.
+ * Two thousand would be twice the wait to answer the same question. */
+const GATE_RUNS = 500;
+const GATE_P = 0.05;
+
+/* Findings are the expensive thing on this page and the filters redraw it.
+ *
+ * Six permutation gates cost around a second, which is fine once and awful
+ * every time somebody flips between dollars and R. The answer depends on
+ * exactly three choices, so it is keyed on those and computed once per
+ * combination. Everything else on the page is cheap enough to redraw.
+ *
+ * Cleared whenever the underlying rows could have changed - which here means
+ * only the risk figures, since a stated R changes what every trade is worth. */
+const findingsCache = new Map();
+function clearFindingsCache() { findingsCache.clear(); }
+
+/* THE GATE, APPLIED.
+ *
+ * This function used to compute six families, rank whatever it found by money
+ * and print the top five. Nothing asked whether a pattern that size turns up
+ * anyway, and it does: on journals built with no relationship at all between
+ * the hour and the result, picking the worst of seven hours produced a
+ * significant-looking finding 28% of the time.
+ *
+ * So every family that CHOOSES something - the worst hour, the worst weekday,
+ * the late trades over the early ones - now has to clear a permutation test
+ * before it may be printed at all. Money still decides the order of what
+ * survives, because money is the right answer to "which of these should I care
+ * about"; it is the wrong answer to "is this real", and it was being used for
+ * both.
+ *
+ * EVIDENCE AND IMPACT ARE DIFFERENT SAMPLES, DELIBERATELY.
+ *
+ * Every gate runs on `ev`, the collapsed journal, because nineteen copies of
+ * one trade are one piece of evidence. Every figure quoted in a finding is
+ * computed on `list`, every row, because nineteen accounts really did lose
+ * nineteen times the money. The page has always said money aggregates and
+ * behaviour deduplicates; this is the first place it actually does both.
+ */
 function findings(list) {
+  const key = unit + '|' + rangeDays + '|' + account + '|' + list.length;
+  if (findingsCache.has(key)) return findingsCache.get(key);
+  const answer = computeFindings(list);
+  findingsCache.set(key, answer);
+  return answer;
+}
+
+function computeFindings(list) {
   const found = [];
   const val = UNIT[unit].value;
   const fmt = UNIT[unit].fmt;
   const total = list.reduce((a, r) => a + val(r), 0);
+
+  // Chronological, because two of the measures below read the trade before.
+  const ev = decisions(list)
+    .sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+
   const add = (impact, html, lesson) =>
     found.push({ impact: Math.abs(impact), html: html + lessonLink(lesson) });
 
+  /* The denominator is counted per QUESTION, not per gate and not per finding.
+   *
+   * One call to permutationExtremes answers two of them - is the worst group
+   * unusually bad, is the best unusually good - and the clock asks both while
+   * the weekday asks only the first. Counting gates would say five when six
+   * were asked; counting findings would say six when the shape of the edge is
+   * not gated at all and could not have failed. So each question announces
+   * itself, and says whether it got through. */
+  let tested = 0;
+  let cleared = 0;
+  const asked = (ok) => { tested++; if (ok) cleared++; return ok; };
+
+  /* Ask a group-extreme question - which of these is worst, which is best -
+   * with the answer already corrected for how many groups were looked at. */
+  const gateGroups = (labelOf) => permutationExtremes(ev, {
+    labelOf, valueOf: val, dayOf, statistic: 'total', runs: GATE_RUNS
+  });
+
+  /* Ask a single-number question. `measure` recomputes from each shuffled
+   * arrangement, which is what lets tilt relabel. */
+  const gateStatistic = (rowsIn, measure, valueOf, tail) =>
+    permutationStatistic(rowsIn, { measure, valueOf, dayOf, tail, runs: GATE_RUNS });
+
+  // What the whole-journal figure for one group is, across every account.
+  const impactOf = (labelOf, key) =>
+    list.filter((r) => labelOf(r) === key).reduce((a, r) => a + val(r), 0);
+
   // --- the clock ---------------------------------------------------------
-  const hours = [...groupBy(list, (r) => hhmm(hourOf(r))).entries()]
-    .map(([k, rs]) => [k, rs.reduce((a, r) => a + val(r), 0), rs.length])
-    .filter(([, , n]) => n >= MIN_SAMPLE);
-
-  if (hours.length >= 2) {
-    const worst = [...hours].sort((a, b) => a[1] - b[1])[0];
-    const best = [...hours].sort((a, b) => b[1] - a[1])[0];
-
-    if (worst[1] < 0) {
-      add(worst[1],
-        '<strong>' + escapeHtml(worst[0]) + ' is costing you.</strong> ' + worst[2] +
-        ' trades in that hour, ' + fmt(worst[1]) + ' between them. Leave the hour alone and the ' +
-        'period reads ' + fmt(total - worst[1]) + ' instead of ' + fmt(total) + '.', 'clock');
+  const byHour = (r) => hhmm(hourOf(r));
+  {
+    const gate = gateGroups(byHour);
+    if (asked(gate.worst && gate.worst.p < GATE_P && gate.worst.value < 0)) {
+      const cost = impactOf(byHour, gate.worst.key);
+      add(cost,
+        '<strong>' + escapeHtml(String(gate.worst.key)) + ' is costing you.</strong> ' +
+        gate.worst.n + ' decisions in that hour across ' + gate.worst.days + ' days, ' +
+        fmt(cost) + ' between them. Leave the hour alone and the period reads ' +
+        fmt(total - cost) + ' instead of ' + fmt(total) + ' &mdash; though dropping your worst ' +
+        'hour in hindsight flatters a random trader too, by ' +
+        fmt(gate.worst.gainByChance) + ' on this journal. ' + chanceNote(gate.worst.p), 'clock');
     }
-    if (best[1] > 0 && best[1] > Math.abs(total) * 0.4) {
-      add(best[1],
-        '<strong>Your edge is concentrated in ' + escapeHtml(best[0]) + '.</strong> ' +
-        best[2] + ' trades there made ' + fmt(best[1]) + ', against ' + fmt(total) +
-        ' for the whole period. Most of what you make, you make in one hour.', 'clock');
+    if (asked(gate.best && gate.best.p < GATE_P && gate.best.value > 0)) {
+      const made = impactOf(byHour, gate.best.key);
+      add(made,
+        '<strong>Your edge is concentrated in ' + escapeHtml(String(gate.best.key)) +
+        '.</strong> ' + gate.best.n + ' decisions there made ' + fmt(made) + ', against ' +
+        fmt(total) + ' for the whole period. Most of what you make, you make in one hour. ' +
+        chanceNote(gate.best.p), 'clock');
     }
   }
 
   // --- overtrading -------------------------------------------------------
-  const early = list.filter((r) => seqOf.get(r.id) <= 3);
-  const late = list.filter((r) => seqOf.get(r.id) >= 4);
-  if (late.length >= MIN_SAMPLE && early.length >= MIN_SAMPLE) {
-    const lateTotal = late.reduce((a, r) => a + val(r), 0);
-    const se = summariseNow(early), sl = summariseNow(late);
-    if (lateTotal < 0 || sl.avg < se.avg * 0.5) {
+  //
+  // Sequence position does not move when outcomes are shuffled - the fourth
+  // trade of the morning is the fourth whatever it made - so the split is a
+  // fixed set of indexes and the null is simply "position says nothing".
+  {
+    const lateMinusEarly = (values, rowsIn) => {
+      let lateSum = 0, lateN = 0, earlySum = 0, earlyN = 0;
+      for (let i = 0; i < rowsIn.length; i++) {
+        const n = seqOf(rowsIn[i]);
+        if (!n) continue;
+        if (n >= 4) { lateSum += values[i]; lateN++; }
+        else { earlySum += values[i]; earlyN++; }
+      }
+      if (lateN < MIN_SAMPLE || earlyN < MIN_SAMPLE) return null;
+      return lateSum / lateN - earlySum / earlyN;
+    };
+
+    const gate = gateStatistic(ev, lateMinusEarly, val, 'low');
+    if (asked(gate.observed !== null && gate.p < GATE_P && gate.observed < 0)) {
+      const early = list.filter((r) => seqOf(r) <= 3);
+      const late = list.filter((r) => seqOf(r) >= 4);
+      const lateTotal = late.reduce((a, r) => a + val(r), 0);
+      const se = summariseNow(early), sl = summariseNow(late);
       add(lateTotal,
         '<strong>The day gets worse the longer it runs.</strong> Your first three trades of a ' +
         'day average ' + fmt(se.avg) + '. The fourth onwards average ' + fmt(sl.avg) + ' across ' +
         late.length + ' trades, ' + fmt(lateTotal) + ' in total. ' +
-        (lateTotal < 0 ? 'Everything after the third trade is a net cost.' : ''), 'overtrading');
+        (lateTotal < 0 ? 'Everything after the third trade is a net cost. ' : '') +
+        chanceNote(gate.p), 'overtrading');
     }
   }
 
   // --- tilt --------------------------------------------------------------
+  //
+  // The one family that has to RELABEL. Which trades follow a loss is decided
+  // by the outcomes, so holding the split still and shuffling the values would
+  // test a set that still knows the real sequence. The measure recomputes the
+  // split from each shuffled arrangement instead, which makes the null what it
+  // should be: the order within a day is arbitrary.
   {
-    const ids = new Set(list.map((r) => r.id));
-    const afterLoss = [], afterWin = [];
-    for (const r of chron) {
-      if (!ids.has(r.id)) continue;
-      const prev = prevOf.get(r.id);
-      if (!prev || !ids.has(prev.id) || dayOf(prev) !== dayOf(r)) continue;
-      const pv = val(prev);
-      if (pv < 0) afterLoss.push(r); else if (pv > 0) afterWin.push(r);
-    }
-    if (afterLoss.length >= MIN_SAMPLE && afterWin.length >= MIN_SAMPLE) {
-      const al = summariseNow(afterLoss), aw = summariseNow(afterWin);
-      if (al.avg < 0 && aw.avg > al.avg) {
-        add(al.total,
-          '<strong>The trade straight after a loss is your worst trade.</strong> ' +
-          afterLoss.length + ' of them, averaging ' + fmt(al.avg) + ', against ' + fmt(aw.avg) +
-          ' for one taken after a win. Same day only, so this is a reaction rather than a new ' +
-          'morning.', 'tilt');
+    const tiltGap = (values, rowsIn) => {
+      let lossSum = 0, lossN = 0, winSum = 0, winN = 0;
+      for (let i = 1; i < rowsIn.length; i++) {
+        if (dayOf(rowsIn[i]) !== dayOf(rowsIn[i - 1])) continue;   // a fresh morning is not a reaction
+        const before = values[i - 1];
+        if (before < 0) { lossSum += values[i]; lossN++; }
+        else if (before > 0) { winSum += values[i]; winN++; }
       }
+      if (lossN < MIN_SAMPLE || winN < MIN_SAMPLE) return null;
+      return lossSum / lossN - winSum / winN;
+    };
+
+    const gate = gateStatistic(ev, tiltGap, val, 'low');
+    if (asked(gate.observed !== null && gate.p < GATE_P && gate.observed < 0)) {
+      const here = decisionSet(list);
+      const afterLoss = [], afterWin = [];
+      for (const r of chron) {
+        if (!here.has(decisionKey(r))) continue;
+        const prev = prevOf(r);
+        if (!prev || !here.has(decisionKey(prev)) || dayOf(prev) !== dayOf(r)) continue;
+        const pv = val(prev);
+        if (pv < 0) afterLoss.push(r); else if (pv > 0) afterWin.push(r);
+      }
+      const al = summariseNow(afterLoss), aw = summariseNow(afterWin);
+      add(al.total,
+        '<strong>The trade straight after a loss is your worst trade.</strong> ' +
+        afterLoss.length + ' of them, averaging ' + fmt(al.avg) + ', against ' + fmt(aw.avg) +
+        ' for one taken after a win. Same day only, so this is a reaction rather than a new ' +
+        'morning. ' + chanceNote(gate.p), 'tilt');
     }
   }
 
   // --- disposition effect ------------------------------------------------
+  //
+  // Inverted from the rest. The split IS the outcome, so it cannot be
+  // shuffled; the DURATIONS move underneath it instead. The null becomes "how
+  // long you held has nothing to do with how it went", which is exactly the
+  // claim the disposition effect makes.
   {
-    const w = [], l = [];
-    for (const r of list) {
-      const s = holdSec(r);
-      if (s === null) continue;
-      (val(r) > 0 ? w : l).push(s);
-    }
-    if (w.length >= MIN_SAMPLE && l.length >= MIN_SAMPLE) {
-      const mw = median(w), ml = median(l);
-      if (mw > 0 && ml / mw >= 1.5) {
-        const lossTotal = list.filter((r) => val(r) < 0).reduce((a, r) => a + val(r), 0);
-        add(lossTotal,
-          '<strong>You hold losers ' + (ml / mw).toFixed(1) +
-          ' times as long as winners.</strong> Median winner ' + humanSeconds(mw) +
-          ', median loser ' + humanSeconds(ml) + '. That is the disposition effect: closing a ' +
-          'winner proves you were right, and closing a loser admits you were not.', 'disposition');
+    const timed = ev.filter((r) => holdSec(r) !== null);
+    const ratio = (values, rowsIn) => {
+      const w = [], l = [];
+      for (let i = 0; i < rowsIn.length; i++) (val(rowsIn[i]) > 0 ? w : l).push(values[i]);
+      if (w.length < MIN_SAMPLE || l.length < MIN_SAMPLE) return null;
+      const mw = median(w);
+      return mw > 0 ? median(l) / mw : null;
+    };
+
+    const gate = gateStatistic(timed, ratio, holdSec, 'high');
+    if (asked(gate.observed !== null && gate.p < GATE_P && gate.observed >= 1.5)) {
+      const w = [], l = [];
+      for (const r of list) {
+        const held = holdSec(r);
+        if (held === null) continue;
+        (val(r) > 0 ? w : l).push(held);
       }
+      const lossTotal = list.filter((r) => val(r) < 0).reduce((a, r) => a + val(r), 0);
+      add(lossTotal,
+        '<strong>You hold losers ' + gate.observed.toFixed(1) +
+        ' times as long as winners.</strong> Median winner ' + humanSeconds(median(w)) +
+        ', median loser ' + humanSeconds(median(l)) + '. That is the disposition effect: closing ' +
+        'a winner proves you were right, and closing a loser admits you were not. ' +
+        chanceNote(gate.p), 'disposition');
     }
   }
 
-  // --- the shape of the edge ---------------------------------------------
+  // --- weekday -----------------------------------------------------------
+  {
+    const byWeekday = (r) => DOW[new Date(r.opened_at).getDay()];
+    const gate = gateGroups(byWeekday);
+    if (asked(gate.worst && gate.worst.p < GATE_P && gate.worst.value < 0)) {
+      const cost = impactOf(byWeekday, gate.worst.key);
+      add(cost,
+        '<strong>' + escapeHtml(String(gate.worst.key)) + ' undoes the rest of the week.</strong> ' +
+        gate.worst.n + ' decisions across ' + gate.worst.days + ' of them, ' + fmt(cost) +
+        '. Worth knowing whether that is the market, or whether it is you by then. ' +
+        chanceNote(gate.worst.p), 'weekday');
+    }
+  }
+
+  /* The shape of the edge is NOT gated, and that is not an oversight.
+   *
+   * Everything above picks something - the worst of seven hours, the worst of
+   * five weekdays - and picking is what needs paying for. This one describes
+   * the whole sample without choosing anything out of it: your win rate is
+   * what it is, and so is the size of your average winner. There is no
+   * selection to correct, so a permutation test would be theatre.
+   *
+   * It is also the one finding here that is not a habit to stop. */
   {
     const s = summariseNow(list);
     const wins = list.filter((r) => val(r) > 0).map(val);
@@ -1016,21 +1200,13 @@ function findings(list) {
     }
   }
 
-  // --- weekday -----------------------------------------------------------
-  {
-    const days = [...groupBy(list, (r) => DOW[new Date(r.opened_at).getDay()]).entries()]
-      .map(([k, rs]) => [k, rs.reduce((a, r) => a + val(r), 0), rs.length])
-      .filter(([, , n]) => n >= MIN_SAMPLE)
-      .sort((a, b) => a[1] - b[1]);
-    if (days.length >= 3 && days[0][1] < 0 && Math.abs(days[0][1]) > Math.abs(total) * 0.5) {
-      add(days[0][1],
-        '<strong>' + escapeHtml(days[0][0]) + ' undoes the rest of the week.</strong> ' +
-        days[0][2] + ' trades, ' + fmt(days[0][1]) + '. Worth knowing whether that is the market, ' +
-        'or whether it is you by then.', 'weekday');
-    }
-  }
-
-  return found.sort((a, b) => b.impact - a.impact).slice(0, 5);
+  return {
+    items: found.sort((a, b) => b.impact - a.impact).slice(0, 5),
+    tested,
+    cleared,
+    decisions: ev.length,
+    rows: list.length
+  };
 }
 
 function renderFindings(list) {
@@ -1038,25 +1214,48 @@ function renderFindings(list) {
 
   if (list.length < MIN_SAMPLE) { mount.innerHTML = ''; return; }
 
-  const items = findings(list);
+  const result = findings(list);
+  const items = result.items;
+
+  /* THE DENOMINATOR, ALWAYS.
+   *
+   * Showing five findings and nothing else implies five were looked for. Six
+   * were, and the ones that stayed quiet are the more informative half: a
+   * habit that was tested and did not show up is a habit you do not have. */
+  const denominator = '<p class="stat-note">' + result.tested +
+    ' habits were tested against chance and ' +
+    (result.cleared === 0 ? 'none cleared the bar'
+      : result.cleared === 1 ? 'one cleared it' : result.cleared + ' cleared it') +
+    (result.decisions < result.rows
+      ? ', over <strong>' + result.decisions + '</strong> decisions rather than ' + result.rows +
+        ' rows &mdash; the same trade is held in several accounts, and a copy is not extra ' +
+        'evidence. The money quoted is still the total across all of them.'
+      : '.') + '</p>';
 
   if (!items.length) {
     mount.innerHTML =
       '<h2>What your journal says</h2>' +
       '<div class="callout"><span class="callout-label">Nothing stands out yet</span>' +
       '<p>No hour, no part of the day and no habit is far enough out of line to be worth naming ' +
-      'on ' + list.length + ' trades. That is a real result rather than a shrug: it means the ' +
-      'damage is spread evenly, and there is no single thing to stop doing.</p></div>';
+      'on ' + list.length + ' trades &mdash; further out of line, that is, than shuffling your ' +
+      'own results into a different order produces on its own.</p>' +
+      '<p>That is a real result rather than a shrug. It means the damage is spread evenly and ' +
+      'there is no single thing to stop doing, which is a more useful thing to know than a ' +
+      'pattern that would have turned up anyway.</p></div>' + denominator;
     return;
   }
 
   mount.innerHTML =
     '<h2>What your journal says</h2>' +
-    '<p class="stat-note">Ranked by how much money is involved, not by how interesting it is. ' +
-    'Each one names the number it came from so you can go and check it.</p>' +
+    '<p class="stat-note">Everything here had to survive a test before it was allowed to appear: ' +
+    'your own results, dealt again in a different order within each day, a thousand times over, ' +
+    'to see how often a pattern this strong turns up by itself. What survived is <strong>ranked ' +
+    'by how much money is involved</strong>, which is a different question from whether it is ' +
+    'real. Each one names the number it came from so you can go and check it.</p>' +
     '<div class="findings">' +
       items.map((f) => '<div class="finding"><p>' + f.html + '</p></div>').join('') +
     '</div>' +
+    denominator +
     '<p class="stat-note">These describe what already happened. None is a suggestion about what ' +
     'to trade next, and a pattern in three months of your own trades is a hypothesis rather than ' +
     'a rule.</p>';

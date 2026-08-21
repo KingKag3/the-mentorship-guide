@@ -646,6 +646,46 @@ function kindTag(kind) {
  * worst sentence on this site, since the next thing that happens is somebody
  * asks a firm for money.
  */
+/* THE ONE QUESTION THIS PROJECT CANNOT ANSWER YET, ASKED WHERE IT CAN BE.
+ *
+ * An evaluation does not lock. That is settled: nineteen of them past the
+ * point the published rule says the floor should stop trailing, and every
+ * threshold still a full allowance under its own high-water mark.
+ *
+ * Whether a FUNDED account locks is open, and cannot be closed from here -
+ * nobody on this project has had one. The honest way to track that is not a
+ * note in a file somebody has to remember to re-read. It is a question printed
+ * on the card, at the moment the account that answers it exists, naming the
+ * two numbers that settle it.
+ *
+ * It fires once and stops. Recording any figure - including zero, which is a
+ * real answer meaning the floor locks at the starting balance - removes it.
+ *
+ * The default while unanswered is "never locks", which is the conservative
+ * reading: a lock the account does not have invents room, and room that is not
+ * there is the one error on this page that ends an account.
+ */
+function lockQuestion(isFunded, cfg, p) {
+  if (!isFunded) return '';
+  if (cfg.lock_at !== null && cfg.lock_at !== undefined && cfg.lock_at !== '') return '';
+
+  return '<div class="callout"><span class="callout-label">Worth checking on this one</span>' +
+    '<p><strong>Does the drawdown on a funded account stop trailing?</strong> On an evaluation it ' +
+    'does not &mdash; that was settled against nineteen live accounts on 18 August 2026. Nobody ' +
+    'here has had a funded account, so for this kind it is genuinely unknown, and until it is ' +
+    'answered this card assumes the floor trails for ever.</p>' +
+    '<p>Your firm&rsquo;s dashboard settles it in one subtraction. Take <em>Max Balance</em> less ' +
+    '<em>Liquidation Threshold</em>:</p>' +
+    '<ul>' +
+      '<li>If it equals the full drawdown, the floor is still trailing. Leave the lock empty.</li>' +
+      '<li>If it is <em>smaller</em> than the full drawdown, the floor has stopped. The lock is ' +
+        'the threshold less the starting balance, plus the drawdown &mdash; set that below.</li>' +
+    '</ul>' +
+    '<p class="stat-note">Closed trades alone put this account ' + money(p.total) +
+    ' from where it started, so the answer is only visible once it is far enough above the start ' +
+    'for a lock to have fired at all.</p></div>';
+}
+
 function payoutBlock(cfg, p, bar) {
   const q = payoutProgress(cfg, p);
   const out = [];
@@ -825,6 +865,7 @@ function card(name) {
       : '') +
 
     mismatchNote(cfg, dd, target) +
+    lockQuestion(isFunded, cfg, p) +
 
     '<div class="card-grid">' +
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +

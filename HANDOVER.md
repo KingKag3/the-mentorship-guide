@@ -436,6 +436,21 @@ Be honest about this list before trusting anything below it.
   **The lock may still be real on a funded account.** Nothing here tested that; there has never been
   a funded account on this project. What is established is that an evaluation trails the whole way.
 
+- **DEFERRED UNTIL AN EVALUATION PASSES: does a funded account's drawdown stop trailing?** Kag3
+  cannot answer it until he has one, and asked for it to be tracked. It is tracked in the place it
+  can actually be answered rather than only here: a funded account with no lock recorded now prints
+  the question on its own card, names the subtraction that settles it — *Max Balance less
+  Liquidation Threshold* — and says what each outcome means. Recording any figure, zero included,
+  removes it.
+
+  **Until answered, the page assumes the floor trails for ever.** That is the conservative reading
+  and it is the reason the default is not the published rule: a lock the account does not have
+  invents room, and room that is not there is the one error on that page that ends an account.
+
+  When it is answered, `prop_presets.lock_at` is where it belongs — but only for the sizes actually
+  seen, and the seed comment in `supabase/prop-preset-drawdown.sql` should record which, the same
+  way the $250,000 drawdown does.
+
 - **Five columns on `prop_accounts` were written by the form and never selected back.** Found 18
   August 2026 by trying to answer "where is the lock_at field". `save()` had always sent `lock_at`,
   the three `payout_*` fields and `from_account`; the query asked for none of them. So a member

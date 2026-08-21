@@ -860,8 +860,29 @@ function card(name) {
       ? bar('Worst dip so far', p.worstDip, dd, 'is-bad')
       : '') +
 
+    /* A LOCKED FLOOR HAS NO DENOMINATOR, SO IT GETS NO BAR.
+     *
+     * While the floor trails, room is the drawdown less the fall from the
+     * high-water mark, so it can never exceed the drawdown and "X of Y" is a
+     * real fraction. Once the floor locks it stops moving, and room becomes
+     * the distance from a fixed line - which grows with every dollar made and
+     * has no ceiling at all.
+     *
+     * Drawn as a bar anyway, that reads "$7,621.80 / $6,000.00" beside a track
+     * filled to the brim: a number larger than the thing it is a share of, and
+     * a bar at maximum reassurance. Both halves of that are wrong, and the
+     * pictorial half is the one somebody takes in without reading.
+     *
+     * So a locked account gets the figure and the line it is measured from,
+     * and no fraction is implied. */
     (isWatched && dd
-      ? bar('Room left', room, dd, room !== null && room > 0 && room <= dd * 0.25 ? 'is-bad' : '')
+      ? (locked
+          ? '<div class="bar-row"><span>Room left</span>' +
+              '<span class="acct-muted">Measured from a floor that has stopped moving, so this ' +
+              'is not a share of anything &mdash; it grows with every dollar you keep.</span>' +
+              '<b>' + money(room) + '</b></div>'
+          : bar('Room left', room, dd,
+              room !== null && room > 0 && room <= dd * 0.25 ? 'is-bad' : ''))
       : '') +
 
     mismatchNote(cfg, dd, target) +

@@ -417,6 +417,16 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **Nineteen accounts still carry a null product, so nothing on them is being checked.** 19 August
+  2026. Every migration is applied and the presets hold sixteen rows, but nothing was backfilled —
+  naming the product is a decision only the member can make, and until it is made the card looks up
+  no terms at all. The drawdown mismatch warning is silent because there is nothing to compare
+  against, not because the figures agree.
+
+  **The one action outstanding:** on `props.html`, under *Set several at once*, pick **Legacy**,
+  choose all nineteen and apply. Only Legacy offers $250,000, and both the $6,500 drawdown and the
+  absence of a lock on the evaluations match it. Each unclassified card says this itself now.
+
 - **A select naming a column from an unrun migration takes the whole page down.** 18 August 2026.
   `props.html` asked for `payout_lowers_mark`, which `account-adjustments.sql` creates — and that
   migration was then deliberately held back. PostgREST does not skip an unknown column, it refuses

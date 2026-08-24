@@ -417,6 +417,27 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **Payouts: `account_adjustments`, built and never seen against a real withdrawal.** 18 August
+  2026. Nobody on this project has a funded account, so every part of this is proved on fixtures
+  only.
+
+  The arithmetic is proved. Three accounts trading identically — `+6,000` then `-1,000` — with a
+  `$3,000` payout taken **between** the two trades on two of them:
+
+  | | earned | holding | peak | worst dip | room |
+  | --- | --- | --- | --- | --- | --- |
+  | no payout | 5,000 | 5,000 | 6,000 | 1,000 | 5,500 |
+  | payout, mark stays | 5,000 | 2,000 | 6,000 | 4,000 | 2,500 |
+  | payout, mark falls | 5,000 | 2,000 | 3,000 | 1,000 | 5,500 |
+
+  Same trades, same withdrawal: it costs the full $3,000 of room or nothing at all, depending on one
+  boolean nobody can yet answer. **Earned is identical in all three**, which is the property that
+  matters — the statistics page must never see a withdrawal.
+
+  What is NOT proved: that a real firm behaves like either column, that the insert and delete work
+  against live RLS, and that `payout_lowers_mark` is ever true. The funded card asks that question
+  the same way it asks about the lock.
+
 - **The drawdown lock does NOT fire on an Apex evaluation, and the site said it did.** 18 August
   2026. `prop-preset-drawdown.sql` seeded `lock_at` as drawdown + 100 across the ladder, on the
   published rule, and the advice given was to apply 6,600 to all nineteen accounts. It was applied.

@@ -187,7 +187,7 @@ const mount = $('accounts');
  * figure on the page was computed from a slice of the journal without saying
  * so. On an account being judged against a trailing drawdown that is the worst
  * place on the site to be quietly short of data. See fetchPaged in app.js. */
-const [tradesRes, propsRes, presetRes, attemptRes] = await Promise.all([
+const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
   fetchPaged(() => supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
     .order('opened_at', { ascending: true }), 50000),
@@ -202,8 +202,11 @@ const [tradesRes, propsRes, presetRes, attemptRes] = await Promise.all([
      * drawdown could never be shown as locked on any account. */
     .select('id, account, kind, firm, size, profit_target, drawdown, drawdown_type, ' +
             'min_days, status, started_on, settled_on, ' +
-            'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account'),
+            'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account, ' +
+            'payout_lowers_mark'),
   supabase.from('prop_presets').select('firm, size, profit_target, drawdown, lock_at').order('size'),
+  supabase.from('account_adjustments')
+    .select('id, account, happened_on, amount, kind, note').order('happened_on'),
   supabase.from('prop_attempts')
     .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
     .order('account').order('attempt')
@@ -227,6 +230,28 @@ for (const a of (attemptRes && attemptRes.data) || []) {
   attemptsByAccount.get(a.account).push(a);
 }
 const attemptsMissing = !!(attemptRes && attemptRes.error);
+
+/* Adjustments are optional the same way attempts are. A project that has not
+ * run the migration keeps the page it had - every account reads as having
+ * taken nothing out, which is exactly what was assumed before the table
+ * existed. A missing table is a missing feature, not a broken page. */
+const adjustments = (adjustRes && adjustRes.data) || [];
+const adjustmentsMissing = !!(adjustRes && adjustRes.error);
+
+/* The ones belonging to one account, inside one attempt's window.
+ *
+ * Windowed for the same reason the trades are: a payout taken during a dead
+ * attempt is not money out of the current one, and carrying it forward would
+ * put a hole in an account that never had it. */
+function adjustmentsFor(account, win) {
+  return adjustments.filter((a) => {
+    if ((a.account || '') !== account) return false;
+    const when = new Date(a.happened_on + 'T12:00:00');
+    if (win && win.from && when < win.from) return false;
+    if (win && win.to && when > win.to) return false;
+    return true;
+  });
+}
 
 const trades = (tradesRes.data || []).filter(hasResult);
 const presets = presetRes.data || [];
@@ -306,7 +331,42 @@ function progress(account, cfg, attemptRow, dd) {
     return true;
   });
 
-  let total = 0;
+  /* ONE NUMBER WAS DOING TWO JOBS, AND A WITHDRAWAL PULLS THEM APART.
+   *
+   *   `total` is what the TRADING earned. It feeds the profit target and every
+   *   figure the statistics page reads. A payout must never touch it - a
+   *   withdrawal counted as a loss would show up as a bad day and would
+   *   corrupt the analysis of a day that was fine.
+   *
+   *   `held` is what the ACCOUNT holds: earned, less anything taken out. It
+   *   feeds the drawdown, the room left and the payout threshold, because
+   *   those are questions about a balance rather than about trading.
+   *
+   * They are identical until the first withdrawal, which is why nothing
+   * noticed. Every drawdown figure below is computed from `held`, because a
+   * firm measures your floor against the money in the account and does not
+   * care where it went.
+   *
+   * The walk is over trades AND adjustments together, in date order, because a
+   * payout taken in the middle of a drawdown changes the shape of that
+   * drawdown and appending it at the end would not.
+   */
+  const events = [];
+  for (const t of mine) {
+    const d = dollars(t);
+    if (d === null) continue;
+    events.push({ on: localDay(t.opened_at), at: new Date(t.opened_at).getTime(),
+                  amount: d, trade: true });
+  }
+  for (const a of adjustmentsFor(account, win)) {
+    events.push({ on: a.happened_on, at: new Date(a.happened_on + 'T23:59:59').getTime(),
+                  amount: Number(a.amount) || 0, trade: false });
+  }
+  events.sort((x, y) => x.at - y.at);
+
+  let total = 0;          // earned by trading
+  let held = 0;           // what the account is holding, above where it started
+  let withdrawn = 0;      // the sum of everything taken out, as a positive
   let peak = 0;
   let worstDip = 0;
   let worstOn = null;      // the day the dip was deepest
@@ -314,22 +374,36 @@ function progress(account, cfg, attemptRow, dd) {
   let counted = 0;
 
   const floor = Number(dd) || 0;
+  /* Whether the firm's high-water mark comes down with a withdrawal.
+   *
+   * Unanswered is false, which is the conservative reading: the mark stays,
+   * so the payout costs its full value in room. Wrong that way understates
+   * what you have. Wrong the other way invents it. */
+  const markFalls = cfg && cfg.payout_lowers_mark === true;
 
-  for (const t of mine) {
-    const d = dollars(t);
-    if (d === null) continue;
-    counted += 1;
-    total += d;
-    if (total > peak) peak = total;
-    const dip = peak - total;
+  for (const e of events) {
+    held += e.amount;
+
+    if (e.trade) {
+      counted += 1;
+      total += e.amount;
+    } else if (e.amount < 0) {
+      withdrawn += -e.amount;
+      // The mark follows the money down, if the firm says it does.
+      if (markFalls) peak += e.amount;
+    }
+
+    if (held > peak) peak = held;
+
+    const dip = peak - held;
     if (dip > worstDip) {
       worstDip = dip;
-      worstOn = localDay(t.opened_at);
+      worstOn = e.on;
     }
     // The first crossing, not the deepest. An attempt ends the moment the floor
     // is touched; everything after it happened on an account the firm had
     // already closed.
-    if (floor > 0 && dip >= floor && !breachedOn) breachedOn = localDay(t.opened_at);
+    if (floor > 0 && dip >= floor && !breachedOn) breachedOn = e.on;
   }
 
   const days = new Set(mine.map((t) => localDay(t.opened_at)).filter(Boolean)).size;
@@ -360,9 +434,10 @@ function progress(account, cfg, attemptRow, dd) {
    * `peak` comes out with it because a trailing floor is anchored to the peak
    * rather than to the start, and the renderer needs the anchor to say where
    * the floor actually sits. */
-  const dipNow = peak - total;
+  const dipNow = peak - held;
 
-  return { total, peak, dipNow, worstDip, worstOn, breachedOn, days, counted,
+  return { total, held, withdrawn, markFalls,
+           peak, dipNow, worstDip, worstOn, breachedOn, days, counted,
            trades: mine.length, byDay };
 }
 
@@ -386,8 +461,12 @@ function payoutProgress(cfg, stats) {
     ? days.filter((v) => v >= dayMin).length
     : days.length;
 
+  /* `held`, not `total`. The threshold is a rule about the balance: withdraw
+   * down to it and you are no longer above it, however much the trading
+   * earned. Testing what was earned would tell somebody who had already taken
+   * the money out that they were still eligible for it. */
   const haveThreshold = Number.isFinite(threshold);
-  const overThreshold = haveThreshold && stats.total >= threshold;
+  const overThreshold = haveThreshold && stats.held >= threshold;
   const haveDays = needDays > 0;
   const enoughDays = haveDays && qualifying >= needDays;
 
@@ -686,6 +765,104 @@ function lockQuestion(isFunded, cfg, p) {
     'for a lock to have fired at all.</p></div>';
 }
 
+/* WHAT A WITHDRAWAL WOULD COST, BEFORE IT IS REQUESTED.
+ *
+ * This is the whole reason the adjustments table exists. A payout moves the
+ * balance down without a trade, so unless the firm lowers your high-water mark
+ * with it, every dollar withdrawn comes straight off the distance to your
+ * floor. Somebody can go from comfortable to nearly finished without placing
+ * an order, and every dashboard they own will show it only afterwards.
+ *
+ * Stated as a subtraction they can check rather than as advice. This page
+ * sizes and records; it does not tell anybody what to take.
+ */
+function payoutCost(isFunded, cfg, p, room, dd) {
+  if (!isFunded || !dd || room === null) return '';
+
+  const threshold = toNumber(cfg.payout_threshold);
+  const spare = Number.isFinite(threshold) ? p.held - threshold : null;
+
+  if (p.markFalls) {
+    return '<p class="stat-note">Your firm lowers the high-water mark when you withdraw, so a ' +
+      'payout does not move you closer to the floor. Room left stays at ' + money(room) +
+      ' whatever you take.</p>';
+  }
+
+  return '<div class="callout warn"><span class="callout-label">What a payout would cost</span>' +
+    '<p><strong>Every dollar withdrawn comes off the ' + money(room) + ' above.</strong> The ' +
+    'floor does not follow the money out, so a payout moves you toward it exactly as a losing ' +
+    'trade would &mdash; without a trade.</p>' +
+    (spare !== null && spare > 0
+      ? '<p>Taking everything above the payout threshold &mdash; ' + money(spare) + ' &mdash; ' +
+        'would leave <strong>' + money(room - spare) + '</strong> of room' +
+        (room - spare <= 0
+          ? ', which is the floor or past it. That withdrawal would end the account.'
+          : (room - spare < dd * 0.25
+              ? ', which is inside the last quarter of your drawdown.'
+              : '.')) + '</p>'
+      : '') +
+    '<p class="stat-note">Assumes the mark stays where it is, which is the conservative reading ' +
+    'and is not confirmed for your firm. If it does come down with a withdrawal, say so on the ' +
+    'card below and this changes.</p></div>';
+}
+
+/* Recording one. Deliberately plain: a date, an amount and what it was.
+ *
+ * The amount is entered POSITIVE and stored negative for anything leaving,
+ * because "-5000" in a box labelled payout is a double negative somebody will
+ * get wrong once and never notice. The sign is the code's business. */
+function adjustmentsBlock(name, isFunded, cfg) {
+  if (!isFunded) return '';
+  if (adjustmentsMissing) {
+    return '<p class="stat-note">Payouts are not set up. Run ' +
+      '<code>supabase/account-adjustments.sql</code> to record money leaving this account, ' +
+      'which the drawdown cannot see without it.</p>';
+  }
+
+  const mine = adjustmentsFor(name, null);
+  const rows = mine.map((a) =>
+    '<div class="bar-row">' +
+      '<span>' + escapeHtml(a.happened_on) + ' <span class="tag">' + escapeHtml(a.kind) +
+        '</span>' + (a.note ? '<br><span class="acct-muted">' + escapeHtml(a.note) + '</span>' : '') +
+      '</span>' +
+      '<b class="' + (Number(a.amount) < 0 ? 'field-note-bad' : 'field-note-ok') + '">' +
+        money(Number(a.amount)) + '</b>' +
+      '<button type="button" class="link-button" data-drop-adj="' + escapeHtml(a.id) +
+        '">remove</button>' +
+    '</div>').join('');
+
+  return '<details class="acct-details"><summary>Money in and out (' + mine.length + ')</summary>' +
+    '<p class="stat-note">Anything that moved the balance without a trade behind it. Never ' +
+    'counted as profit or loss &mdash; your statistics stay a record of your trading, and the ' +
+    'drawdown stops pretending the money is still here.</p>' +
+    rows +
+    '<form class="auth-form auth-form-wide" data-adj-form="' + escapeHtml(name) + '">' +
+      '<div class="field-pair">' +
+        '<div><label>When</label><input name="happened_on" type="date" required></div>' +
+        '<div><label>How much <span class="opt">&mdash; as a positive number</span></label>' +
+          '<input name="amount" type="number" step="0.01" min="0.01" required></div>' +
+      '</div>' +
+      '<label>What it was</label>' +
+      '<select name="kind" class="role-select">' +
+        '<option value="payout">Payout &mdash; money out</option>' +
+        '<option value="fee">Fee &mdash; money out</option>' +
+        '<option value="credit">Credit &mdash; money in</option>' +
+      '</select>' +
+      '<label>Note <span class="opt">&mdash; optional</span></label>' +
+      '<input name="note" type="text" placeholder="first payout">' +
+      '<div class="row-actions">' +
+        '<button class="btn-primary" type="submit">Record it</button>' +
+      '</div>' +
+      '<p class="form-status" data-adj-status="' + escapeHtml(name) + '"></p>' +
+    '</form>' +
+    '<label class="check-line"><input type="checkbox" data-mark-falls="' + escapeHtml(name) + '"' +
+      (cfg.payout_lowers_mark === true ? ' checked' : '') + '>' +
+      '<span>My firm lowers the high-water mark when I withdraw, so a payout does not cost me ' +
+      'room. Leave this off unless you have checked &mdash; assuming it invents room that is ' +
+      'not there.</span></label>' +
+    '</details>';
+}
+
 function payoutBlock(cfg, p, bar) {
   const q = payoutProgress(cfg, p);
   const out = [];
@@ -697,8 +874,8 @@ function payoutBlock(cfg, p, bar) {
   }
 
   if (q.haveThreshold) {
-    out.push(bar('Toward the payout threshold', p.total, q.threshold,
-      p.total < 0 ? 'is-bad' : ''));
+    out.push(bar('Toward the payout threshold', p.held, q.threshold,
+      p.held < 0 ? 'is-bad' : ''));
   } else {
     out.push('<p class="stat-note">No payout threshold set, so how far above the start this ' +
       'account needs to be is unknown.</p>');
@@ -719,7 +896,7 @@ function payoutBlock(cfg, p, bar) {
   // Said only when both halves are known and both are met.
   if (q.ready) {
     out.push('<div class="callout"><span class="callout-label">Both rules met</span>' +
-      '<p>Closed trades put this account <strong>' + money(p.total) + '</strong> above its start, ' +
+      '<p>This account is holding <strong>' + money(p.held) + '</strong> above its start, ' +
       'over <strong>' + q.qualifying + '</strong> qualifying day' +
       (q.qualifying === 1 ? '' : 's') + '. Whether a payout is actually granted is the ' +
       'firm\'s call against terms this page does not hold &mdash; and these are closed trades, ' +
@@ -727,7 +904,7 @@ function payoutBlock(cfg, p, bar) {
   }
 
   if (Number.isFinite(q.lockAt)) {
-    const locked = p.total >= q.lockAt;
+    const locked = p.peak >= q.lockAt;
     out.push('<p class="stat-note">' + (locked
       ? 'Past <strong>' + money(q.lockAt) + '</strong>, so the drawdown should have stopped ' +
         'trailing and become static. Worth confirming on the firm\'s dashboard rather than ' +
@@ -807,7 +984,7 @@ function card(name) {
   const lockAt = toNumber(cfg.lock_at);
   const locked = Number.isFinite(lockAt) && p.peak >= lockAt;
   const anchor = locked ? lockAt : p.peak;
-  const room = dd ? dd - (anchor - p.total) : null;
+  const room = dd ? dd - (anchor - p.held) : null;
 
   // Only a target that has actually been reached earns the celebration, and
   // only while the account is still open - a passed account keeps its badge
@@ -886,16 +1063,30 @@ function card(name) {
       : '') +
 
     mismatchNote(cfg, dd, target) +
+    payoutCost(isFunded, cfg, p, room, dd) +
     lockQuestion(isFunded, cfg, p) +
+    adjustmentsBlock(name, isFunded, cfg) +
 
     '<div class="card-grid">' +
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +
-        '</div><p>' + p.trades + ' closed trade' + (p.trades === 1 ? '' : 's') + '</p></div>' +
+        '</div><p>' + p.trades + ' closed trade' + (p.trades === 1 ? '' : 's') +
+        // Only said when the two have parted company. Before the first
+        // withdrawal they are the same number and printing both invites
+        // somebody to look for a difference that is not there.
+        (p.withdrawn > 0
+          ? '. Holding ' + money(p.held) + ' after ' + money(p.withdrawn) + ' taken out'
+          : '') + '</p></div>' +
       '<div class="card"><h3>Days traded</h3><div class="readout-big">' + p.days +
         '</div><p>' + (!isProp ? 'No minimum applies'
         : cfg.min_days ? 'Minimum ' + cfg.min_days : 'No minimum set') + '</p></div>' +
       '<div class="card"><h3>Worst dip</h3><div class="readout-big">' + money(p.worstDip) +
-        '</div><p>From closed trades. A floor, not the figure the firm holds</p></div>' +
+        // Once a withdrawal is in the walk, "from closed trades" is no longer
+        // what this measures - part of the fall is money that was taken out on
+        // purpose, and calling that a dip without saying so reads as a trading
+        // result somebody should feel bad about.
+        '</div><p>' + (p.withdrawn > 0
+          ? 'Closed trades and money taken out. A floor, not the figure the firm holds'
+          : 'From closed trades. A floor, not the figure the firm holds') + '</p></div>' +
       (isWatched && dd
         ? '<div class="card"><h3>Room left</h3><div class="readout-big">' + money(room) +
           '</div><p>' + (locked
@@ -1369,6 +1560,17 @@ function render() {
     b.addEventListener('click', () => startFunded(b.getAttribute('data-start-funded'), b));
   }
 
+  for (const form of mount.querySelectorAll('form[data-adj-form]')) {
+    form.addEventListener('submit', saveAdjustment);
+  }
+  for (const b of mount.querySelectorAll('[data-drop-adj]')) {
+    b.addEventListener('click', () => dropAdjustment(b.getAttribute('data-drop-adj')));
+  }
+  for (const box of mount.querySelectorAll('[data-mark-falls]')) {
+    box.addEventListener('change', () => setMarkFalls(box.getAttribute('data-mark-falls'),
+                                                      box.checked));
+  }
+
   for (const form of mount.querySelectorAll('form[data-form]')) {
     form.addEventListener('submit', save);
     // Picking a size offers the firm's published numbers. Offered, not imposed:
@@ -1387,6 +1589,70 @@ function render() {
       }
     });
   }
+}
+
+/* ---------------------------- money in and out ---------------------------- */
+
+async function saveAdjustment(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const account = form.getAttribute('data-adj-form');
+  const say = (msg, tone) =>
+    setStatus('[data-adj-status="' + CSS.escape(account) + '"]', msg, tone);
+
+  const when = form.querySelector('[name="happened_on"]').value;
+  const size = Number(form.querySelector('[name="amount"]').value);
+  const kind = form.querySelector('[name="kind"]').value;
+  const note = form.querySelector('[name="note"]').value.trim() || null;
+
+  if (!when || !Number.isFinite(size) || size <= 0) {
+    say('A date and an amount above zero, please.', 'error');
+    return;
+  }
+
+  /* The sign is decided here rather than typed. A box labelled "payout" that
+   * wants a negative number is a double negative somebody gets wrong once and
+   * never notices - and getting it wrong the wrong way adds money to an
+   * account that lost it. */
+  const amount = kind === 'credit' ? size : -size;
+
+  say('Recording...', 'info');
+  const { error } = await supabase.from('account_adjustments')
+    .insert({ user_id: profile.id, account, happened_on: when, amount, kind, note });
+
+  if (error) {
+    const file = migrationHint(error);
+    say(file ? error.message + ' - run ' + file + ' in the Supabase SQL editor, then reload.'
+             : error.message, 'error');
+    return;
+  }
+
+  adjustments.push({ id: crypto.randomUUID(), account, happened_on: when, amount, kind, note });
+  adjustments.sort((a, b) => a.happened_on.localeCompare(b.happened_on));
+  render();
+}
+
+async function dropAdjustment(id) {
+  const { error } = await supabase.from('account_adjustments').delete().eq('id', id);
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+  const at = adjustments.findIndex((a) => String(a.id) === String(id));
+  if (at >= 0) adjustments.splice(at, 1);
+  render();
+}
+
+/* Whether the firm's high-water mark comes down with a withdrawal.
+ *
+ * Its own control rather than a field on the account form, because it is not a
+ * number somebody looks up - it is a yes or no about how their firm behaves,
+ * and it changes what every room figure on the card means. */
+async function setMarkFalls(account, falls) {
+  const row = saved.get(account);
+  if (row) row.payout_lowers_mark = falls;
+  const { error } = await supabase.from('prop_accounts')
+    .update({ payout_lowers_mark: falls })
+    .eq('user_id', profile.id).eq('account', account);
+  if (error) setStatus('#status', error.message, 'error');
+  render();
 }
 
 /* A passed evaluation becomes a funded account.

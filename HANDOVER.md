@@ -444,6 +444,13 @@ Be honest about this list before trusting anything below it.
   seeded as `funded_lock_at` and never fills an evaluation, which is the distinction the live
   account table proved.
 
+  **The payout checklist is built** and reads every rule from the product's preset: trading days,
+  qualifying days at the size's own minimum, the safety net, the consistency ratio and the payout
+  count. Proved on two accounts trading identically where one had taken a payout — the window resets
+  past the last approved payout, so the same trades fail consistency on one card and fail qualifying
+  days on the other. That window is the thing most likely to be got wrong and it is the reason
+  `account_adjustments` had to exist first.
+
   **Still open:** the maximum per request. Legacy caps it per size for five payouts then lifts it;
   EOD varies it by size *and* payout number across a 24-cell table. That needs a table of its own
   and the page must quote no maximum until it exists.

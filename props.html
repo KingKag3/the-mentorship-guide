@@ -958,6 +958,119 @@ function adjustmentsBlock(name, isFunded, cfg) {
     '</details>';
 }
 
+/* WHAT THE PUBLISHED RULES SAY ABOUT THIS ACCOUNT, TODAY.
+ *
+ * Every one of these is arithmetic over days the member already recorded, and
+ * every threshold comes from the product's own preset row or from a figure
+ * they typed. Nothing is invented and nothing predicts an outcome: the firm
+ * approves payouts, this only says which of their published conditions the
+ * journal can already see are met.
+ *
+ * THE WINDOW IS THE THING MOST LIKELY TO BE GOT WRONG.
+ *
+ * Two of the rules - the qualifying days and the consistency ratio - are
+ * measured since the LAST APPROVED PAYOUT, not since the account opened. Apex
+ * is explicit about it, and it is why the payouts table had to exist before
+ * this could be written: without a record of when money came out there is no
+ * window, and every figure would quietly describe the wrong stretch of time.
+ *
+ * A member with no payouts recorded gets the whole attempt, which is also what
+ * the rules say.
+ */
+function payoutChecklist(name, cfg, p) {
+  const terms = presetFor(cfg);
+  const dd = Number(cfg.drawdown) || 0;
+  if (!terms && !cfg.payout_threshold) return '';
+
+  const pick = (mine, theirs) => {
+    const v = toNumber(mine);
+    return Number.isFinite(v) ? v : toNumber(theirs);
+  };
+  const dayMin    = pick(cfg.payout_day_min, terms && terms.payout_day_min);
+  const needDays  = pick(cfg.payout_min_days, terms && terms.payout_min_days);
+  const totalDays = toNumber(terms && terms.payout_total_days);
+  const consist   = toNumber(terms && terms.consistency_pct);
+  const maxOuts   = toNumber(terms && terms.max_payouts);
+  const netFor    = toNumber(terms && terms.safety_net_payouts);
+  const minOut    = toNumber(terms && terms.payout_minimum);
+  const safety    = pick(cfg.payout_threshold, dd ? dd + 100 : null);
+
+  // Payouts already taken, oldest first. Only actual payouts count - a fee is
+  // money leaving the account and is not a payout, and counting it would move
+  // the window to a day nothing was approved on.
+  const taken = adjustmentsFor(name, null)
+    .filter((a) => a.kind === 'payout')
+    .sort((a, b) => a.happened_on.localeCompare(b.happened_on));
+  const since = taken.length ? taken[taken.length - 1].happened_on : null;
+
+  const days = [...(p.byDay || new Map()).entries()]
+    .filter(([day]) => !since || day > since)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  const netSince   = days.reduce((sum, [, v]) => sum + v, 0);
+  const bestDay    = days.reduce((best, [, v]) => (v > best ? v : best), 0);
+  const qualifying = Number.isFinite(dayMin)
+    ? days.filter(([, v]) => v >= dayMin).length : days.length;
+  const needProfit = consist > 0 && bestDay > 0 ? bestDay / consist : null;
+
+  const rows = [];
+  const rule = (ok, label, detail) => rows.push(
+    '<li class="' + (ok ? 'field-note-ok' : 'field-note-bad') + '">' +
+      '<strong>' + escapeHtml(label) + '</strong> &mdash; ' + detail + '</li>');
+
+  if (Number.isFinite(totalDays)) {
+    rule(days.length >= totalDays, 'Trading days',
+      days.length + ' of ' + totalDays + ' since ' +
+      (since ? 'your last payout' : 'this account opened'));
+  }
+
+  if (Number.isFinite(needDays)) {
+    rule(qualifying >= needDays, 'Qualifying days',
+      qualifying + ' of ' + needDays 
+      + (Number.isFinite(dayMin) ? ' at ' + money(dayMin) + ' or better' : ''));
+  }
+
+  if (Number.isFinite(safety) && safety > 0) {
+    const applies = !Number.isFinite(netFor) || taken.length < netFor;
+    rule(!applies || p.held >= safety, 'Safety net',
+      applies
+        ? money(p.held) + ' held against ' + money(safety) +
+          (Number.isFinite(netFor)
+            ? ' &mdash; applies to your first ' + netFor + ' payouts'
+            : ' &mdash; applies for the life of the account')
+        : 'no longer applies after ' + netFor + ' payouts');
+  }
+
+  if (needProfit !== null) {
+    rule(netSince >= needProfit, 'Consistency',
+      'Your best day since ' + (since ? 'the last payout' : 'the start') + ' made ' +
+      money(bestDay) + ', so ' + Math.round(consist * 100) + '% consistency needs ' +
+      money(needProfit) + ' of profit. You have ' + money(netSince) + '.');
+  }
+
+  if (Number.isFinite(maxOuts)) {
+    rule(taken.length < maxOuts, 'Payouts taken',
+      taken.length + ' of ' + maxOuts +
+      (taken.length >= maxOuts ? ' &mdash; the account closes after this many' : ''));
+  }
+
+  if (!rows.length) return '';
+  const short = rows.filter((r) => r.includes('field-note-bad')).length;
+
+  return '<details class="acct-details"' + (short ? '' : ' open') + '>' +
+    '<summary>What the payout rules ask for (' +
+      (short ? short + ' not met yet' : 'all met') + ')</summary>' +
+    '<ul>' + rows.join('') + '</ul>' +
+    (minOut ? '<p class="stat-note">The minimum request is ' + money(minOut) + '. ' +
+      'This page quotes no maximum, because it varies by payout number on some products and ' +
+      'nothing here holds that table yet.</p>' : '') +
+    '<p class="stat-note"><strong>These are the firm&rsquo;s published conditions measured against ' +
+    'your own journal, not a decision.</strong> Approving a payout is theirs, against terms this ' +
+    'page does not hold in full &mdash; and the figures are closed trades, so a day the journal ' +
+    'is missing moves every one of them.</p>' +
+    '</details>';
+}
+
 function payoutBlock(cfg, p, bar) {
   const q = payoutProgress(cfg, p);
   const out = [];
@@ -1158,6 +1271,7 @@ function card(name) {
       : '') +
 
     mismatchNote(cfg, dd, target) +
+    (isFunded ? payoutChecklist(name, cfg, p) : '') +
     payoutCost(isFunded, cfg, p, room, dd) +
     lockQuestion(isFunded, cfg, p) +
     adjustmentsBlock(name, isFunded, cfg) +

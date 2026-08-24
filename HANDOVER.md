@@ -417,6 +417,22 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **A select naming a column from an unrun migration takes the whole page down.** 18 August 2026.
+  `props.html` asked for `payout_lowers_mark`, which `account-adjustments.sql` creates — and that
+  migration was then deliberately held back. PostgREST does not skip an unknown column, it refuses
+  the query with a 400, so the accounts page rendered *"prop accounts are not set up"* over nineteen
+  perfectly good accounts. **Two decisions that were each correct, met, and broke the page.**
+
+  Now split into `ACCOUNT_COLUMNS` and `OPTIONAL_COLUMNS`, with one retry without the optional half.
+  The page has always treated attempts and adjustments as features that might not be installed;
+  account columns get the same treatment.
+
+  **The general lesson, because this is the second one this session:** a page must not assume a
+  migration has run just because the file is committed. The first was five columns written and never
+  selected; this is the mirror of it. Nothing checks for either automatically — a checker that reads
+  every `.select()` against the migrations that create those columns would catch both, and does not
+  exist.
+
 - **Apex sells more than one drawdown, and the payout parameters for each are UNREAD.** 18 August
   2026. Kag3 named legacy, intraday-trail and EOD-trail products and linked two help-center pages.
   **Both are behind a Cloudflare bot check** — the browser gets the challenge page and a direct

@@ -199,6 +199,28 @@ const mount = $('accounts');
  * figure on the page was computed from a slice of the journal without saying
  * so. On an account being judged against a trailing drawdown that is the worst
  * place on the site to be quietly short of data. See fetchPaged in app.js. */
+/* WHAT THE PAGE NEEDS, AND WHAT IT WOULD LIKE.
+ *
+ * A select naming a column that does not exist does not degrade - PostgREST
+ * refuses the whole query with a 400, and the page renders "prop accounts are
+ * not set up" over an account list that is perfectly fine. That is not a
+ * hypothetical: `payout_lowers_mark` was added to this select in the same
+ * commit as the payouts work, and then the migration that creates it was
+ * deliberately held back until there is a funded account to answer it. The
+ * accounts page went blank the moment the two decisions met.
+ *
+ * So the optional half is asked for separately and dropped on failure. The
+ * page has always treated attempts and adjustments as features that may not be
+ * installed yet; account columns get the same treatment, because a migration
+ * this project has decided NOT to run should not be able to take a page down.
+ */
+const ACCOUNT_COLUMNS =
+  'id, account, kind, firm, size, product, profit_target, drawdown, drawdown_type, ' +
+  'min_days, status, started_on, settled_on, ' +
+  'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account';
+
+const OPTIONAL_COLUMNS = 'payout_lowers_mark';
+
 const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
   fetchPaged(() => supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
@@ -212,10 +234,7 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.al
      * the write had worked perfectly and the page simply never looked. Every
      * figure computed from them was computed from undefined, which is why the
      * drawdown could never be shown as locked on any account. */
-    .select('id, account, kind, firm, size, product, profit_target, drawdown, drawdown_type, ' +
-            'min_days, status, started_on, settled_on, ' +
-            'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account, ' +
-            'payout_lowers_mark'),
+    .select(ACCOUNT_COLUMNS + ', ' + OPTIONAL_COLUMNS),
   supabase.from('prop_presets')
     .select('firm, product, size, drawdown_type, profit_target, drawdown, lock_at, funded_lock_at, ' +
             'payout_total_days, payout_min_days, payout_day_min, payout_minimum, ' +
@@ -229,11 +248,25 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.al
 ]);
 
 if (tradesRes.error) { mount.innerHTML = dbError(tradesRes.error); throw tradesRes.error; }
+
+/* One retry without the optional half, before believing the accounts are gone.
+ * A missing column and a missing table produce the same shaped failure here,
+ * and only one of them is worth showing somebody. */
+let accountsRes = propsRes;
+let optionalMissing = false;
 if (propsRes.error) {
-  const file = migrationHint(propsRes.error);
-  mount.innerHTML = dbError(propsRes.error, 'Prop accounts are not set up yet') +
+  const retry = await supabase.from('prop_accounts').select(ACCOUNT_COLUMNS);
+  if (!retry.error) {
+    accountsRes = retry;
+    optionalMissing = true;
+  }
+}
+
+if (accountsRes.error) {
+  const file = migrationHint(accountsRes.error);
+  mount.innerHTML = dbError(accountsRes.error, 'Prop accounts are not set up yet') +
     (file ? '' : '<p class="stat-note">Run <code>supabase/prop-accounts.sql</code> in the Supabase SQL editor, then reload.</p>');
-  throw propsRes.error;
+  throw accountsRes.error;
 }
 
 /* Attempts are optional. An account with none behaves exactly as it did before
@@ -252,7 +285,11 @@ const attemptsMissing = !!(attemptRes && attemptRes.error);
  * taken nothing out, which is exactly what was assumed before the table
  * existed. A missing table is a missing feature, not a broken page. */
 const adjustments = (adjustRes && adjustRes.data) || [];
-const adjustmentsMissing = !!(adjustRes && adjustRes.error);
+/* Either half absent means the feature is not installed. The table and the
+ * column arrive in the same migration, so a page seeing one without the other
+ * is looking at a half-applied migration and should say so rather than offer
+ * a checkbox that writes nowhere. */
+const adjustmentsMissing = !!(adjustRes && adjustRes.error) || optionalMissing;
 
 /* The ones belonging to one account, inside one attempt's window.
  *
@@ -271,7 +308,7 @@ function adjustmentsFor(account, win) {
 
 const trades = (tradesRes.data || []).filter(hasResult);
 const presets = presetRes.data || [];
-const saved = new Map((propsRes.data || []).map((r) => [r.account, r]));
+const saved = new Map((accountsRes.data || []).map((r) => [r.account, r]));
 
 // Every account the journal has seen, plus any configured that have no trades
 // yet - a fresh account is exactly the one worth setting up in advance.

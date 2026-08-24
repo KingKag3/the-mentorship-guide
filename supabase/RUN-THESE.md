@@ -11,6 +11,27 @@ see `CLAUDE.md`.
 
 ## Waiting
 
+### `prop-presets-by-product.sql`
+
+Re-keys `prop_presets` on `(firm, size, drawdown_type)` and seeds both Apex ladders with their
+payout terms. **Run `drawdown-eod.sql` first.**
+
+**Why it exists.** The old key was `(firm, size)`, and Apex sells more than one product at the same
+size with different drawdowns — a $150,000 EOD account trails $4,000 where the legacy one trails
+$5,000. Matching on size alone filled in the larger figure, which puts room on the card that the
+account does not have. A $100,000 *static* account trails $2,500 against the trailing $3,000, so the
+key was wrong even inside the legacy range.
+
+**Every drawdown here is derived, not quoted.** Apex publishes the safety net and defines it as the
+drawdown plus $100, so the ladder falls out of their own payout tables — which independently
+confirms all six trailing figures that were previously seeded on trust. $75,000 appears in neither
+table and stays the one unconfirmed row.
+
+**After running it**, set *How the drawdown moves* on each account. Everything keeps `trailing`
+until you do, which is the pessimistic reading rather than the accurate one.
+
+---
+
 ### `drawdown-eod.sql`
 
 Lets `drawdown_type` be `eod` as well as `trailing`, `static` and `daily`.

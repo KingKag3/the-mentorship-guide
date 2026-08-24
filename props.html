@@ -216,7 +216,11 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.al
             'min_days, status, started_on, settled_on, ' +
             'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account, ' +
             'payout_lowers_mark'),
-  supabase.from('prop_presets').select('firm, size, profit_target, drawdown, lock_at').order('size'),
+  supabase.from('prop_presets')
+    .select('firm, size, drawdown_type, profit_target, drawdown, lock_at, funded_lock_at, ' +
+            'payout_total_days, payout_min_days, payout_day_min, payout_minimum, ' +
+            'max_payouts, consistency_pct, safety_net_payouts')
+    .order('size'),
   supabase.from('account_adjustments')
     .select('id, account, happened_on, amount, kind, note').order('happened_on'),
   supabase.from('prop_attempts')
@@ -538,6 +542,26 @@ const DRAWDOWN_TYPES = [
   ['daily', 'A daily limit that resets']
 ];
 
+/* FINDING THE RIGHT ROW, WHICH USED TO BE TWO COLUMNS AND IS NOW THREE.
+ *
+ * Apex sells more than one product at the same size and they do not trail the
+ * same amount - a $150,000 EOD account trails $4,000 where the legacy one
+ * trails $5,000. Matching on firm and size alone filled in the larger figure,
+ * which is the direction that invents room.
+ *
+ * A preset row missing for a product is a null rather than a fallback to a
+ * different product's row. Wrong terms confidently presented are worse than no
+ * terms, and the form simply leaves the field empty for the member to fill in.
+ */
+function presetFor(cfg) {
+  const firm = (cfg && cfg.firm || '').trim();
+  const size = Number(cfg && cfg.size) || 0;
+  const type = (cfg && cfg.drawdown_type) || 'trailing';
+  if (!firm || !size) return null;
+  return presets.find((x) => x.firm === firm && Number(x.size) === size &&
+                             (x.drawdown_type || 'trailing') === type) || null;
+}
+
 const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
 
 /* WHEN THE ACCOUNT AND THE LADDER DISAGREE, SAY SO AND NAME NEITHER AS RIGHT.
@@ -563,10 +587,8 @@ const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
 function mismatchNote(cfg, dd, target) {
   const firm = (cfg.firm || '').trim();
   const size = Number(cfg.size) || 0;
-  if (!firm || !size) return '';
-
-  const hit = presets.find((p) => p.firm === firm && Number(p.size) === size);
-  if (!hit) return '';
+  const hit = presetFor(cfg);
+  if (!firm || !size || !hit) return '';
 
   const out = [];
   const gap = (label, mine, theirs) => {
@@ -1405,8 +1427,13 @@ function renderBulk() {
    * always wins - theirs might be the current one. */
   const size = form.querySelector('[name="size"]');
   size.addEventListener('change', () => {
-    const firm = form.querySelector('[name="firm"]').value.trim() || 'Apex';
-    const hit = presets.find((x) => x.firm === firm && Number(x.size) === Number(size.value));
+    // The bulk form has no drawdown type of its own, so it fills from the
+    // trailing ladder and says so. Somebody applying terms across nineteen
+    // accounts at once is applying one product's terms by definition.
+    const hit = presetFor({
+      firm: form.querySelector('[name="firm"]').value.trim() || 'Apex',
+      size: size.value, drawdown_type: 'trailing'
+    });
     if (!hit) return;
     for (const [field, value] of [['profit_target', hit.profit_target],
                                  ['drawdown', hit.drawdown],
@@ -1648,17 +1675,38 @@ function render() {
     // anything already typed is left alone, because the member's figure may be
     // the current one and the preset the stale one.
     const size = form.querySelector('[name="size"]');
-    size.addEventListener('change', () => {
-      const firm = form.querySelector('[name="firm"]').value.trim() || 'Apex';
-      const hit = presets.find((p) => p.firm === firm && Number(p.size) === Number(size.value));
+    const type = form.querySelector('[name="drawdown_type"]');
+    const kindSel = form.querySelector('[name="kind"]');
+
+    const offer = () => {
+      const kindNow = (kindSel || {}).value || cfg.kind || 'prop';
+      const hit = presetFor({
+        firm: form.querySelector('[name="firm"]').value.trim() || 'Apex',
+        size: size.value,
+        drawdown_type: (type || {}).value
+      });
       if (!hit) return;
+      /* An evaluation does not lock and a funded account does, so the lock is
+       * taken from a different column depending on which is being configured.
+       * Filling an evaluation from `funded_lock_at` would recreate exactly the
+       * bug this whole migration exists to fix. */
       for (const [field, value] of [['profit_target', hit.profit_target],
                                    ['drawdown', hit.drawdown],
-                                   ['lock_at', hit.lock_at]]) {
+                                   ['lock_at', kindNow === 'funded'
+                                     ? hit.funded_lock_at : hit.lock_at]]) {
         const el = form.querySelector('[name="' + field + '"]');
         if (el && !el.value && value !== null && value !== undefined) el.value = value;
       }
-    });
+    };
+
+    /* All three change which row of the ladder applies, so all three offer.
+     * Changing the type from trailing to EOD on a $150,000 account and being
+     * left with the $5,000 trailing drawdown is the exact mistake this whole
+     * file exists to stop, and it is the one somebody would make while trying
+     * to fix it. */
+    size.addEventListener('change', offer);
+    if (type) type.addEventListener('change', offer);
+    if (kindSel) kindSel.addEventListener('change', offer);
   }
 }
 

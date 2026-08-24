@@ -431,9 +431,22 @@ Be honest about this list before trusting anything below it.
   Measured on a day that spikes to +$5,000 and closes at +$1,000: the same trades give **$1,700 of
   room intraday and $5,700 end-of-day**. Existing rows all keep `trailing`, the pessimistic reading.
 
-  **Still needed from Kag3:** the two help-center pages pasted, for the payout parameters — minimum
-  days, minimum per qualifying day, safety-net balance, withdrawal caps, and whether they differ
-  between legacy and current products. Those stay member-entered fields until then.
+  **Both pages were pasted the same day and are now in `prop-presets-by-product.sql`.** The two
+  products differ in almost every term: legacy wants 8 trading days with 5 of them over $50 and a
+  30% consistency rule, EOD wants 5 days over a size-specific minimum and a 50% rule; legacy's
+  safety net applies to the first three payouts, EOD's for the life of the account; EOD closes after
+  six payouts and legacy does not cap them.
+
+  Two things they settled that were open. **The drawdown ladder is now independently confirmed** —
+  Apex publishes the safety net as drawdown + $100, so all six trailing figures fall out of their
+  own payout tables, arithmetic written for a different purpose. And **the lock is real on a funded
+  legacy account**: the trailing drawdown in a PA stops at the starting balance plus $100. It is
+  seeded as `funded_lock_at` and never fills an evaluation, which is the distinction the live
+  account table proved.
+
+  **Still open:** the maximum per request. Legacy caps it per size for five payouts then lifts it;
+  EOD varies it by size *and* payout number across a 24-cell table. That needs a table of its own
+  and the page must quote no maximum until it exists.
 
 - **Payouts: `account_adjustments`, built and never seen against a real withdrawal.** 18 August
   2026. Nobody on this project has a funded account, so every part of this is proved on fixtures

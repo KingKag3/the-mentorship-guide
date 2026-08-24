@@ -438,6 +438,13 @@ Be honest about this list before trusting anything below it.
   against live RLS, and that `payout_lowers_mark` is ever true. The funded card asks that question
   the same way it asks about the lock.
 
+  **The migration is deliberately NOT applied**, at Kag3's call, and is filed under *Held back on
+  purpose* in `supabase/RUN-THESE.md` rather than *Waiting*. Applying it now would put a table and a
+  checkbox in front of somebody with no way to answer the question it turns on — which is how the
+  drawdown lock went in. It costs nothing to wait: the payout controls only render on a `funded`
+  account, so with none configured the page is identical either way, and the prompt to run it
+  appears by itself on the first funded card. Do not clear it out of habit.
+
 - **The drawdown lock does NOT fire on an Apex evaluation, and the site said it did.** 18 August
   2026. `prop-preset-drawdown.sql` seeded `lock_at` as drawdown + 100 across the ladder, on the
   published rule, and the advice given was to apply 6,600 to all nineteen accounts. It was applied.

@@ -11,28 +11,6 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-### `account-adjustments.sql`
-
-A table for money that moves without a trade — payouts above all — plus
-`prop_accounts.payout_lowers_mark`.
-
-**Why it exists.** Every figure on the accounts page came from `trades`, so a payout was invisible.
-`Room left` is the drawdown less the fall from the high-water mark, and both halves were trading
-results — so a $5,000 withdrawal moved the firm's balance $5,000 closer to the floor while the page
-carried on reporting the room as though it were still there. Room that does not exist is the one
-error on that page that ends an account.
-
-**Nothing to do after running it** unless you have taken a payout. Once you have, record it under
-*Money in and out* on the funded card. Statistics, calendar and journal are untouched by design — a
-withdrawal is not a trading result and must never appear as one.
-
-**Leave the high-water mark checkbox off until you have checked.** If your firm lowers your maximum
-balance when you withdraw, a payout costs you nothing in room; if it does not, it costs you the full
-amount. Nobody here has had a funded account, and the last published Apex rule seeded on trust was
-contradicted by your own account table within a day. Off is the conservative reading.
-
----
-
 ### `prop-preset-drawdown.sql`
 
 Adds `drawdown` and `lock_at` to `prop_presets` and seeds the Apex ladder, so picking a size fills
@@ -66,6 +44,33 @@ bottom of the migration if you would rather do it in SQL — read the warning ab
 **One row is verified and six are not.** Apex $250,000 was checked against a live account table on
 18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets
 already seeded in `prop-accounts.sql`, which is to say they are a starting point.
+
+---
+
+## Held back on purpose
+
+Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on
+evidence. Do not clear these out of habit.
+
+### `account-adjustments.sql` &mdash; hold until there is a funded account
+
+Payouts, and `prop_accounts.payout_lowers_mark`. Everything about it is proved on fixtures and
+nothing about it has met a real withdrawal.
+
+**Why it waits.** The question it turns on &mdash; does a payout lower the firm's high-water mark
+&mdash; decides whether a withdrawal costs you its full value in room or nothing at all. Nobody here
+has had a funded account. Applying it now would put a table and a checkbox in front of a member with
+no way to answer the question and no reason to trust the answer, which is how the drawdown lock went
+in: seeded from a published rule, contradicted by the member's own account table inside a day.
+
+**It costs nothing to wait.** The accounts page only offers the payout controls on a `funded`
+account, so with none configured the page is identical either way. The prompt to run this appears by
+itself, on the first funded card, at the moment somebody can actually check the answer.
+
+**Run it when:** an evaluation passes and a funded account exists on the firm's dashboard. Then take
+the first payout, record it, and compare *Max Balance* before and after &mdash; that single
+observation settles `payout_lowers_mark` and is the whole reason this was built.
+
 
 ---
 

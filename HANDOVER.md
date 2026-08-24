@@ -417,6 +417,24 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **Apex sells more than one drawdown, and the payout parameters for each are UNREAD.** 18 August
+  2026. Kag3 named legacy, intraday-trail and EOD-trail products and linked two help-center pages.
+  **Both are behind a Cloudflare bot check** — the browser gets the challenge page and a direct
+  fetch gets 403 — so neither was read, and nothing on this project may claim otherwise.
+
+  What was built without them, because it does not depend on their numbers: `drawdown_type` is real
+  now. It existed from the first migration, defaulted to `trailing`, and was never read or written,
+  so the page modelled the intraday drawdown for everybody. An EOD account's closing balances are
+  exactly the numbers the firm uses, which makes the figure exact rather than a floor — the page had
+  been frightening people about a number it could compute precisely.
+
+  Measured on a day that spikes to +$5,000 and closes at +$1,000: the same trades give **$1,700 of
+  room intraday and $5,700 end-of-day**. Existing rows all keep `trailing`, the pessimistic reading.
+
+  **Still needed from Kag3:** the two help-center pages pasted, for the payout parameters — minimum
+  days, minimum per qualifying day, safety-net balance, withdrawal caps, and whether they differ
+  between legacy and current products. Those stay member-entered fields until then.
+
 - **Payouts: `account_adjustments`, built and never seen against a real withdrawal.** 18 August
   2026. Nobody on this project has a funded account, so every part of this is proved on fixtures
   only.

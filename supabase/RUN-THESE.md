@@ -11,6 +11,25 @@ see `CLAUDE.md`.
 
 ## Waiting
 
+### `drawdown-eod.sql`
+
+Lets `drawdown_type` be `eod` as well as `trailing`, `static` and `daily`.
+
+**Why it exists.** `drawdown_type` has been on the table since the first migration, defaulting to
+`trailing`, and nothing has ever read it or written it. So the accounts page modelled one drawdown
+for everybody — the intraday one — and every caveat on it says *the real one is at least this bad
+and can be considerably worse*. That is true of an intraday mark and false of an end-of-day one,
+where the closing balances the journal holds are the numbers the firm used.
+
+**It changes nothing until you classify an account.** Every existing row keeps `trailing`, which is
+the pessimistic reading rather than the accurate one. There is now a control on each card.
+
+**What it is worth.** On a fixture where one day spikes to +$5,000 and closes at +$1,000, the same
+trades give **$1,700 of room on an intraday account and $5,700 on an end-of-day one** — and the EOD
+figure is exact rather than a floor.
+
+---
+
 ### `prop-preset-drawdown.sql`
 
 Adds `drawdown` and `lock_at` to `prop_presets` and seeds the Apex ladder, so picking a size fills

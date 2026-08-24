@@ -62,20 +62,32 @@
 
   <div class="callout warn">
     <span class="callout-label">Read this before trusting the drawdown figure</span>
-    <p><strong>Your journal holds closed trades. A trailing drawdown does not.</strong> Apex and most
-    firms trail against your account's high-water mark including <em>open</em> profit, intraday —
-    so a trade that ran $800 in your favour and closed at $200 moved the threshold by $800, and the
-    journal only ever saw the $200.</p>
-    <p>Everything below computes from closed results, which makes the drawdown shown a
-    <strong>floor</strong>: the real one is at least this bad and can be considerably worse. Use it
-    to see a trend, never to decide whether an account is still alive. The firm's own dashboard is
-    the only thing that can answer that.</p>
-    <p><strong>&ldquo;Room left&rdquo; leans the other way, and that is the dangerous one.</strong>
-    It is the same arithmetic read forwards &mdash; the drawdown less the fall from the high-water
-    mark, which your firm calls distance to drawdown. Because this peak is the lowest the real peak
-    can be, the room shown is the <strong>most</strong> you could possibly have. A higher real peak
-    means a higher floor and less room than this says. It can tell you that you are in trouble; it
-    can never tell you that you are safe.</p>
+    <p><strong>It depends which drawdown you bought, and the two are not close.</strong> An
+    <em>intraday</em> trailing drawdown follows your equity while a position is open, unrealised
+    profit included &mdash; so a trade that ran $800 in your favour and closed at $200 moved the
+    threshold by $800, and the journal only ever saw the $200. An <em>end-of-day</em> drawdown does
+    not move until the day closes, and a spike that gives itself back never touches it.</p>
+    <p><strong>Say which one each account is, on the card.</strong> Everything below is computed
+    from closed trades, and what that is worth depends entirely on the answer:</p>
+    <ul>
+      <li><strong>Intraday</strong> &mdash; the drawdown shown is a <strong>floor</strong>. The real
+      one is at least this bad and can be considerably worse, because the peak here is the lowest
+      the real peak can be.</li>
+      <li><strong>End of day</strong> &mdash; the closing balances this page holds are the numbers
+      the firm used, so the figure is <strong>exact</strong>, provided every trade is imported and
+      nothing was carried overnight.</li>
+    </ul>
+    <p>An account nobody has classified is treated as intraday, which is the pessimistic reading
+    rather than the accurate one.</p>
+    <p>On an intraday account, use it to see a trend and never to decide whether the account is
+    still alive &mdash; the firm's own dashboard is the only thing that can answer that.</p>
+    <p><strong>&ldquo;Room left&rdquo; leans the other way, and on an intraday account that is
+    the dangerous one.</strong> It is the same arithmetic read forwards &mdash; the drawdown less
+    the fall from the high-water mark, which your firm calls distance to drawdown. Because an
+    intraday peak here is the lowest the real peak can be, the room shown is the <strong>most</strong>
+    you could possibly have: a higher real peak means a higher floor and less room than this says.
+    It can tell you that you are in trouble; it can never tell you that you are safe. On an
+    end-of-day account it can do both.</p>
   </div>
 
   <div class="cal-toggle">
@@ -381,7 +393,35 @@ function progress(account, cfg, attemptRow, dd) {
    * what you have. Wrong the other way invents it. */
   const markFalls = cfg && cfg.payout_lowers_mark === true;
 
+  /* WHERE THE HIGH-WATER MARK IS ALLOWED TO MOVE.
+   *
+   * An INTRADAY trailing drawdown lifts the mark the moment a new high is
+   * reached, so every event can raise it. Anything computed from closed trades
+   * is then a floor: the real intraday high was at least this good and usually
+   * better, so the real floor is at least this high.
+   *
+   * An END-OF-DAY drawdown only lifts the mark when the day closes. A spike at
+   * eleven that gives itself back by two never touches it. That makes the
+   * arithmetic below EXACT rather than pessimistic - the closing balances a
+   * journal holds are the numbers the firm used - provided every trade is
+   * imported and nothing was carried overnight.
+   *
+   * The dip is measured against the mark as it stood AT THE TIME, which is why
+   * the day's own high cannot protect it: on an EOD account you can make and
+   * lose four thousand dollars inside a session and the floor does not move an
+   * inch. */
+  const eod = (cfg && cfg.drawdown_type) === 'eod';
+
+  const closeDay = () => { if (held > peak) peak = held; };
+  let openDay = events.length ? events[0].on : null;
+
   for (const e of events) {
+    // A new day begins: whatever yesterday closed at is now the mark to beat.
+    if (eod && e.on !== openDay) {
+      closeDay();
+      openDay = e.on;
+    }
+
     held += e.amount;
 
     if (e.trade) {
@@ -393,7 +433,7 @@ function progress(account, cfg, attemptRow, dd) {
       if (markFalls) peak += e.amount;
     }
 
-    if (held > peak) peak = held;
+    if (!eod && held > peak) peak = held;
 
     const dip = peak - held;
     if (dip > worstDip) {
@@ -405,6 +445,9 @@ function progress(account, cfg, attemptRow, dd) {
     // already closed.
     if (floor > 0 && dip >= floor && !breachedOn) breachedOn = e.on;
   }
+
+  // The last day still owes its close, or an EOD account never marks at all.
+  if (eod) closeDay();
 
   const days = new Set(mine.map((t) => localDay(t.opened_at)).filter(Boolean)).size;
 
@@ -436,7 +479,7 @@ function progress(account, cfg, attemptRow, dd) {
    * the floor actually sits. */
   const dipNow = peak - held;
 
-  return { total, held, withdrawn, markFalls,
+  return { total, held, withdrawn, markFalls, eod,
            peak, dipNow, worstDip, worstOn, breachedOn, days, counted,
            trades: mine.length, byDay };
 }
@@ -484,6 +527,16 @@ function payoutProgress(cfg, stats) {
 }
 
 /* ------------------------------- rendering ------------------------------- */
+
+/* The wording matters more than the values. Somebody choosing between these is
+ * choosing whether this page tells them a floor or a fact, and "trailing" on
+ * its own does not distinguish the two - both of these trail. */
+const DRAWDOWN_TYPES = [
+  ['trailing', 'Trails intraday, including open profit'],
+  ['eod', 'Trails end-of-day balances only'],
+  ['static', 'Fixed - never moves'],
+  ['daily', 'A daily limit that resets']
+];
 
 const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
 
@@ -1084,15 +1137,22 @@ function card(name) {
         // what this measures - part of the fall is money that was taken out on
         // purpose, and calling that a dip without saying so reads as a trading
         // result somebody should feel bad about.
+        // "A floor" is true of an intraday mark and a lie about an
+        // end-of-day one, where the closing balances a journal holds are the
+        // numbers the firm used. Frightening somebody about a figure that is
+        // exact is not the safe side of anything.
         '</div><p>' + (p.withdrawn > 0
-          ? 'Closed trades and money taken out. A floor, not the figure the firm holds'
-          : 'From closed trades. A floor, not the figure the firm holds') + '</p></div>' +
+          ? 'Closed trades and money taken out. '
+          : 'From closed trades. ') +
+          (p.eod ? 'Exact, if every trade is imported' : 'A floor, not the figure the firm holds') +
+        '</p></div>' +
       (isWatched && dd
         ? '<div class="card"><h3>Room left</h3><div class="readout-big">' + money(room) +
           '</div><p>' + (locked
             ? 'Floor locked ' + money(anchor - dd) + ' above the start'
             : 'Floor trails ' + money(dd) + ' under ' + money(p.peak)) +
-          '. A ceiling &mdash; the real one is no better</p></div>'
+          (p.eod ? '. Exact, if every trade is imported'
+                 : '. A ceiling &mdash; the real one is no better') + '</p></div>'
         : '') +
     '</div>' +
 
@@ -1145,6 +1205,17 @@ function card(name) {
             '<input name="drawdown" type="number" step="0.01" min="0" value="' +
               (cfg.drawdown ?? '') + '"></div>' +
         '</div>' +
+        /* The column has existed since the first migration and has never had a
+         * control, so every account on this project is the default. That is
+         * the safe default and it is still a guess, and it decides whether the
+         * figures on this card are a floor or a fact. */
+        '<label>How the drawdown moves</label>' +
+        '<select name="drawdown_type" class="role-select">' +
+          DRAWDOWN_TYPES.map(([v, text]) =>
+            '<option value="' + v + '"' +
+            ((cfg.drawdown_type || 'trailing') === v ? ' selected' : '') + '>' +
+            escapeHtml(text) + '</option>').join('') +
+        '</select>' +
         /* THE LOCK IS A PROPERTY OF THE DRAWDOWN, NOT OF A FUNDED ACCOUNT.
          *
          * It used to live in the funded-only block, which meant an evaluation
@@ -1780,6 +1851,7 @@ async function save(e) {
     size: num('size'),
     profit_target: num('profit_target'),
     drawdown: num('drawdown'),
+    drawdown_type: txt('drawdown_type') || 'trailing',
     min_days: num('min_days'),
     started_on: txt('started_on'),
     status: txt('status') || 'active',

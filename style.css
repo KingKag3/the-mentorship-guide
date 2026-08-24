@@ -2422,9 +2422,15 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
 /* `.field-pair` is a grid of two inputs and ends in their margin, so it counts
    as a field for this purpose - the note lands on the inputs' visual bottom
    rather than over anything drawn. */
+/* NOT `select`. The pull exists to cancel the field's own bottom margin, and
+   an input carries 22px of it - so -14px leaves a sensible 8px gap. A select
+   carries none, so the same -14px is not a tightening, it is fourteen pixels
+   of overlap: on the position sizer, "$20.00 per point" was drawn through the
+   bottom edge of the instrument dropdown.
+
+   Measured, not guessed: input margin-bottom 22px against select 0px. */
 input + .field-note,
 textarea + .field-note,
-select + .field-note,
 .field-pair + .field-note { margin-top: -14px; }
 
 .field-note-ok  { color: var(--bull); font-weight: 500; }

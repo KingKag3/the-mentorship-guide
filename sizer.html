@@ -81,15 +81,15 @@ the stop actually sits. It will also tell you when the answer is none.</p>
 
     <div id="price-fields">
       <label for="entry">Entry</label>
-      <input id="entry" type="number" inputmode="decimal" step="0.25" placeholder="29886.75">
+      <input id="entry" type="number" inputmode="decimal" step="0.25" placeholder="e.g. 29886.75">
 
       <label for="stop">Stop</label>
-      <input id="stop" type="number" inputmode="decimal" step="0.25" placeholder="29840.00">
+      <input id="stop" type="number" inputmode="decimal" step="0.25" placeholder="e.g. 29840.00">
     </div>
 
     <div id="points-fields" hidden>
       <label for="distance">Stop distance (points)</label>
-      <input id="distance" type="number" inputmode="decimal" step="0.25" min="0" placeholder="46.75">
+      <input id="distance" type="number" inputmode="decimal" step="0.25" min="0" placeholder="e.g. 46.75">
     </div>
 
     <label for="rr">Target, in R <span class="opt">— for the target price</span></label>
@@ -240,8 +240,11 @@ function readInputs() {
     }
   }
 
-  return { spec, account, riskPc, rr, distance, entry, dir };
+  return { spec, account, riskPc, rr, distance, entry, dir, mode };
 }
+
+/** Which pair of fields the stop is currently being read from. */
+function usingPrices() { return $('mode').value !== 'points'; }
 
 function row(label, value, tone) {
   return '<div class="readout-row' + (tone ? ' is-' + tone : '') + '">' +
@@ -265,9 +268,41 @@ function render() {
     : '';
 
   if (!Number.isFinite(budget) || budget <= 0 || !Number.isFinite(distance) || distance <= 0) {
+    /* NAME WHAT IS MISSING, NOT WHAT IS NEEDED.
+     *
+     * This listed all three every time, including to somebody who had filled
+     * in two of them - so a page with an account size and a risk already typed
+     * still said "fill in an account size, a risk percentage and a stop
+     * distance", and read as a tool that does nothing rather than one waiting
+     * on one field.
+     *
+     * The placeholders made it worse. They were bare numbers - 29886.75 in an
+     * empty entry box - which at a glance is indistinguishable from a value
+     * somebody typed. Two fields that look full, and a message that says fill
+     * in everything. They now say "e.g." for the same reason.
+     */
+    const want = [];
+    if (!Number.isFinite(account) || account <= 0) want.push('an account size');
+    if (!Number.isFinite(riskPc) || riskPc <= 0) want.push('a risk percentage');
+    if (!Number.isFinite(distance) || distance <= 0) {
+      want.push(usingPrices()
+        ? (Number.isFinite(entry) ? 'a stop price' : 'an entry and a stop')
+        : 'a stop distance');
+    }
+
+    const list = want.length === 1 ? want[0]
+      : want.slice(0, -1).join(', ') + ' and ' + want[want.length - 1];
+
+    /* An empty form gets the fixed sentence rather than the built list, because
+     * the list ends "a risk percentage and an entry and a stop" - two ands in a
+     * row, which is what happens when one item of a list is itself a pair. */
     mount.innerHTML =
-      '<div class="readout-empty">Fill in an account size, a risk percentage and a stop ' +
-      'distance. The rest follows from those three.</div>';
+      '<div class="readout-empty">' +
+      (want.length === 3
+        ? 'Fill in an account size, a risk percentage and where your stop sits. ' +
+          'The rest follows from those three.'
+        : 'Still needs ' + list + '. Everything else is here.') +
+      '</div>';
     return;
   }
 

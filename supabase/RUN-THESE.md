@@ -11,62 +11,10 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-### `prop-preset-drawdown.sql` &mdash; superseded, and only listed because re-running is free
+Nothing.
 
-`prop-presets-by-product.sql` was run on 18 August 2026 and reseeds everything this file did, keyed
-correctly. There is nothing left here to apply.
-
-**What is left to do is on the page, not in SQL.** On each account card set **Which account is
-this**. Nothing was backfilled: an account with no product looks up no terms at all, which is why
-the drawdown mismatch warning has gone quiet rather than telling you anything.
-
-For the nineteen, use the bulk form: pick **Legacy**, choose all nineteen, apply. That sets the
-product and the drawdown mechanism on every one of them. It will not touch the drawdown figure
-unless you type one, so if any of them still carry `6,000` the mismatch warning will say so as soon
-as the product is set.
-
-Only Legacy offers $250,000, and the $6,500 drawdown and the absence of a lock on the evaluations
-both match it.
-
----
-
-<details><summary>The original entry, kept for the reasoning</summary>
-
-Adds `drawdown` and `lock_at` to `prop_presets` and seeds the Apex ladder, so picking a size fills
-in the drawdown the way it already fills in the target.
-
-**Why it exists.** It did not fill in the drawdown, so the drawdown was typed — and a $250,000 Apex
-account was set up with $6,000 where the firm trails $6,500. Confirmed against the firm's own
-account table: `Max Balance 258,491.80 − Liquidation Threshold 251,991.80 = 6,500.00`, and the same
-on all nineteen. Nothing about 6,000 looks wrong sitting next to a target that was filled in
-correctly and automatically, which is exactly why it survived.
-
-**It does not touch `prop_accounts`.** No existing account is rewritten, including the wrong one —
-that is a figure a member entered, and a migration quietly changing somebody's risk settings is a
-worse idea than the wrong number it fixes. The accounts page now shows the disagreement instead.
-
-**After running it**, on the accounts page: fill in `Drawdown` = `6500` in the bulk form, pick all
-nineteen, apply. Everything left blank is left alone.
-
-**Leave `Drawdown locks at` empty.** An earlier version of this file said to set it to `6600`, on
-the published Apex rule that the threshold stops trailing once the account is a full allowance plus
-$100 above its start. The firm's own account table says that does not happen on an evaluation —
-nineteen of them between $6,746 and $8,242 in profit, every one still trailing a full $6,500 under
-its high-water mark. Computed as a pure trailing floor the page reproduces the firm's own
-distance-to-drawdown to the cent on all five accounts checked; computed with the lock it overstates
-by **$1,891**, which is the dangerous direction.
-
-**If the lock was already applied**, tick *"Clear the drawdown lock instead"* in the bulk form, pick
-all nineteen and apply. That checkbox exists because of this. There is also a scoped `update` at the
-bottom of the migration if you would rather do it in SQL — read the warning above it first.
-
-**One row is verified and six are not.** Apex $250,000 was checked against a live account table on
-18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets
-already seeded in `prop-accounts.sql`, which is to say they are a starting point.
-
-</details>
-
----
+`prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
+`prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.
 
 ## Held back on purpose
 
@@ -187,6 +135,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 | File | Run on | Notes |
 | --- | --- | --- |
 | `drawdown-eod.sql`, `prop-presets-by-product.sql` | 18 Aug 2026 | Two things the site had been getting wrong about the same account. `drawdown_type` had existed since the first migration and was never read, so every card was modelled as an intraday trailing drawdown and every caveat said the figure was a floor — which is false of an end-of-day account, where the closing balances the journal holds are the numbers the firm used. And the presets were keyed on `(firm, size)`, which cannot separate three Apex products: **Legacy and Intraday both trail intraday and their drawdowns differ by up to $1,000**, so a size match filled in the larger ladder — room the account does not have. Both fixed, with a `product` column on presets and accounts, and `drawdown_type` read from the product's own preset row so the two cannot drift. **Every drawdown is derived rather than quoted**: Apex publishes the safety net and defines it as the drawdown plus $100, so all three ladders fall out of their own payout tables — which independently confirms the six Legacy figures previously seeded on trust. **Not confirmed from outside**, and there is nothing to confirm until an account is classified: every row keeps `trailing` and a null product, which looks up no terms at all rather than the wrong ones |
+| `prop-presets-by-product.sql` | 18 Aug 2026 | A `product` column on presets and accounts, the presets re-keyed on `(firm, product, size)`, and all three Apex ladders seeded. **It took five attempts and every one of them is worth knowing about**, because four failed invisibly. The editor runs a script as one transaction, so each failure rolled back the fifteen statements before it and left the database untouched — while the accounts page could only report that the presets table was empty, which was true and was not the reason. The causes in order: a rewrite dropped the `add column drawdown_type` statement while keeping every reference to it; `product` and `payout_lowers_mark` were in the required half of a select, so a half-applied schema 400'd the whole query and printed "prop accounts are not set up" over nineteen working accounts; and finally `profit_target` was `numeric not null`, which refused the twelve Intraday and EOD rows that deliberately carry no target. **Confirmed by the seed reading back**: sixteen rows, with $25k, $50k, $100k and $150k each appearing under more than one product at different drawdowns. What is NOT confirmed is any account being classified — nothing was backfilled, so every account still carries a null product until somebody names it |
 | `profile-avatars.sql` | 17 Aug 2026 | `profiles.avatar_path`, plus three storage policies for `avatars/<own id>/`. **Column confirmed from outside with two controls**: `?select=avatar_path` answers `200 []`, `?select=avatar_nope` answers `400 42703`, and `?select=last_seen_at,avatar_path` still answers `200 []` — so the column exists and the earlier one was not clobbered. **The storage policies are confirmed too**, on 17 Aug, by the only test that could do it: a member chose a picture and it uploaded, saved and rendered. No outside probe could show this — an anonymous upload is refused whether or not a member policy exists. What is still unshown is the *narrowness*: that a member is refused writing into somebody else's folder |
 | `funded-accounts.sql` | 17 Aug 2026 | `funded` as a kind, four payout columns and `from_account`. **Columns confirmed from outside with a control**: all five named together answer `200 []`, while `payout_nonsense` answers `400 42703`. **The constraint is NOT confirmed, and cannot be from outside** — inserting `kind='funded'` and inserting `kind='not_a_kind'` both answer `42501`, because row-level security refuses the write before the CHECK is ever evaluated. The two are indistinguishable to an anonymous caller, so the only proof is picking **Funded** in the dropdown on a card and having it save |
 | `trade-review-dismissals.sql` | 17 Aug 2026 | Lets a mentor set a shared trade aside without answering it. The dismissal **expires** — it only holds while it is newer than the member's last edit and their last message, so a follow-up comes back on its own and nothing needs tidying up. **Confirmed from outside the same day, with two controls**: the table with all four columns named answers `200 []`; a table that does not exist answers `404 PGRST205`; a column that does not exist on the real table answers `400 42703`. The first says the table is there and RLS holds, the second says `200 []` is not PostgREST shrugging, and the third says the four columns are real rather than ignored. What none of it shows is a **member** getting nothing from it — RLS does not apply to the table owner, so that needs a second signed-in account |

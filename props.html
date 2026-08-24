@@ -215,11 +215,22 @@ const mount = $('accounts');
  * this project has decided NOT to run should not be able to take a page down.
  */
 const ACCOUNT_COLUMNS =
-  'id, account, kind, firm, size, product, profit_target, drawdown, drawdown_type, ' +
+  'id, account, kind, firm, size, profit_target, drawdown, drawdown_type, ' +
   'min_days, status, started_on, settled_on, ' +
   'lock_at, payout_threshold, payout_min_days, payout_day_min, from_account';
 
-const OPTIONAL_COLUMNS = 'payout_lowers_mark';
+/* EVERY COLUMN FROM A MIGRATION THAT MIGHT NOT HAVE RUN GOES HERE.
+ *
+ * `product` was in the required list and put the page in exactly the state
+ * `payout_lowers_mark` had an hour earlier - a half-applied migration, a 400
+ * on the whole query, and "prop accounts are not set up" printed over nineteen
+ * working accounts. Twice in one day is a pattern rather than an accident.
+ *
+ * A column moves out of here once its migration is old enough that nobody is
+ * running the page without it. Nothing is lost by leaving it: the retry only
+ * happens when the first attempt fails, which is never on a project that is
+ * up to date. */
+const OPTIONAL_COLUMNS = 'product, payout_lowers_mark';
 
 const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
   fetchPaged(() => supabase.from('trades')
@@ -290,6 +301,20 @@ const adjustments = (adjustRes && adjustRes.data) || [];
  * is looking at a half-applied migration and should say so rather than offer
  * a checkbox that writes nowhere. */
 const adjustmentsMissing = !!(adjustRes && adjustRes.error) || optionalMissing;
+
+/* Said once, at the top, rather than left as a page that quietly behaves
+ * differently. A retry that succeeded means a migration is outstanding, and the
+ * member is owed the name of it - the alternative is a product control that
+ * appears to work and saves nothing. */
+const migrationNote = optionalMissing
+  ? '<div class="callout warn"><span class="callout-label">Part of the schema is missing</span>' +
+    '<p>Your accounts loaded, but at least one column this page uses is not there yet, so ' +
+    'anything depending on it is switched off rather than broken &mdash; naming a product, and ' +
+    'recording a payout.</p>' +
+    '<p>Run <code>supabase/prop-presets-by-product.sql</code> and, once you have a funded ' +
+    'account, <code>supabase/account-adjustments.sql</code>. Everything else on this page is ' +
+    'unaffected.</p></div>'
+  : '';
 
 /* The ones belonging to one account, inside one attempt's window.
  *
@@ -1828,7 +1853,8 @@ async function splitAttempt(name, on, btn) {
 
 function render() {
   if (!names.length) {
-    mount.innerHTML = '<div class="callout"><span class="callout-label">No accounts yet</span>' +
+    mount.innerHTML = migrationNote +
+      '<div class="callout"><span class="callout-label">No accounts yet</span>' +
       '<p>Import a broker export or log a trade with an account name, and it will appear here. ' +
       '<a href="import.html">Import</a> · <a href="journal.html">Journal</a></p></div>';
     return;
@@ -1849,6 +1875,7 @@ function render() {
   renderPager('#pager-bottom', state, onPage, CARD_SIZES);
 
   mount.innerHTML =
+    migrationNote +
     '<datalist id="dl-firm">' +
       [...new Set(presets.map((p) => p.firm))].map((f) =>
         '<option>' + escapeHtml(f) + '</option>').join('') +

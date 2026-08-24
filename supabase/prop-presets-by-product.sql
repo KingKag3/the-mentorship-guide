@@ -72,6 +72,19 @@
 --   * everything else is the Legacy ladder, which is what was seeded first
 -- ---------------------------------------------------------------------------
 
+/* `drawdown_type` FIRST, BECAUSE THE BACKFILL BELOW READS IT.
+ *
+ * The first draft of this file added this column and the rewrite dropped the
+ * statement while keeping every reference to it. Nothing else in the project
+ * creates it, so the update below failed with "column drawdown_type does not
+ * exist", the script stopped there, and section 2 - the one that adds `product`
+ * to prop_accounts - never ran. The accounts page then refused to load at all,
+ * because it selects a column a half-applied migration never created.
+ *
+ * Idempotent, so this is safe whether the first draft went in or not. */
+alter table public.prop_presets
+  add column if not exists drawdown_type text not null default 'trailing';
+
 alter table public.prop_presets
   add column if not exists product text;
 
@@ -85,6 +98,13 @@ update public.prop_presets
 
 alter table public.prop_presets
   alter column product set not null;
+
+alter table public.prop_presets
+  drop constraint if exists prop_presets_drawdown_type_check;
+
+alter table public.prop_presets
+  add constraint prop_presets_drawdown_type_check
+  check (drawdown_type in ('trailing', 'eod', 'static', 'daily'));
 
 alter table public.prop_presets
   drop constraint if exists prop_presets_product_check;

@@ -329,15 +329,39 @@ if (presetRes.error) {
 const presets = presetData.data || [];
 const presetsBroken = !!presetData.error;
 
-const schemaShort = optionalMissing || presetOptionalMissing || presetsBroken;
+/* A QUERY THAT SUCCEEDS AND RETURNS NOTHING IS A THIRD STATE, AND IT LOOKED
+ * LIKE THE HEALTHY ONE.
+ *
+ * If the seed in prop-presets-by-product.sql did not land - the script stopped
+ * at an earlier statement, or the inserts failed on a constraint - the presets
+ * query answers 200 with an empty array. No error to check, no column missing,
+ * and every feature that reads a preset simply absent: no product to choose,
+ * no drawdown offered, no mismatch warning.
+ *
+ * Which is exactly what a correctly configured page looks like from the
+ * outside if you do not already know what should be there. */
+const presetsEmpty = !presetsBroken && presets.length === 0;
+
+const schemaShort = optionalMissing || presetOptionalMissing || presetsBroken || presetsEmpty;
 const migrationNote = schemaShort
-  ? '<div class="callout warn"><span class="callout-label">Part of the schema is missing</span>' +
-    '<p>Your accounts loaded, but at least one column this page uses is not there yet, so ' +
-    'anything depending on it is switched off rather than broken &mdash; naming a product, and ' +
-    'recording a payout.</p>' +
-    '<p>Run <code>supabase/prop-presets-by-product.sql</code> and, once you have a funded ' +
-    'account, <code>supabase/account-adjustments.sql</code>. Everything else on this page is ' +
-    'unaffected.</p>' +
+  ? '<div class="callout warn"><span class="callout-label">' +
+      (presetsEmpty ? 'No firm terms are loaded' : 'Part of the schema is missing') + '</span>' +
+    (presetsEmpty
+      ? '<p><strong>The presets table is there and empty.</strong> Nothing to look a drawdown up ' +
+        'in, so there is no product to choose, no figure offered when you pick a size, and no ' +
+        'warning when yours disagrees with the firm &mdash; because there is nothing to disagree ' +
+        'with.</p>' +
+        '<p>The seed in <code>supabase/prop-presets-by-product.sql</code> did not land. Running ' +
+        'the file again is free. To see what is actually there:</p>' +
+        '<p><code>select firm, product, size, drawdown from public.prop_presets order by size;' +
+        '</code></p>'
+      : '<p>Your accounts loaded, but at least one column this page uses is not there yet, so ' +
+        'anything depending on it is switched off rather than broken &mdash; naming a product, and ' +
+        'recording a payout.</p>') +
+    (presetsEmpty ? '' :
+      '<p>Run <code>supabase/prop-presets-by-product.sql</code> and, once you have a funded ' +
+      'account, <code>supabase/account-adjustments.sql</code>. Everything else on this page is ' +
+      'unaffected.</p>') +
     (presetData.error
       ? '<p class="field-note-bad">' + escapeHtml(presetData.error.message) + '</p>'
       : '') + '</div>'

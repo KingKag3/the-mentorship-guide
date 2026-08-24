@@ -84,6 +84,25 @@ alter table public.prop_presets add primary key (firm, product, size);
 -- product control appears whether or not step 4 has been run.
 -- ---------------------------------------------------------------------------
 
+/* `profit_target` WAS NOT NULL, AND FOR TWO OF THE THREE PRODUCTS IT IS NOT
+ * KNOWN.
+ *
+ * The column was declared `numeric not null` when the table held one product's
+ * ladder and every row had a target. Apex does not publish an evaluation
+ * target for the Intraday or EOD accounts in anything that has been read here,
+ * and inventing one would put a bar on the card the firm never set - so those
+ * rows carry null, and the insert was refused.
+ *
+ * Null now means "nobody has recorded a target for this", which the accounts
+ * page already distinguishes from a target of zero. */
+alter table public.prop_presets
+  alter column profit_target drop not null;
+
+comment on column public.prop_presets.profit_target is
+  'What this product asks for at this size, where it is published. Null means '
+  'nobody has recorded one - not that there is no target - and the page offers '
+  'nothing rather than inventing a bar the firm never set.';
+
 alter table public.prop_accounts
   add column if not exists product text;
 

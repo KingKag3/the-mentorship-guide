@@ -1,261 +1,301 @@
 -- ===========================================================================
--- One size, two products, two different drawdowns
+-- Which product, not just which size
 --
 -- Run in the Supabase SQL editor after prop-preset-drawdown.sql and
--- drawdown-eod.sql. Safe to re-run.
+-- drawdown-eod.sql. Safe to re-run, and safe to run over the first version of
+-- this file if that one already went in.
 --
 --
--- WHY THIS EXISTS
+-- THIS FILE CHANGED ITS MIND, AND THE REASON IS WORTH KEEPING
 --
--- `prop_presets` is keyed on (firm, size), and that key is wrong. Apex sells
--- more than one product at the same size and they do not trail the same
--- amount:
+-- The first version keyed the presets on (firm, size, drawdown_type) and
+-- argued the case in a comment:
 --
---     size        legacy      EOD      the preset would have filled in
---     $25,000      1,500     1,000     500 too much
---     $50,000      2,500     2,000     500 too much
---     $100,000     3,000     3,000     correct, by coincidence
---     $150,000     5,000     4,000     1,000 too much
+--     drawdown_type is the key rather than a new product column, because it
+--     already is the distinction, and two columns that must agree are two
+--     columns that will not.
 --
--- Too much is the dangerous direction. A drawdown $1,000 larger than the real
--- one puts $1,000 of room on the card that the account does not have, and room
--- that is not there is the one error on that page that ends an account.
+-- That was wrong, and it was disproved within the hour by a third Apex page.
+-- Apex sells THREE performance accounts - Legacy, Intraday and EOD - and
+-- Legacy and Intraday BOTH trail intraday. The mechanism does not identify the
+-- terms:
 --
--- The same size can also differ by drawdown TYPE within the legacy range: a
--- $100,000 static account has a $2,500 drawdown where the $100,000 trailing
--- account has $3,000. So (firm, size) cannot identify a set of terms, and
--- never could.
+--     size        legacy    intraday       eod
+--     $25,000      1,500       1,000     1,000
+--     $50,000      2,500       2,000     2,000
+--     $100,000     3,000       3,000     3,000
+--     $150,000     5,000       4,000     4,000
+--
+-- Intraday and EOD share a drawdown ladder; Legacy does not. Two products with
+-- identical mechanics and a drawdown $1,000 apart cannot be told apart by a
+-- column describing the mechanics, and keying on one would have filled in the
+-- Legacy figure for an Intraday account - a thousand dollars of room that does
+-- not exist.
+--
+-- So there is a product column after all. The objection it was avoiding is
+-- real and is handled below: `drawdown_type` is not typed independently, it
+-- comes from the product's own preset row, so the two cannot drift.
 --
 --
--- WHY drawdown_type IS THE KEY AND NOT A NEW "PRODUCT" COLUMN
+-- WHERE THE NUMBERS COME FROM
 --
--- Because it already is the distinction. Legacy is the intraday trailing
--- product, EOD is the end-of-day trailing product, and static is static. A
--- separate `product` column would carry the same information under a second
--- name, and two columns that must agree are two columns that will not.
+-- Apex's three published payout tables, read on 18 August 2026. Every drawdown
+-- is DERIVED rather than quoted, because the tables publish the safety net and
+-- define it as the drawdown plus $100.
 --
+--   Legacy, from "Required Minimum Balance to Request a Payout": $25k 26,600 |
+--   $50k 52,600 | $100k 103,100 | $150k 155,100 | $250k 256,600 |
+--   $300k 307,600 | $100k static 102,600.
 --
--- WHERE THESE NUMBERS COME FROM
+--   Intraday and EOD, from the Safety Net column of their own tables:
+--   $25k 26,100 | $50k 52,100 | $100k 103,100 | $150k 154,100 - identical
+--   between the two products.
 --
--- Apex's own published payout tables, read on 18 August 2026. Every drawdown
--- below is DERIVED rather than quoted, because the tables publish the safety
--- net and the safety net is defined as the drawdown plus $100:
+-- This confirms all six Legacy trailing figures that were previously seeded
+-- from the published ladder and marked unverified. They now agree with
+-- arithmetic Apex wrote for a different purpose, which is a better check than
+-- the ladder was.
 --
---   Legacy, from "Required Minimum Balance to Request a Payout":
---     $25k 26,600 | $50k 52,600 | $100k 103,100 | $150k 155,100
---     $250k 256,600 | $300k 307,600 | $100k static 102,600
---   less the account size, less $100, gives the seven drawdowns below.
---
---   EOD, from the "EOD Performance Account Payouts" table's Safety Net column:
---     $25k 26,100 | $50k 52,100 | $100k 103,100 | $150k 154,100
---   less the account size, less $100, gives four more.
---
--- This independently confirms all six trailing figures that were previously
--- seeded from the published ladder and marked unverified - they now agree with
--- Apex's own arithmetic in a table written for a different purpose, which is a
--- better check than the ladder itself.
---
--- $75,000 appears in NEITHER table and stays unconfirmed. It is seeded because
--- it was already seeded, and it is the one row on this list that is still just
--- a number somebody wrote down.
+-- $75,000 appears in none of the three tables and stays the one row on this
+-- list standing on nothing but a number somebody wrote down.
 -- ===========================================================================
 
 
 -- ---------------------------------------------------------------------------
--- 1. Re-key on the product
+-- 1. The product, on the presets
 --
--- The existing rows are the legacy trailing ladder, so they take 'trailing' -
--- which is both correct and the conservative reading, since trailing reports
--- its figures as a floor.
+-- Backfilled from whatever key the table currently has, so this runs correctly
+-- whether the first version of this file went in or not:
+--
+--   * rows already marked 'eod' become the eod product
+--   * rows already marked 'static' become static
+--   * everything else is the Legacy ladder, which is what was seeded first
 -- ---------------------------------------------------------------------------
 
 alter table public.prop_presets
-  add column if not exists drawdown_type text not null default 'trailing';
+  add column if not exists product text;
+
+update public.prop_presets
+   set product = case
+                   when drawdown_type = 'eod'    then 'eod'
+                   when drawdown_type = 'static' then 'static'
+                   else 'legacy'
+                 end
+ where product is null;
 
 alter table public.prop_presets
-  drop constraint if exists prop_presets_drawdown_type_check;
+  alter column product set not null;
 
 alter table public.prop_presets
-  add constraint prop_presets_drawdown_type_check
-  check (drawdown_type in ('trailing', 'eod', 'static', 'daily'));
+  drop constraint if exists prop_presets_product_check;
 
 alter table public.prop_presets
-  drop constraint if exists prop_presets_pkey;
+  add constraint prop_presets_product_check
+  check (product in ('legacy', 'intraday', 'eod', 'static'));
 
-alter table public.prop_presets
-  add primary key (firm, size, drawdown_type);
+alter table public.prop_presets drop constraint if exists prop_presets_pkey;
+alter table public.prop_presets add primary key (firm, product, size);
+
+comment on column public.prop_presets.product is
+  'Which set of terms, not how the drawdown moves. Apex Legacy and Intraday '
+  'both trail intraday and have different drawdowns, so the mechanism cannot '
+  'identify the terms and this column exists because assuming otherwise put '
+  'the wrong ladder on the card.';
+
+comment on column public.prop_presets.drawdown_type is
+  'How the drawdown moves, for this product. Read from here rather than typed '
+  'against the account, so the product and the mechanism cannot drift apart.';
 
 
 -- ---------------------------------------------------------------------------
--- 2. The payout terms, per product
+-- 2. The product, on the account
 --
--- Separate columns rather than a blob, the same reasoning funded-accounts.sql
--- gives: each is a number with a name, each is shown on its own line, and one
--- that turns out to be the wrong idea can be dropped without rewriting the
--- others.
+-- Nullable, and null means nobody has said. The page treats an unclassified
+-- account as it always has - trailing mechanics, no terms looked up - which is
+-- the pessimistic reading rather than the accurate one.
 --
--- Two day counts, because legacy needs both and they are not the same
+-- Nothing is backfilled. Guessing that nineteen accounts are Legacy because
+-- their drawdown happens to match would be the page deciding what somebody
+-- bought, and it is exactly the class of assumption this file is a correction
+-- for.
+-- ---------------------------------------------------------------------------
+
+alter table public.prop_accounts
+  add column if not exists product text;
+
+alter table public.prop_accounts
+  drop constraint if exists prop_accounts_product_check;
+
+alter table public.prop_accounts
+  add constraint prop_accounts_product_check
+  check (product is null or product in ('legacy', 'intraday', 'eod', 'static'));
+
+comment on column public.prop_accounts.product is
+  'Which of the firm''s products this account is. Null means unclassified, and '
+  'the page looks up no terms at all rather than the wrong ones.';
+
+
+-- ---------------------------------------------------------------------------
+-- 3. The payout terms, per product
+--
+-- Two day counts, because Legacy needs both and they are not the same
 -- question. Legacy: eight trading days, of which at least five made $50 or
--- more. EOD: five qualifying days, each making the size's own minimum, with no
--- separate total. So `payout_total_days` is null on EOD and that null means
--- "no separate total is required", not "unknown".
+-- more. Intraday and EOD: five qualifying days, each making the size's own
+-- minimum, with no separate total - so `payout_total_days` is null there, and
+-- that null means "no separate total is required" rather than "unknown".
 -- ---------------------------------------------------------------------------
 
-alter table public.prop_presets add column if not exists funded_lock_at    numeric;
-alter table public.prop_presets add column if not exists payout_total_days int;
-alter table public.prop_presets add column if not exists payout_min_days   int;
-alter table public.prop_presets add column if not exists payout_day_min    numeric;
-alter table public.prop_presets add column if not exists payout_minimum    numeric;
-alter table public.prop_presets add column if not exists max_payouts       int;
-alter table public.prop_presets add column if not exists consistency_pct   numeric;
+alter table public.prop_presets add column if not exists funded_lock_at     numeric;
+alter table public.prop_presets add column if not exists payout_total_days  int;
+alter table public.prop_presets add column if not exists payout_min_days    int;
+alter table public.prop_presets add column if not exists payout_day_min     numeric;
+alter table public.prop_presets add column if not exists payout_minimum     numeric;
+alter table public.prop_presets add column if not exists max_payouts        int;
+alter table public.prop_presets add column if not exists consistency_pct    numeric;
 alter table public.prop_presets add column if not exists safety_net_payouts int;
 
 comment on column public.prop_presets.funded_lock_at is
   'Where the trailing drawdown stops trailing ONCE FUNDED, above the starting '
-  'balance. Confirmed for the legacy product, whose payout page states the '
-  'trailing drawdown in a PA account stops at the starting balance plus $100 - '
-  'so this is the drawdown plus 100, which puts the locked floor at +100. Null '
-  'on EOD because nothing read says whether it locks. It is deliberately NOT '
-  'the same field as prop_accounts.lock_at: an evaluation demonstrably does '
-  'not lock, so this only ever fills a funded account.';
-
-comment on column public.prop_presets.payout_total_days is
-  'Trading days needed in total, whether or not they qualified. Legacy asks '
-  'for eight. Null means no separate total is required, which is EOD, and is '
-  'not the same as unknown.';
-
-comment on column public.prop_presets.payout_min_days is
-  'How many days must clear payout_day_min. Legacy five of eight, EOD five.';
+  'balance. Set for Legacy only, whose payout page states the trailing '
+  'drawdown in a PA account stops at the starting balance plus $100 - so it is '
+  'the drawdown plus 100. Null on Intraday and EOD because nothing read says '
+  'whether they lock. Deliberately not the same field as prop_accounts.lock_at: '
+  'an evaluation demonstrably does not lock, so this only fills a funded one.';
 
 comment on column public.prop_presets.consistency_pct is
   'The share of profit since the last approved payout that no single day may '
-  'reach. Legacy 0.30 and it stops applying at the sixth payout; EOD 0.50 and '
-  'nothing read says it ever stops. Stored as a fraction.';
+  'reach. Legacy 0.30, and it stops applying at the sixth payout. Intraday and '
+  'EOD 0.50, and nothing read says it ever stops.';
 
 comment on column public.prop_presets.safety_net_payouts is
-  'How many payouts the safety net applies to. Legacy three, after which it no '
-  'longer applies. Null means for the life of the account, which is EOD.';
+  'How many payouts the safety net applies to. Legacy three. Null means for '
+  'the life of the account, which is Intraday and EOD.';
 
 comment on column public.prop_presets.max_payouts is
-  'How many payouts this account may ever receive. EOD is capped at six and '
-  'the account closes afterwards. Null means uncapped, which is legacy from '
-  'the sixth payout onwards.';
+  'How many payouts this account may ever receive. Intraday and EOD close the '
+  'account after six. Null means uncapped, which is Legacy from the sixth on.';
 
 
 -- ---------------------------------------------------------------------------
--- 3. Legacy - the intraday trailing product
---
--- Split 100% of the first $25,000 per account and 90% after that. Not stored:
--- it changes what a payout is worth and nothing on this site computes what a
--- payout is worth, because that is the firm's arithmetic on the firm's money.
+-- 4. Legacy - eight days, a 30% rule, and no cap on how many payouts
 -- ---------------------------------------------------------------------------
 
 insert into public.prop_presets
-  (firm, size, drawdown_type, profit_target, drawdown, lock_at, funded_lock_at,
-   payout_total_days, payout_min_days, payout_day_min, payout_minimum,
-   max_payouts, consistency_pct, safety_net_payouts) values
-  ('Apex',  25000, 'trailing',  1500, 1500, null, 1600, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex',  50000, 'trailing',  3000, 2500, null, 2600, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex',  75000, 'trailing',  4250, 2750, null, 2850, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex', 100000, 'trailing',  6000, 3000, null, 3100, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex', 150000, 'trailing',  9000, 5000, null, 5100, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex', 250000, 'trailing', 15000, 6500, null, 6600, 8, 5, 50, 500, null, 0.30, 3),
-  ('Apex', 300000, 'trailing', 20000, 7500, null, 7600, 8, 5, 50, 500, null, 0.30, 3),
-  -- Same size as the trailing $100k and five hundred dollars less drawdown,
-  -- which is the whole reason this table needed re-keying.
-  ('Apex', 100000, 'static',    6000, 2500, null, null, 8, 5, 50, 500, null, 0.30, 3)
-on conflict (firm, size, drawdown_type) do update
-  set profit_target      = excluded.profit_target,
-      drawdown           = excluded.drawdown,
-      lock_at            = excluded.lock_at,
-      funded_lock_at     = excluded.funded_lock_at,
-      payout_total_days  = excluded.payout_total_days,
-      payout_min_days    = excluded.payout_min_days,
-      payout_day_min     = excluded.payout_day_min,
-      payout_minimum     = excluded.payout_minimum,
-      max_payouts        = excluded.max_payouts,
-      consistency_pct    = excluded.consistency_pct,
+  (firm, product, size, drawdown_type, profit_target, drawdown, lock_at,
+   funded_lock_at, payout_total_days, payout_min_days, payout_day_min,
+   payout_minimum, max_payouts, consistency_pct, safety_net_payouts) values
+  ('Apex', 'legacy',  25000, 'trailing',  1500, 1500, null, 1600, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy',  50000, 'trailing',  3000, 2500, null, 2600, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy',  75000, 'trailing',  4250, 2750, null, 2850, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy', 100000, 'trailing',  6000, 3000, null, 3100, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy', 150000, 'trailing',  9000, 5000, null, 5100, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy', 250000, 'trailing', 15000, 6500, null, 6600, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'legacy', 300000, 'trailing', 20000, 7500, null, 7600, 8, 5, 50, 500, null, 0.30, 3),
+  ('Apex', 'static', 100000, 'static',    6000, 2500, null, null, 8, 5, 50, 500, null, 0.30, 3)
+on conflict (firm, product, size) do update
+  set drawdown_type = excluded.drawdown_type, profit_target = excluded.profit_target,
+      drawdown = excluded.drawdown, lock_at = excluded.lock_at,
+      funded_lock_at = excluded.funded_lock_at,
+      payout_total_days = excluded.payout_total_days,
+      payout_min_days = excluded.payout_min_days,
+      payout_day_min = excluded.payout_day_min,
+      payout_minimum = excluded.payout_minimum, max_payouts = excluded.max_payouts,
+      consistency_pct = excluded.consistency_pct,
       safety_net_payouts = excluded.safety_net_payouts;
 
 
 -- ---------------------------------------------------------------------------
--- 4. EOD - the end-of-day trailing product
+-- 5. Intraday and EOD - five qualifying days, a 50% rule, six payouts and the
+--    account closes
 --
--- `profit_target` is null on every row. The evaluation targets for this
--- product are not in anything that has been read, and inventing one would put
--- a bar on the card that the firm never set. Null reads as "not set yet" and
--- the page says so.
+-- Same mechanism for Intraday as Legacy and the same drawdown ladder as EOD,
+-- which is precisely why neither of those columns could have keyed this table.
 --
--- The safety net here holds for the LIFE of the account rather than the first
--- three payouts, and the account closes after six payouts. Both are stored
--- because both change what the page should say to somebody planning a
--- withdrawal.
+-- `profit_target` is null throughout. The evaluation targets for these
+-- products are in nothing that has been read, and inventing one would put a
+-- bar on the card the firm never set.
+--
+-- The two differ only in the minimum a day must make, and EOD asks for more at
+-- every size above $25,000.
 -- ---------------------------------------------------------------------------
 
 insert into public.prop_presets
-  (firm, size, drawdown_type, profit_target, drawdown, lock_at, funded_lock_at,
-   payout_total_days, payout_min_days, payout_day_min, payout_minimum,
-   max_payouts, consistency_pct, safety_net_payouts) values
-  ('Apex',  25000, 'eod', null, 1000, null, null, null, 5, 100, 500, 6, 0.50, null),
-  ('Apex',  50000, 'eod', null, 2000, null, null, null, 5, 250, 500, 6, 0.50, null),
-  ('Apex', 100000, 'eod', null, 3000, null, null, null, 5, 300, 500, 6, 0.50, null),
-  ('Apex', 150000, 'eod', null, 4000, null, null, null, 5, 350, 500, 6, 0.50, null)
-on conflict (firm, size, drawdown_type) do update
-  set profit_target      = excluded.profit_target,
-      drawdown           = excluded.drawdown,
-      lock_at            = excluded.lock_at,
-      funded_lock_at     = excluded.funded_lock_at,
-      payout_total_days  = excluded.payout_total_days,
-      payout_min_days    = excluded.payout_min_days,
-      payout_day_min     = excluded.payout_day_min,
-      payout_minimum     = excluded.payout_minimum,
-      max_payouts        = excluded.max_payouts,
-      consistency_pct    = excluded.consistency_pct,
+  (firm, product, size, drawdown_type, profit_target, drawdown, lock_at,
+   funded_lock_at, payout_total_days, payout_min_days, payout_day_min,
+   payout_minimum, max_payouts, consistency_pct, safety_net_payouts) values
+  ('Apex', 'intraday',  25000, 'trailing', null, 1000, null, null, null, 5, 100, 500, 6, 0.50, null),
+  ('Apex', 'intraday',  50000, 'trailing', null, 2000, null, null, null, 5, 200, 500, 6, 0.50, null),
+  ('Apex', 'intraday', 100000, 'trailing', null, 3000, null, null, null, 5, 250, 500, 6, 0.50, null),
+  ('Apex', 'intraday', 150000, 'trailing', null, 4000, null, null, null, 5, 300, 500, 6, 0.50, null),
+
+  ('Apex', 'eod',  25000, 'eod', null, 1000, null, null, null, 5, 100, 500, 6, 0.50, null),
+  ('Apex', 'eod',  50000, 'eod', null, 2000, null, null, null, 5, 250, 500, 6, 0.50, null),
+  ('Apex', 'eod', 100000, 'eod', null, 3000, null, null, null, 5, 300, 500, 6, 0.50, null),
+  ('Apex', 'eod', 150000, 'eod', null, 4000, null, null, null, 5, 350, 500, 6, 0.50, null)
+on conflict (firm, product, size) do update
+  set drawdown_type = excluded.drawdown_type, profit_target = excluded.profit_target,
+      drawdown = excluded.drawdown, lock_at = excluded.lock_at,
+      funded_lock_at = excluded.funded_lock_at,
+      payout_total_days = excluded.payout_total_days,
+      payout_min_days = excluded.payout_min_days,
+      payout_day_min = excluded.payout_day_min,
+      payout_minimum = excluded.payout_minimum, max_payouts = excluded.max_payouts,
+      consistency_pct = excluded.consistency_pct,
       safety_net_payouts = excluded.safety_net_payouts;
 
 
 -- ---------------------------------------------------------------------------
--- 5. What is deliberately NOT here
+-- 6. Rows the first version of this file may have left behind
 --
--- THE MAXIMUM PER REQUEST. Legacy caps it per size for the first five payouts
--- and lifts the cap afterwards; EOD varies it by BOTH size and payout number,
--- across a twenty-four cell table. That is a shape this table cannot hold and
--- it needs one of its own. Until it exists the page must not quote a maximum,
--- because quoting the wrong one would have somebody request a payout that gets
--- refused - annoying rather than dangerous, but still a number the page made
--- up.
+-- It seeded on (firm, size, drawdown_type) with no product column, and the
+-- backfill above turned those into legacy, static and eod - which is where
+-- they belong. Nothing is deleted, because deleting reference data on a guess
+-- is how a ladder goes missing. This is here so anybody checking knows to
+-- expect exactly the rows seeded above and no others.
+--
+-- select firm, product, size, drawdown_type, drawdown
+--   from public.prop_presets order by firm, product, size;
+-- ---------------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------------
+-- 7. What is deliberately NOT here
+--
+-- THE MAXIMUM PER REQUEST. Legacy caps it per size for five payouts and lifts
+-- it afterwards; Intraday and EOD vary it by size AND payout number, and their
+-- two tables are not the same as each other. That is twenty-four cells apiece
+-- and it needs a table of its own. Until it exists the page quotes no maximum,
+-- because the wrong one would have somebody request a payout that gets
+-- refused.
 --
 -- THE SPLIT. Legacy pays 100% of the first $25,000 per account and 90% after;
--- EOD pays 100%. Nothing here computes what a payout is worth in the member's
--- pocket, and starting to would be this site doing the firm's arithmetic on
--- the firm's money.
+-- Intraday and EOD pay 100%. Nothing here computes what a payout is worth in
+-- the member's pocket, and starting to would be this site doing the firm's
+-- arithmetic on the firm's money.
+-- ---------------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------------
+-- 8. Checks worth running once
+-- ---------------------------------------------------------------------------
+
+-- a) All four products, and the same size under more than one of them with
+--    different drawdowns - which is the point.
 --
--- NOTHING TOUCHES prop_accounts. No account is reclassified or refilled. A
--- member who bought an EOD account and configured it as trailing keeps exactly
--- what they typed, and the card tells them the two disagree.
--- ---------------------------------------------------------------------------
-
-
--- ---------------------------------------------------------------------------
--- 6. Checks worth running once
--- ---------------------------------------------------------------------------
-
--- a) Both ladders are there, and the same size appears under more than one
---    product with different drawdowns - which is the point of the re-key.
---
--- select size, drawdown_type, drawdown, profit_target
+-- select product, size, drawdown_type, drawdown, payout_day_min
 --   from public.prop_presets
---  where firm = 'Apex'
---  order by size, drawdown_type;
+--  where firm = 'Apex' order by size, product;
 
--- b) Every drawdown is exactly a hundred under the published safety net.
+-- b) Legacy and Intraday share a mechanism and not a ladder.
 --
--- select size, drawdown_type, drawdown, drawdown + 100 as safety_net
+-- select size,
+--        max(drawdown) filter (where product = 'legacy')   as legacy,
+--        max(drawdown) filter (where product = 'intraday') as intraday
 --   from public.prop_presets
---  where firm = 'Apex'
---  order by size, drawdown_type;
+--  where firm = 'Apex' and drawdown_type = 'trailing'
+--  group by size order by size;
 
--- c) The key really is three columns now.
+-- c) The key is three columns, and product is one of them.
 --
 -- select conname, pg_get_constraintdef(oid)
 --   from pg_constraint

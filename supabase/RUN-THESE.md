@@ -13,22 +13,37 @@ see `CLAUDE.md`.
 
 ### `prop-presets-by-product.sql`
 
-Re-keys `prop_presets` on `(firm, size, drawdown_type)` and seeds both Apex ladders with their
-payout terms. **Run `drawdown-eod.sql` first.**
+Adds a `product` column to `prop_presets` **and** `prop_accounts`, re-keys the presets on
+`(firm, product, size)`, and seeds all four Apex products with their payout terms.
+**Run `drawdown-eod.sql` first.** Safe to run over the earlier version of this file if that one
+already went in — it backfills.
 
-**Why it exists.** The old key was `(firm, size)`, and Apex sells more than one product at the same
-size with different drawdowns — a $150,000 EOD account trails $4,000 where the legacy one trails
-$5,000. Matching on size alone filled in the larger figure, which puts room on the card that the
-account does not have. A $100,000 *static* account trails $2,500 against the trailing $3,000, so the
-key was wrong even inside the legacy range.
+**Why it exists, and why it changed shape.** The first version keyed on `drawdown_type` and argued
+that the mechanism already identified the product. The Intraday page disproved that within the hour:
+**Legacy and Intraday both trail intraday and their drawdowns differ by up to $1,000.**
 
-**Every drawdown here is derived, not quoted.** Apex publishes the safety net and defines it as the
-drawdown plus $100, so the ladder falls out of their own payout tables — which independently
-confirms all six trailing figures that were previously seeded on trust. $75,000 appears in neither
-table and stays the one unconfirmed row.
+| size | legacy | intraday | eod |
+| --- | --- | --- | --- |
+| $25,000 | 1,500 | 1,000 | 1,000 |
+| $50,000 | 2,500 | 2,000 | 2,000 |
+| $100,000 | 3,000 | 3,000 | 3,000 |
+| $150,000 | 5,000 | 4,000 | 4,000 |
 
-**After running it**, set *How the drawdown moves* on each account. Everything keeps `trailing`
-until you do, which is the pessimistic reading rather than the accurate one.
+Intraday and EOD share a ladder and differ on the minimum a day must make. Legacy shares a mechanism
+with Intraday and not a ladder. No single existing column could tell them apart, and guessing filled
+in the larger drawdown — room the account does not have.
+
+**Every drawdown is derived, not quoted.** Apex publishes the safety net and defines it as the
+drawdown plus $100, so all three ladders fall out of their own payout tables. This independently
+confirms the six Legacy figures previously seeded on trust. $75,000 is in none of the three tables
+and stays the one unconfirmed row.
+
+**After running it**, set *Which account is this* on each card. Nothing is backfilled — an account
+with no product looks up no terms at all, rather than the wrong ones. Naming the product also sets
+how the drawdown moves, so the two cannot drift.
+
+**Your nineteen are Legacy.** Only Legacy offers $250,000, and the $6,500 drawdown and the absence
+of a lock on the evaluations both match it.
 
 ---
 

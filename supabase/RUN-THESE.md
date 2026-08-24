@@ -100,6 +100,24 @@ The privacy migration that was outstanding here has been applied *and* shown to 
 pass and are not.
 
 
+### The editor runs your whole script as one transaction
+
+**One failing statement discards every statement before it.** A file that errors on its last line
+leaves the database exactly as it was, and running it a second time leaves it exactly as it was
+twice.
+
+That is not obvious from the outside, and it cost an evening here: `prop-presets-by-product.sql`
+was run twice, reported an error somewhere in the middle both times, and left nothing behind —
+while the accounts page could only report that the presets table was empty, which was true and was
+not the reason.
+
+**So when a migration seems not to have taken, the question is never "did it run".** It is *what did
+the editor say in red*, and the answer is usually one statement in the middle that the rest of the
+file is standing on. `supabase/prop-presets-step-by-step.sql` exists for this: the same work in four
+independent pieces, so a failure names itself instead of erasing the evidence.
+
+---
+
 ### One thing about this editor, before any of the queries below
 
 **The SQL editor connects as the table owner, and row-level security does not

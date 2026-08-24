@@ -232,6 +232,21 @@ const ACCOUNT_COLUMNS =
  * up to date. */
 const OPTIONAL_COLUMNS = 'product, payout_lowers_mark';
 
+/* The presets had the same hole and it was quieter, which made it worse.
+ *
+ * `presetRes.error` was never checked at all - `presets` is just
+ * `presetRes.data || []` - so a preset query that 400s on one unknown column
+ * left the page with no terms for anything. No product control, no drawdown
+ * offered, no mismatch warning. Nothing broken, nothing said, and every
+ * feature that reads a preset simply absent.
+ *
+ * A page that silently does less is harder to diagnose than one that fails,
+ * because there is nothing to search for. */
+const PRESET_COLUMNS = 'firm, size, profit_target, drawdown, lock_at';
+const PRESET_OPTIONAL =
+  'product, drawdown_type, funded_lock_at, payout_total_days, payout_min_days, ' +
+  'payout_day_min, payout_minimum, max_payouts, consistency_pct, safety_net_payouts';
+
 const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
   fetchPaged(() => supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
@@ -247,10 +262,7 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.al
      * drawdown could never be shown as locked on any account. */
     .select(ACCOUNT_COLUMNS + ', ' + OPTIONAL_COLUMNS),
   supabase.from('prop_presets')
-    .select('firm, product, size, drawdown_type, profit_target, drawdown, lock_at, funded_lock_at, ' +
-            'payout_total_days, payout_min_days, payout_day_min, payout_minimum, ' +
-            'max_payouts, consistency_pct, safety_net_payouts')
-    .order('size'),
+    .select(PRESET_COLUMNS + ', ' + PRESET_OPTIONAL).order('size'),
   supabase.from('account_adjustments')
     .select('id, account, happened_on, amount, kind, note').order('happened_on'),
   supabase.from('prop_attempts')
@@ -306,14 +318,29 @@ const adjustmentsMissing = !!(adjustRes && adjustRes.error) || optionalMissing;
  * differently. A retry that succeeded means a migration is outstanding, and the
  * member is owed the name of it - the alternative is a product control that
  * appears to work and saves nothing. */
-const migrationNote = optionalMissing
+/* Same retry as the accounts. A preset row without its terms is still a
+ * drawdown and a target worth offering. */
+let presetData = presetRes;
+let presetOptionalMissing = false;
+if (presetRes.error) {
+  const retry = await supabase.from('prop_presets').select(PRESET_COLUMNS).order('size');
+  if (!retry.error) { presetData = retry; presetOptionalMissing = true; }
+}
+const presets = presetData.data || [];
+const presetsBroken = !!presetData.error;
+
+const schemaShort = optionalMissing || presetOptionalMissing || presetsBroken;
+const migrationNote = schemaShort
   ? '<div class="callout warn"><span class="callout-label">Part of the schema is missing</span>' +
     '<p>Your accounts loaded, but at least one column this page uses is not there yet, so ' +
     'anything depending on it is switched off rather than broken &mdash; naming a product, and ' +
     'recording a payout.</p>' +
     '<p>Run <code>supabase/prop-presets-by-product.sql</code> and, once you have a funded ' +
     'account, <code>supabase/account-adjustments.sql</code>. Everything else on this page is ' +
-    'unaffected.</p></div>'
+    'unaffected.</p>' +
+    (presetData.error
+      ? '<p class="field-note-bad">' + escapeHtml(presetData.error.message) + '</p>'
+      : '') + '</div>'
   : '';
 
 /* The ones belonging to one account, inside one attempt's window.
@@ -332,7 +359,6 @@ function adjustmentsFor(account, win) {
 }
 
 const trades = (tradesRes.data || []).filter(hasResult);
-const presets = presetRes.data || [];
 const saved = new Map((accountsRes.data || []).map((r) => [r.account, r]));
 
 // Every account the journal has seen, plus any configured that have no trades
@@ -666,6 +692,34 @@ const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
  * the safe way to be wrong. Too LARGE tells you there is room that was never
  * there, and that is the one that ends an account.
  */
+/* AN UNCLASSIFIED ACCOUNT LOOKS NOTHING UP, AND THE CARD HAS TO SAY SO.
+ *
+ * The control that fixes it sits inside "What this account has to do", which
+ * is collapsed - so a member who has run the migration sees a card that looks
+ * finished, no drawdown warning, and no way to tell that the warning is silent
+ * because nothing is being checked rather than because everything agrees.
+ *
+ * That is the worst of the three states. A wrong figure gets challenged; a
+ * missing one gets filled in; a check that is quietly not running looks exactly
+ * like a check that passed.
+ *
+ * Only shown when the firm actually has terms on file. Somebody trading with a
+ * firm nobody has seeded has nothing to choose from and does not need telling.
+ */
+function unclassifiedNote(cfg, isWatched) {
+  if (!isWatched || cfg.product) return '';
+  const options = productsFor(cfg.firm || '');
+  if (options.length < 2) return '';
+
+  return '<div class="callout"><span class="callout-label">Say which account this is</span>' +
+    '<p>' + escapeHtml(cfg.firm) + ' sells ' + options.length + ' of these and they do not share ' +
+    'a drawdown &mdash; two of them can trail the same way and still be a thousand dollars apart. ' +
+    'Until this one is named, <strong>nothing below is checked against the firm&rsquo;s published ' +
+    'figures</strong>. No warning is not the same as no problem.</p>' +
+    '<p class="stat-note">Open <em>What this account has to do</em> underneath and pick it, or set ' +
+    'them all at once under <em>Set several at once</em> further down.</p></div>';
+}
+
 function mismatchNote(cfg, dd, target) {
   const firm = (cfg.firm || '').trim();
   const size = Number(cfg.size) || 0;
@@ -1332,6 +1386,7 @@ function card(name) {
               room !== null && room > 0 && room <= dd * 0.25 ? 'is-bad' : ''))
       : '') +
 
+    unclassifiedNote(cfg, isWatched) +
     mismatchNote(cfg, dd, target) +
     (isFunded ? payoutChecklist(name, cfg, p) : '') +
     payoutCost(isFunded, cfg, p, room, dd) +

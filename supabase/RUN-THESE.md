@@ -11,62 +11,26 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-### `prop-presets-by-product.sql`
+### `prop-preset-drawdown.sql` &mdash; superseded, and only listed because re-running is free
 
-Adds a `product` column to `prop_presets` **and** `prop_accounts`, re-keys the presets on
-`(firm, product, size)`, and seeds all four Apex products with their payout terms.
-**Run `drawdown-eod.sql` first.** Safe to run over the earlier version of this file if that one
-already went in — it backfills.
+`prop-presets-by-product.sql` was run on 18 August 2026 and reseeds everything this file did, keyed
+correctly. There is nothing left here to apply.
 
-**Why it exists, and why it changed shape.** The first version keyed on `drawdown_type` and argued
-that the mechanism already identified the product. The Intraday page disproved that within the hour:
-**Legacy and Intraday both trail intraday and their drawdowns differ by up to $1,000.**
+**What is left to do is on the page, not in SQL.** On each account card set **Which account is
+this**. Nothing was backfilled: an account with no product looks up no terms at all, which is why
+the drawdown mismatch warning has gone quiet rather than telling you anything.
 
-| size | legacy | intraday | eod |
-| --- | --- | --- | --- |
-| $25,000 | 1,500 | 1,000 | 1,000 |
-| $50,000 | 2,500 | 2,000 | 2,000 |
-| $100,000 | 3,000 | 3,000 | 3,000 |
-| $150,000 | 5,000 | 4,000 | 4,000 |
+For the nineteen, use the bulk form: pick **Legacy**, choose all nineteen, apply. That sets the
+product and the drawdown mechanism on every one of them. It will not touch the drawdown figure
+unless you type one, so if any of them still carry `6,000` the mismatch warning will say so as soon
+as the product is set.
 
-Intraday and EOD share a ladder and differ on the minimum a day must make. Legacy shares a mechanism
-with Intraday and not a ladder. No single existing column could tell them apart, and guessing filled
-in the larger drawdown — room the account does not have.
-
-**Every drawdown is derived, not quoted.** Apex publishes the safety net and defines it as the
-drawdown plus $100, so all three ladders fall out of their own payout tables. This independently
-confirms the six Legacy figures previously seeded on trust. $75,000 is in none of the three tables
-and stays the one unconfirmed row.
-
-**After running it**, set *Which account is this* on each card. Nothing is backfilled — an account
-with no product looks up no terms at all, rather than the wrong ones. Naming the product also sets
-how the drawdown moves, so the two cannot drift.
-
-**Your nineteen are Legacy.** Only Legacy offers $250,000, and the $6,500 drawdown and the absence
-of a lock on the evaluations both match it.
+Only Legacy offers $250,000, and the $6,500 drawdown and the absence of a lock on the evaluations
+both match it.
 
 ---
 
-### `drawdown-eod.sql`
-
-Lets `drawdown_type` be `eod` as well as `trailing`, `static` and `daily`.
-
-**Why it exists.** `drawdown_type` has been on the table since the first migration, defaulting to
-`trailing`, and nothing has ever read it or written it. So the accounts page modelled one drawdown
-for everybody — the intraday one — and every caveat on it says *the real one is at least this bad
-and can be considerably worse*. That is true of an intraday mark and false of an end-of-day one,
-where the closing balances the journal holds are the numbers the firm used.
-
-**It changes nothing until you classify an account.** Every existing row keeps `trailing`, which is
-the pessimistic reading rather than the accurate one. There is now a control on each card.
-
-**What it is worth.** On a fixture where one day spikes to +$5,000 and closes at +$1,000, the same
-trades give **$1,700 of room on an intraday account and $5,700 on an end-of-day one** — and the EOD
-figure is exact rather than a floor.
-
----
-
-### `prop-preset-drawdown.sql`
+<details><summary>The original entry, kept for the reasoning</summary>
 
 Adds `drawdown` and `lock_at` to `prop_presets` and seeds the Apex ladder, so picking a size fills
 in the drawdown the way it already fills in the target.
@@ -99,6 +63,8 @@ bottom of the migration if you would rather do it in SQL — read the warning ab
 **One row is verified and six are not.** Apex $250,000 was checked against a live account table on
 18 August 2026. The rest are the published ladder, carrying the same authority as the profit targets
 already seeded in `prop-accounts.sql`, which is to say they are a starting point.
+
+</details>
 
 ---
 
@@ -202,6 +168,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `drawdown-eod.sql`, `prop-presets-by-product.sql` | 18 Aug 2026 | Two things the site had been getting wrong about the same account. `drawdown_type` had existed since the first migration and was never read, so every card was modelled as an intraday trailing drawdown and every caveat said the figure was a floor — which is false of an end-of-day account, where the closing balances the journal holds are the numbers the firm used. And the presets were keyed on `(firm, size)`, which cannot separate three Apex products: **Legacy and Intraday both trail intraday and their drawdowns differ by up to $1,000**, so a size match filled in the larger ladder — room the account does not have. Both fixed, with a `product` column on presets and accounts, and `drawdown_type` read from the product's own preset row so the two cannot drift. **Every drawdown is derived rather than quoted**: Apex publishes the safety net and defines it as the drawdown plus $100, so all three ladders fall out of their own payout tables — which independently confirms the six Legacy figures previously seeded on trust. **Not confirmed from outside**, and there is nothing to confirm until an account is classified: every row keeps `trailing` and a null product, which looks up no terms at all rather than the wrong ones |
 | `profile-avatars.sql` | 17 Aug 2026 | `profiles.avatar_path`, plus three storage policies for `avatars/<own id>/`. **Column confirmed from outside with two controls**: `?select=avatar_path` answers `200 []`, `?select=avatar_nope` answers `400 42703`, and `?select=last_seen_at,avatar_path` still answers `200 []` — so the column exists and the earlier one was not clobbered. **The storage policies are confirmed too**, on 17 Aug, by the only test that could do it: a member chose a picture and it uploaded, saved and rendered. No outside probe could show this — an anonymous upload is refused whether or not a member policy exists. What is still unshown is the *narrowness*: that a member is refused writing into somebody else's folder |
 | `funded-accounts.sql` | 17 Aug 2026 | `funded` as a kind, four payout columns and `from_account`. **Columns confirmed from outside with a control**: all five named together answer `200 []`, while `payout_nonsense` answers `400 42703`. **The constraint is NOT confirmed, and cannot be from outside** — inserting `kind='funded'` and inserting `kind='not_a_kind'` both answer `42501`, because row-level security refuses the write before the CHECK is ever evaluated. The two are indistinguishable to an anonymous caller, so the only proof is picking **Funded** in the dropdown on a card and having it save |
 | `trade-review-dismissals.sql` | 17 Aug 2026 | Lets a mentor set a shared trade aside without answering it. The dismissal **expires** — it only holds while it is newer than the member's last edit and their last message, so a follow-up comes back on its own and nothing needs tidying up. **Confirmed from outside the same day, with two controls**: the table with all four columns named answers `200 []`; a table that does not exist answers `404 PGRST205`; a column that does not exist on the real table answers `400 42703`. The first says the table is there and RLS holds, the second says `200 []` is not PostgREST shrugging, and the third says the four columns are real rather than ignored. What none of it shows is a **member** getting nothing from it — RLS does not apply to the table owner, so that needs a second signed-in account |

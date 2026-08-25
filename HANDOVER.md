@@ -417,19 +417,34 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
-- **A gap found by reading the policies, not by testing them.** 19 August 2026.
-  `admins read shared` on `trades` is correctly narrow — `shared_with_mentor and is_admin()`. But
-  **`admins write reviews` on `trade_reviews` checks neither**: only `is_admin()` and authorship. So
-  an admin who has a trade id can write a review on a trade that was never shared, or on one the
-  member has since unshared — and the reply lands in that member's journal.
+- **CONFIRMED BY ATTACK, AND FIXED: an admin could write on a trade nobody shared.** 19 August
+  2026. Found by reading the policies, then demonstrated against the live database from a browser
+  console signed in as an admin, with the control passing first:
 
-  Not a leak: the admin still cannot read the trade. It is a **write outside the consent boundary**,
-  and the id is not a secret — it was visible for as long as the trade was shared.
+  ```
+  read:      []   null        <- row-level security refused the trade
+  WROTE IT   [{...}]          <- and accepted a review on the same id
+  ```
 
-  **Predicted to be exploitable and not yet confirmed.** The test and the one-policy fix are both in
-  `supabase/RLS-ATTACK-TESTS.md`. Do not apply the fix before running the test: if the write is
-  refused, the policy is narrower than it reads and the interesting question is why.
+  `admins read shared` on `trades` requires `shared_with_mentor`. `admins write reviews` on
+  `trade_reviews` required only `is_admin()` and authorship, and nobody had compared the two. So a
+  mentor reply could be written into any member's journal on a trade they had never shared, or one
+  they had since taken back.
 
+  **Worse than the first write-up said.** That assumed `trades.id` was a uuid and argued the id was
+  not secret because it had been visible while shared. It is a **bigint** — the attack needs to have
+  seen nothing at all, because 1, 2, 3 reaches every trade in the table.
+
+  Not a leak: the admin still could not read the trade. A **write outside consent**, which is its
+  own thing.
+
+  Fixed by `supabase/review-write-needs-sharing.sql`, which narrows the insert to match the read.
+  **The read and update policies are deliberately unchanged** and the file says why for each — both
+  are product decisions rather than security ones, and this changes only what was demonstrated.
+
+  **The control is the part worth copying.** An empty read proved RLS was on and working; without
+  it, a successful write is equally consistent with the whole thing being switched off. Every test
+  in `RLS-ATTACK-TESTS.md` has one for that reason.
 - **Nineteen accounts still carry a null product, so nothing on them is being checked.** 19 August
   2026. Every migration is applied and the presets hold sixteen rows, but nothing was backfilled —
   naming the product is a decision only the member can make, and until it is made the card looks up

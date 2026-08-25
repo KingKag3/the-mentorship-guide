@@ -1140,10 +1140,21 @@ async function sendReply(btn) {
   editor.setDisabled(false);
 
   if (error) {
-    // Named rather than swallowed: the likely cause on first use is the
-    // migration not having been run, and that is a fixable thing to be told.
+    /* A policy violation here has one likely cause and it is not a bug.
+     *
+     * `admins write reviews` requires the trade to be shared AT THE MOMENT OF
+     * THE WRITE, so a member who unshares while the mentor is typing will have
+     * this refused - which is correct, and reads as breakage unless it is
+     * named. Everything else keeps the general error, because the other likely
+     * cause on first use is a migration that has not been run. */
     document.getElementById('review-count').innerHTML =
-      dbError(error, 'Could not save the reply');
+      error.code === '42501'
+        ? '<div class="callout warn"><span class="callout-label">This trade is no longer ' +
+          'shared</span><p>The member has taken it back since this was opened, so the reply ' +
+          'cannot be saved &mdash; sharing is what gives a mentor permission to write, and it ' +
+          'was withdrawn.</p><p>Your text is still in the box. Refresh the queue to see what ' +
+          'is still being asked about.</p></div>'
+        : dbError(error, 'Could not save the reply');
     return;
   }
 

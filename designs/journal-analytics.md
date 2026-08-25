@@ -365,6 +365,43 @@ because it has no natural order.
 Proved on a session planted to be scalped at triple size: *under a minute, 100% against 4% usually*
 and *3x or more, 100% against 4% usually*, while the two axes with nothing planted stayed quiet.
 
+### Four more pictures &mdash; 19 August 2026
+
+**The give-back.** *Best point $1,140, finished $210 — $930 given back.* A number rather than a
+chart, and the most behaviourally loaded fact about a session. It is also the day's own contribution
+to a trailing floor: the drawdown on the accounts page is exactly this measurement run over months
+instead of hours. The card only appears when there is something to give back.
+
+**The session path.** Running total through the day, plotted against **the clock rather than trade
+number** — trade number spaces four decisions evenly and hides that three happened inside a minute,
+which is the thing worth seeing. Peak marked hollow, because it marks a level the day reached and
+did not keep.
+
+**The session strip.** Each decision a block: position is when, width is how long it was held, height
+is size, colour is result, and **the gaps are to scale**. The radar and the path both aggregate the
+ordering away, and tilt *is* an ordering — a loss, forty seconds, double the size. A median wait of
+eleven minutes is true of that session and describes none of it. Minimum block width, because a
+nine-second scalp is a real trade and a sliver nobody can see is a trade the chart has hidden.
+
+**Is it improving.** Trailing-20 expectancy with the noise band drawn *behind* it. A trailing average
+alone is a mood ring — every wander reads as progress or decay. The band is what the same window
+produces from the member's own results reshuffled, so a line inside it is a line doing what
+randomness does. Seeded deterministically: a chart that redraws differently on a refresh teaches
+somebody not to trust it. On the fixture the line left a 90% band 12 times in 163, which is roughly
+what a 90% band should do.
+
+**The spread of results.** A histogram, because the win rate and the average winner against the
+average loser both hide a tail. An average of −$180 is identical whether every loser was −$180 or
+one was −$4,000 and the rest were scratches, and those need different fixes. Fires an extra line
+when the single worst decision is over a quarter of everything lost — verified at 54%.
+
+### Cannot be built, and should stop being re-proposed
+
+**MAE and MFE** — how far a trade went against you before it worked, and how much was left on the
+table. It is the most valuable trade-quality chart there is and a broker export does not carry
+excursion data. Nothing in this journal can reconstruct it. It would need a tick feed or the
+platform's own per-trade excursion export, and the no-live-market-data rule rules out the first.
+
 ### Still to do on this
 
 - Model and entry type would make good axes and are empty on an imported journal. The bucket is a

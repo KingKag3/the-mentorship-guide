@@ -948,6 +948,318 @@ function lessonLink(key) {
    coin landing.
    ========================================================================== */
 
+/* AM I GETTING BETTER - THE HONEST VERSION.
+ *
+ * A trailing average plotted on its own is a mood ring. It wanders, and a
+ * person watching it reads every wander as progress or decay, because that is
+ * what a line going up or down looks like.
+ *
+ * So the band is drawn first and the line second. The band is what a trailing
+ * window of this size does when NOTHING is changing: the member's own results,
+ * reshuffled, with the middle nine tenths of the outcomes shaded. A line inside
+ * it is a line doing what randomness does. Only a line leaving it has said
+ * anything, and most lines never leave it - which is the finding, and the
+ * reason this is worth drawing rather than a bare average.
+ *
+ * Decisions, not rows, for the reason every count on this page is decisions.
+ */
+function progressCurve(list) {
+  const val = UNIT[unit].value;
+  const fmt = UNIT[unit].fmt;
+
+  const chronological = decisions(list)
+    .slice().sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at))
+    .map(val);
+
+  const WINDOW = 20;
+  if (chronological.length < WINDOW * 2) return '';
+
+  const roll = [];
+  let sum = 0;
+  for (let i = 0; i < chronological.length; i++) {
+    sum += chronological[i];
+    if (i >= WINDOW) sum -= chronological[i - WINDOW];
+    if (i >= WINDOW - 1) roll.push(sum / WINDOW);
+  }
+
+  /* The band, from the member's own trades reshuffled. Deterministic seed, so
+   * the picture does not move when nothing did - a chart that redraws itself
+   * differently on a refresh teaches somebody not to trust it. */
+  let seed = chronological.length * 7919;
+  const rng = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  const draws = [];
+  for (let run = 0; run < 400; run++) {
+    let s = 0;
+    for (let j = 0; j < WINDOW; j++) s += chronological[(rng() * chronological.length) | 0];
+    draws.push(s / WINDOW);
+  }
+  draws.sort((a, b) => a - b);
+  const lo = draws[Math.floor(0.05 * draws.length)];
+  const hi = draws[Math.floor(0.95 * draws.length)];
+
+  const W = 300;
+  const H = 110;
+  const pad = 10;
+  const top = Math.max(hi, ...roll);
+  const bottom = Math.min(lo, ...roll, 0);
+  const range = (top - bottom) || 1;
+  const x = (i) => pad + (i / Math.max(1, roll.length - 1)) * (W - pad * 2);
+  const y = (v) => pad + (1 - (v - bottom) / range) * (H - pad * 2);
+
+  const outside = roll.filter((v) => v > hi || v < lo).length;
+  const nowValue = roll[roll.length - 1];
+
+  return '<h3>Is it improving</h3>' +
+    '<svg class="progress" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="Trailing expectancy over 20 decisions, against the range randomness produces">' +
+      '<rect class="progress-band" x="0" y="' + y(hi).toFixed(1) + '" width="' + W +
+        '" height="' + Math.max(1, y(lo) - y(hi)).toFixed(1) + '"/>' +
+      '<line class="progress-zero" x1="0" y1="' + y(0).toFixed(1) + '" x2="' + W +
+        '" y2="' + y(0).toFixed(1) + '"/>' +
+      '<polyline class="progress-line" points="' +
+        roll.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' +
+    '</svg>' +
+    '<p class="stat-note">Your average decision over a trailing twenty, against the shaded range ' +
+    'the same twenty produce when your own results are reshuffled &mdash; what this line does when ' +
+    '<strong>nothing is changing</strong>. Right now it reads ' + fmt(nowValue) + '.</p>' +
+    '<p class="stat-note">' + (outside === 0
+      ? '<strong>It has never left the band.</strong> That is the usual answer and it is not a ' +
+        'failure: it means nothing in this record is distinguishable from your own results in a ' +
+        'different order.'
+      : '<strong>It has been outside the band ' + outside + ' times</strong> out of ' + roll.length +
+        '. Worth looking at what those stretches had in common &mdash; though a long enough line ' +
+        'leaves any 90% band sometimes.') + '</p>';
+}
+
+/* THE SHAPE OF THE EDGE, NOT ITS AVERAGE.
+ *
+ * The page says the win rate and the average winner against the average loser,
+ * and a single catastrophic trade hides inside both. An average of -$180 is the
+ * same whether every loser was -$180 or one of them was -$4,000 and the rest
+ * were scratches, and those are different problems with different fixes.
+ */
+function outcomeSpread(list) {
+  const val = UNIT[unit].value;
+  const fmt = UNIT[unit].fmt;
+  const vs = decisions(list).map(val).filter((v) => Number.isFinite(v));
+  if (vs.length < 30) return '';
+
+  const lo = Math.min(...vs);
+  const hi = Math.max(...vs);
+  if (!(hi > lo)) return '';
+
+  const BINS = 15;
+  const step = (hi - lo) / BINS;
+  const counts = new Array(BINS).fill(0);
+  for (const v of vs) counts[Math.min(BINS - 1, Math.floor((v - lo) / step))]++;
+  const tallest = Math.max(...counts);
+
+  const W = 300;
+  const H = 90;
+  const base = H - 16;
+  const bw = W / BINS;
+
+  const bars = counts.map((c, i) => {
+    const from = lo + i * step;
+    const h = (c / tallest) * (base - 6);
+    return '<rect class="spread-bar' + (from + step / 2 < 0 ? ' is-down' : ' is-up') +
+      '" x="' + (i * bw + 1).toFixed(1) + '" y="' + (base - h).toFixed(1) +
+      '" width="' + (bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1">' +
+      '<title>' + c + (c === 1 ? ' decision ' : ' decisions ') + 'between ' + fmt(from) +
+      ' and ' + fmt(from + step) + '</title></rect>';
+  }).join('');
+
+  const zeroX = ((0 - lo) / (hi - lo)) * W;
+  const worst = Math.min(...vs);
+  const share = Math.abs(worst) / Math.max(1, vs.filter((v) => v < 0)
+    .reduce((a, v) => a + Math.abs(v), 0));
+
+  return '<h3>The spread of your results</h3>' +
+    '<svg class="spread" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="How your decisions are distributed, worst on the left">' +
+      bars +
+      (zeroX > 0 && zeroX < W
+        ? '<line class="spread-zero" x1="' + zeroX.toFixed(1) + '" y1="2" x2="' +
+          zeroX.toFixed(1) + '" y2="' + base + '"/>' : '') +
+      '<line class="spread-base" x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
+    '</svg>' +
+    '<p class="stat-note">Worst on the left, best on the right, ' + vs.length +
+    ' decisions. The averages above cannot show you this: one bar out on its own is a different ' +
+    'problem from a wide middle, and they need different fixes.</p>' +
+    (share > 0.25
+      ? '<p class="stat-note"><strong>Your single worst decision is ' +
+        Math.round(share * 100) + '% of everything you have lost.</strong> That is a tail, not a ' +
+        'trend &mdash; the average loser understates it by design.</p>'
+      : '');
+}
+
+/* THE SESSION AS BLOCKS, WHICH IS WHERE TILT ACTUALLY LIVES.
+ *
+ * The radar aggregates a day into shares and the path aggregates it into a
+ * curve. Both lose the ordering, and tilt is an ordering: a loss, then forty
+ * seconds, then double the size. A median wait of eleven minutes is true of
+ * that session and describes none of it.
+ *
+ * So each decision is a block on a real time axis. Position is when, width is
+ * how long it was held, height is size against the day's largest, colour is
+ * the result. The gaps are to scale, which is the whole point - two blocks
+ * touching means somebody went straight back in.
+ *
+ * A minimum width, because a scalp held nine seconds is a real trade and a
+ * sliver nobody can see is a trade the chart has hidden. It distorts the
+ * duration on the shortest trades and the alternative loses them entirely.
+ */
+function sessionStrip(dayRows) {
+  const val = UNIT[unit].value;
+  const taken = decisions(dayRows)
+    .slice().sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+  if (taken.length < 2) return '';
+
+  const start = new Date(taken[0].opened_at).getTime();
+  const ends = taken.map((r) => {
+    const held = holdSec(r);
+    return new Date(r.opened_at).getTime() + (held === null ? 60 : held) * 1000;
+  });
+  const finish = Math.max(...ends);
+  const span = Math.max(1, finish - start);
+
+  const sizes = taken.map((r) => Number(r.contracts) || 1);
+  const biggest = Math.max(...sizes);
+
+  const W = 300;
+  const H = 54;
+  const base = H - 14;
+
+  const blocks = taken.map((r, i) => {
+    const from = new Date(r.opened_at).getTime();
+    const x = ((from - start) / span) * W;
+    const w = Math.max(3, ((ends[i] - from) / span) * W);
+    const h = 6 + (sizes[i] / biggest) * 26;
+    const v = val(r);
+    return '<rect class="strip-block' + (v > 0 ? ' is-up' : v < 0 ? ' is-down' : '') +
+      '" x="' + x.toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + w.toFixed(1) +
+      '" height="' + h.toFixed(1) + '" rx="1"><title>' +
+      escapeHtml(new Date(r.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) +
+      ', ' + sizes[i] + (sizes[i] === 1 ? ' contract, ' : ' contracts, ') +
+      (holdSec(r) === null ? 'held unknown' : 'held ' + humanSeconds(holdSec(r))) +
+      ', ' + UNIT[unit].fmt(v) + '</title></rect>';
+  }).join('');
+
+  /* The shortest gap is the sentence worth writing. A session where the
+   * quickest re-entry followed a loss is the shape the tilt panel measures,
+   * said about today rather than about the year. */
+  let tightest = null;
+  for (let i = 1; i < taken.length; i++) {
+    const gap = (new Date(taken[i].opened_at).getTime() - ends[i - 1]) / 1000;
+    if (gap < 0) continue;
+    if (!tightest || gap < tightest.gap) {
+      tightest = { gap, after: val(taken[i - 1]), bigger: sizes[i] > sizes[i - 1] };
+    }
+  }
+
+  const note = tightest && tightest.gap < 300
+    ? 'Your quickest turnaround was <strong>' + humanSeconds(tightest.gap) + '</strong> after ' +
+      (tightest.after < 0 ? 'a loss' : tightest.after > 0 ? 'a win' : 'a scratch') +
+      (tightest.bigger ? ', and bigger than the one before it.' : '.')
+    : tightest
+      ? 'Nothing quicker than ' + humanSeconds(tightest.gap) + ' between trades.'
+      : '';
+
+  return '<svg class="strip" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="Each decision as a block: when, how long, how big, and how it went">' +
+      '<line class="strip-base" x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
+      blocks +
+    '</svg>' +
+    '<p class="stat-note">Each block is a decision &mdash; where it sits is when, how wide is how ' +
+    'long you held it, how tall is the size. Gaps are to scale, so blocks touching means you went ' +
+    'straight back in. ' + note + '</p>';
+}
+
+/* THE SHAPE OF ONE SESSION, WHICH A TOTAL CANNOT CARRY.
+ *
+ * A day that finished +$210 having been +$840 at eleven o'clock is a different
+ * day from one that ground up to +$210 and stopped, and the number they share
+ * is the one everybody quotes. The give-back is the fact people most reliably
+ * lie to themselves about, and it is also the day's own contribution to a
+ * trailing floor - the drawdown on the accounts page is exactly this
+ * measurement, run over months instead of hours.
+ *
+ * Plotted against TIME rather than trade number. Trade number would space four
+ * decisions evenly and hide that three of them happened inside a minute, which
+ * is the thing worth seeing. A session with everything in one cluster should
+ * look like one cluster.
+ */
+function dayPath(dayRows) {
+  const val = UNIT[unit].value;
+  const fmt = UNIT[unit].fmt;
+
+  const taken = decisions(dayRows)
+    .slice().sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+  if (taken.length < 2) return { html: '', gave: 0, peak: 0 };
+
+  let run = 0;
+  const points = taken.map((r) => {
+    run += val(r);
+    return { at: new Date(r.opened_at).getTime(), run };
+  });
+
+  const first = points[0].at;
+  const last = points[points.length - 1].at;
+  const span = Math.max(1, last - first);
+  const close = points[points.length - 1].run;
+  const peak = Math.max(0, ...points.map((p) => p.run));
+  const low = Math.min(0, ...points.map((p) => p.run));
+  const gave = peak > close ? peak - close : 0;
+
+  const W = 300;
+  const H = 96;
+  const pad = 8;
+  const top = Math.max(peak, 0.0001);
+  const bottom = Math.min(low, 0);
+  const range = (top - bottom) || 1;
+
+  const x = (at) => pad + ((at - first) / span) * (W - pad * 2);
+  const y = (v) => pad + (1 - (v - bottom) / range) * (H - pad * 2);
+
+  // The line starts at zero, at the moment of the first trade. Beginning it at
+  // the first result would hide the first trade's own move, which on a
+  // four-trade day is a quarter of the session.
+  const path = ['0,' + y(0).toFixed(1)]
+    .concat(points.map((p) => x(p.at).toFixed(1) + ',' + y(p.run).toFixed(1)))
+    .join(' ');
+
+  const zero = y(0).toFixed(1);
+  const peakAt = points.find((p) => p.run === peak);
+
+  return {
+    gave,
+    peak,
+    html: '<svg class="daypath" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+        'aria-label="Running total through the session">' +
+      '<line class="daypath-zero" x1="0" y1="' + zero + '" x2="' + W + '" y2="' + zero + '"/>' +
+      '<polyline class="daypath-line' + (close < 0 ? ' is-bad' : '') +
+        '" points="' + path + '"/>' +
+      (peakAt && peak > 0 && gave > 0
+        ? '<circle class="daypath-peak" cx="' + x(peakAt.at).toFixed(1) + '" cy="' +
+          y(peak).toFixed(1) + '" r="3"/>'
+        : '') +
+      '<circle class="daypath-close' + (close < 0 ? ' is-bad' : '') + '" cx="' +
+        x(last).toFixed(1) + '" cy="' + y(close).toFixed(1) + '" r="3"/>' +
+      '</svg>' +
+      '<p class="stat-note">' +
+      (gave > 0
+        ? 'Best point <strong>' + fmt(peak) + '</strong>, finished ' + fmt(close) +
+          ' &mdash; <strong>' + fmt(gave) + ' given back</strong>.'
+        : close >= peak && peak > 0
+          ? 'Finished at its best point. Nothing given back.'
+          : 'Never above where it started.') +
+      ' Plotted against the clock, so a cluster of trades looks like one.</p>'
+  };
+}
+
 /* FIVE WAYS TO CUT A SESSION, NONE OF WHICH NEEDS A TAG.
  *
  * The clock was the obvious axis and it is the least interesting: it says when
@@ -1183,6 +1495,7 @@ function renderToday(list) {
    * imported journal has it false on every row, and a streak of zero printed
    * as though it were a habit somebody had failed at would be the page telling
    * them off for using the importer. */
+  const path = dayPath(rows);
   const views = leanViews(list);
   const leanControls = () =>
     '<div class="seg" role="tablist" aria-label="What to cut the session by">' +
@@ -1221,6 +1534,12 @@ function renderToday(list) {
         prior.length >= 5
           ? 'Better than ' + beat + ' of your last ' + prior.length + ' days'
           : 'Not enough days yet to compare it against') +
+      // Only when there is something to give back. On a day that finished at
+      // its best, a card reading "nothing given back" is a card spent saying
+      // nothing happened.
+      (path.gave > 0
+        ? card('Given back', fmt(-path.gave), 'From a best point of ' + fmt(path.peak))
+        : '') +
       card('Decisions', String(taken.length),
         usual ? 'Your usual day is ' + usual : 'first day recorded') +
       card('Day', String(days.length),
@@ -1231,13 +1550,17 @@ function renderToday(list) {
               : kept === 1 ? 'every box ticked today' : 'the run resets tomorrow')
         : '') +
     '</div>' +
+    path.html +
+    sessionStrip(rows) +
     leanControls() +
     leanRadar(rows, list, views.find((v) => v.key === leanView) || views[0]) +
     '<p class="stat-note"><strong>Deliberately no streak of green days.</strong> At this sample ' +
     'size a run of them is mostly luck &mdash; the panels below put a number on how much &mdash; ' +
     'and a run somebody is watching is a run they will hold a loser to protect. What is counted ' +
     'here is what you control: turning up, the size of the session, and your own checklist. ' +
-    'A red day with those right is a day done right.</p>');
+    'A red day with those right is a day done right.</p>' +
+    progressCurve(list) +
+    outcomeSpread(list));
 }
 
 /* Delegated once, at the document, rather than rebound on every draw. The

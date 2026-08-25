@@ -3021,6 +3021,103 @@ textarea + .field-note,
   margin-right: 4px;
 }
 
+/* ---------------------------------------------------------------
+   The session path. The same measurement the accounts page runs
+   over months - peak, and how far under it you finished - drawn
+   over one day.
+   --------------------------------------------------------------- */
+.daypath {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  margin: var(--s-3) auto 0;
+}
+
+.daypath-zero {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.daypath-line {
+  fill: none;
+  stroke: var(--bull);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.daypath-line.is-bad { stroke: var(--bear); }
+
+/* Hollow, because it marks a level rather than a result - the point
+   the day reached and did not keep. */
+.daypath-peak {
+  fill: var(--paper);
+  stroke: var(--ink-500);
+  stroke-width: 1.5;
+}
+
+/* ---------------------------------------------------------------
+   The session strip. Ordering, which the radar and the path both
+   aggregate away - and tilt is an ordering.
+   --------------------------------------------------------------- */
+.strip {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  margin: var(--s-3) auto 0;
+}
+
+.strip-base { stroke: var(--line); stroke-width: 1; }
+
+.strip-block {
+  fill: var(--ink-500);
+  opacity: 0.85;
+}
+
+/* ---------------------------------------------------------------
+   Is it improving, and the spread of results.
+
+   The band is drawn behind the line on purpose. A trailing average
+   alone is a mood ring - every wander reads as progress or decay -
+   and the band is what makes the line answerable.
+   --------------------------------------------------------------- */
+.progress, .spread {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  margin: var(--s-3) auto 0;
+}
+
+.progress-band { fill: var(--inset); }
+
+.progress-zero, .spread-zero, .spread-base {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.progress-zero { stroke-dasharray: 2 3; }
+
+.progress-line {
+  fill: none;
+  stroke: var(--brand-500);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.spread-bar.is-up   { fill: var(--bull); }
+.spread-bar.is-down { fill: var(--bear); }
+.spread-zero { stroke: var(--ink-500); }
+
+.strip-block.is-up   { fill: var(--bull); }
+.strip-block.is-down { fill: var(--bear); }
+
+.daypath-close { fill: var(--bull); }
+.daypath-close.is-bad { fill: var(--bear); }
+
 .radar-key--now  { border-top: 2px solid var(--brand-500); }
 .radar-key--base { border-top: 2px dashed var(--ink-500); }
 

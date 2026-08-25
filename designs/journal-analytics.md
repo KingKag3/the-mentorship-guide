@@ -321,8 +321,33 @@ The checklist card is hidden entirely on a journal that has never used it. An im
 `checklist_done` false on every row, and printing a streak of zero would be the page telling
 somebody off for using the importer.
 
+### The lean radar
+
+Added the same day, replacing the idea of a green-day streak with something that actually says
+where the session went. Two polygons over the hours the member trades: this session, and how they
+usually spread a day.
+
+**A single shape on a radar says almost nothing.** Three decisions draw one spike and it looks
+dramatic whatever it means — which is exactly what the reference chart that prompted this was
+doing, showing one domain at 100% and the rest blank. The baseline is therefore the content rather
+than decoration, and it is what makes the chart honest at n=3: *75% of the session against 22%
+usually* is a real statement about a four-trade day, where *75% of your trades were at 11:00* is
+not.
+
+Counted in **decisions, not money**. Weighting by profit would make a lucky hour look like a habit,
+which is the opposite of what it is for.
+
+The verdict is written out underneath in a sentence, because a picture nobody can summarise is
+decoration. Below two decisions it declines to read a shape at all and says so.
+
+Hand-drawn SVG — no build step, no library for one polygon — with every colour a token, so it
+survives the dark theme and a change of brand. Verified in both.
+
 ### Still to do on this
 
+- The axes are hours, because that is all an imported journal carries. On a hand-logged journal the
+  same chart over **model** or **entry type** would be a better answer to "where did I lean" — the
+  code takes a bucket function and does not care which.
 - Nothing here notices a day that broke a rule the member set &mdash; over their own trade count,
   or trading after a stop-loss day. Those are process facts and would belong here rather than in
   the findings, because they are about today rather than about a pattern.

@@ -529,6 +529,32 @@ draws a worst dip that way, because a dip is a distance rather than a negative n
   <p class="stat-note">The last row is the case that used to draw nothing at all.</p>
 </div>
 
+
+<h3>Lean radar</h3>
+
+<p>Used at the top of <code>stats.html</code>. Two polygons over the same axes: the session just
+finished against how the member usually spreads a day. <strong>A single shape on a radar says almost
+nothing</strong> &mdash; three decisions draw one spike and it looks dramatic whatever it means &mdash;
+so the baseline is the content, not decoration, and is drawn dashed because it is context rather
+than the reading.</p>
+
+<p>Counted in decisions rather than money. Weighting by profit would make a lucky hour look like a
+habit, which is the opposite of what the chart is for.</p>
+
+<div class="demo">
+  <div class="radar-wrap">
+    <svg class="radar" viewBox="0 0 220 200" role="img" aria-label="A session spent almost entirely in one hour, against a usual even spread"><polygon class="radar-ring" points="110.0,77.5 127.6,90.3 120.9,111.0 99.1,111.0 92.4,90.3"/><polygon class="radar-ring" points="110.0,59.0 145.2,84.6 131.7,125.9 88.3,125.9 74.8,84.6"/><polygon class="radar-ring" points="110.0,40.5 162.8,78.8 142.6,140.9 77.4,140.9 57.2,78.8"/><polygon class="radar-ring" points="110.0,22.0 180.4,73.1 153.5,155.9 66.5,155.9 39.6,73.1"/><line class="radar-spoke" x1="110" y1="96" x2="110.0" y2="22.0"/><line class="radar-spoke" x1="110" y1="96" x2="180.4" y2="73.1"/><line class="radar-spoke" x1="110" y1="96" x2="153.5" y2="155.9"/><line class="radar-spoke" x1="110" y1="96" x2="66.5" y2="155.9"/><line class="radar-spoke" x1="110" y1="96" x2="39.6" y2="73.1"/><polygon class="radar-base" points="110.0,74.3 128.8,89.9 122.8,113.6 99.6,110.4 93.1,90.5"/><polygon class="radar-now" points="110.0,22.0 133.5,88.4 110.0,96.0 110.0,96.0 110.0,96.0"/><text class="radar-label" x="110.0" y="7.2">11:00</text><text class="radar-label" x="194.5" y="68.6">09:00</text><text class="radar-label" x="162.2" y="167.8">10:00</text><text class="radar-label" x="57.8" y="167.8">13:00</text><text class="radar-label" x="25.5" y="68.6">12:00</text></svg>
+    <p class="stat-note"><span class="radar-key radar-key--now"></span> this session &nbsp;
+    <span class="radar-key radar-key--base"></span> how you usually spread it.</p>
+    <p class="stat-note">You leaned into <strong>11:00</strong> today: 75% of the session against
+    22% usually.</p>
+  </div>
+</div>
+
+<p class="stat-note">Hand-drawn SVG, no library. Every colour is a token, so it survives the dark
+theme and a change of brand &mdash; a chart with a hardcoded hex would be the one thing on the page
+that did not.</p>
+
 <h3>Field notes</h3>
 
 <p>Inline validation under an input. Three states, all in mono at the small step.</p>

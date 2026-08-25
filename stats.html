@@ -948,6 +948,118 @@ function lessonLink(key) {
    coin landing.
    ========================================================================== */
 
+/* A RADAR OF WHERE THE DAY'S TRADES WENT, AGAINST WHERE THEY USUALLY GO.
+ *
+ * One day is three or four decisions, and a radar of three decisions on its own
+ * is a single spike - true, and useless, which is what a lone shape on this
+ * kind of chart always is.
+ *
+ * The comparison is what makes it worth drawing. A spike against a spread
+ * baseline says something real even at n=3: you did all of today in one hour
+ * and you normally work four. That is a fact about the session that no total
+ * can carry, and it is about where the attention went rather than what it
+ * earned - so it is counted in DECISIONS, not money. Weighting by profit would
+ * make a lucky hour look like a habit.
+ *
+ * Hand-drawn SVG because there is no build step and there will not be one, and
+ * because a chart library for one polygon is a dependency to maintain for ever.
+ * Every colour is a token: this has to survive the dark theme, and it has to
+ * survive somebody changing the brand.
+ */
+function leanRadar(dayRows, allRows) {
+  const bucket = (r) => hhmm(hourOf(r));
+
+  const tally = (rows) => {
+    const m = new Map();
+    for (const r of decisions(rows)) m.set(bucket(r), (m.get(bucket(r)) || 0) + 1);
+    return m;
+  };
+
+  const overall = tally(allRows);
+  const today = tally(dayRows);
+  if (overall.size < 3) return '';
+
+  /* The axes are the hours they actually trade, most-used first, so the shape
+   * means the same thing tomorrow. More than seven and the labels collide, so
+   * the tail is gathered rather than dropped - an hour missing from the chart
+   * would read as an hour never traded. */
+  const ordered = [...overall.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const head = ordered.slice(0, 7);
+  const tail = ordered.slice(7);
+
+  const axes = head.map(([key]) => key);
+  const sumOf = (m, keys) => keys.reduce((a, k) => a + (m.get(k) || 0), 0);
+  if (tail.length) axes.push('other');
+
+  const share = (m) => {
+    const total = [...m.values()].reduce((a, b) => a + b, 0) || 1;
+    return axes.map((k) => (k === 'other'
+      ? sumOf(m, tail.map(([t]) => t))
+      : (m.get(k) || 0)) / total);
+  };
+
+  const base = share(overall);
+  const now = share(today);
+  const top = Math.max(...base, ...now, 0.2);
+
+  const N = axes.length;
+  const R = 74;
+  const cx = 110;
+  const cy = 96;
+  const at = (i, frac) => {
+    const a = (-90 + (360 / N) * i) * Math.PI / 180;
+    const d = R * (frac / top);
+    return [cx + Math.cos(a) * d, cy + Math.sin(a) * d];
+  };
+  const poly = (vals) => vals.map((v, i) => at(i, v).map((n) => n.toFixed(1)).join(',')).join(' ');
+
+  const rings = [0.25, 0.5, 0.75, 1].map((f) =>
+    '<polygon class="radar-ring" points="' +
+      axes.map((_, i) => at(i, top * f).map((n) => n.toFixed(1)).join(',')).join(' ') + '"/>').join('');
+
+  const spokes = axes.map((_, i) => {
+    const [x, y] = at(i, top);
+    return '<line class="radar-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) +
+      '" y2="' + y.toFixed(1) + '"/>';
+  }).join('');
+
+  const labels = axes.map((key, i) => {
+    const [x, y] = at(i, top * 1.2);
+    return '<text class="radar-label" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '">' +
+      escapeHtml(key) + '</text>';
+  }).join('');
+
+  // What the shape is actually saying, in a sentence, for somebody who does not
+  // read charts - and because a picture nobody can summarise is decoration.
+  let widest = 0;
+  for (let i = 1; i < axes.length; i++) {
+    if (now[i] - base[i] > now[widest] - base[widest]) widest = i;
+  }
+  const gap = now[widest] - base[widest];
+  const verdict = decisions(dayRows).length < 2
+    ? 'One decision, so there is no shape to read yet - the outline is where you usually work.'
+    : gap > 0.2
+      ? 'You leaned into <strong>' + escapeHtml(axes[widest]) + '</strong> today: ' +
+        Math.round(now[widest] * 100) + '% of the session against ' +
+        Math.round(base[widest] * 100) + '% usually.'
+      : 'Today sat close to where you normally work. Nothing unusual in the shape.';
+
+  return '<div class="radar-wrap">' +
+    '<svg class="radar" viewBox="0 0 220 200" role="img" ' +
+      'aria-label="Where the day’s decisions fell, by hour, against the usual spread">' +
+      rings + spokes +
+      '<polygon class="radar-base" points="' + poly(base) + '"/>' +
+      '<polygon class="radar-now" points="' + poly(now) + '"/>' +
+      labels +
+    '</svg>' +
+    '<p class="stat-note"><span class="radar-key radar-key--now"></span> this session &nbsp; ' +
+      '<span class="radar-key radar-key--base"></span> how you usually spread it. ' +
+      'Counted in decisions, not money &mdash; weighting by profit would make a lucky hour look ' +
+      'like a habit.</p>' +
+    '<p class="stat-note">' + verdict + '</p>' +
+  '</div>';
+}
+
 function renderToday(list) {
   const mount = document.getElementById('today');
   const val = UNIT[unit].value;
@@ -1021,6 +1133,7 @@ function renderToday(list) {
               : kept === 1 ? 'every box ticked today' : 'the run resets tomorrow')
         : '') +
     '</div>' +
+    leanRadar(rows, list) +
     '<p class="stat-note"><strong>Deliberately no streak of green days.</strong> At this sample ' +
     'size a run of them is mostly luck &mdash; the panels below put a number on how much &mdash; ' +
     'and a run somebody is watching is a run they will hold a loser to protect. What is counted ' +

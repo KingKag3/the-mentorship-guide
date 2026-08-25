@@ -2956,6 +2956,74 @@ textarea + .field-note,
   right: 0;
 }
 
+/* ---------------------------------------------------------------
+   The lean radar, on the statistics page.
+
+   Two polygons over the same axes: this session against how the
+   member usually spreads a day. A single shape on a radar says
+   almost nothing - the comparison is the whole content, which is
+   why the baseline is drawn as an outline rather than left out.
+
+   Every colour is a token. This has to survive the dark theme and
+   it has to survive somebody changing the brand, and a chart with
+   a hardcoded hex is the one thing on the page that would not.
+   --------------------------------------------------------------- */
+.radar-wrap { margin: var(--s-4) 0 0; }
+
+.radar {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.radar-ring,
+.radar-spoke {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.radar-ring { stroke: var(--line-lo); }
+
+/* The usual spread: an outline, because it is context rather than
+   the reading. Filled, it competes with the session it exists to
+   be compared against. */
+.radar-base {
+  fill: none;
+  stroke: var(--ink-500);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.radar-now {
+  fill: color-mix(in srgb, var(--brand-500) 18%, transparent);
+  stroke: var(--brand-500);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.radar-label {
+  fill: var(--ink-500);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.radar-key {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.radar-key--now  { border-top: 2px solid var(--brand-500); }
+.radar-key--base { border-top: 2px dashed var(--ink-500); }
+
 .bar-row > b {
   font-family: var(--mono);
   font-weight: 500;

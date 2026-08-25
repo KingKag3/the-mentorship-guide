@@ -438,7 +438,17 @@ Be honest about this list before trusting anything below it.
   Not a leak: the admin still could not read the trade. A **write outside consent**, which is its
   own thing.
 
-  Fixed by `supabase/review-write-needs-sharing.sql`, which narrows the insert to match the read.
+  **Fix applied and confirmed the same day.** `supabase/review-write-needs-sharing.sql` ran, and the
+  identical call that had written a minute earlier came back:
+
+  ```
+  REFUSED  42501  new row violates row-level security policy for table "trade_reviews"
+  ```
+
+  Run twice, with the read control still answering `[] null` in between — so the refusal is the new
+  policy and not the session having gone stale. The test row was deleted (204).
+
+  `supabase/review-write-needs-sharing.sql` narrows the insert to match the read.
   **The read and update policies are deliberately unchanged** and the file says why for each — both
   are product decisions rather than security ones, and this changes only what was demonstrated.
 

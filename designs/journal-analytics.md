@@ -295,6 +295,40 @@ turned up anyway.
 
 ---
 
+## Your last session &mdash; 19 August 2026
+
+Asked for as morale: *how you did that day, micro progression type of stuff*. It is the request most
+likely to turn this page into something it should not be, so the design rule is stated rather than
+assumed.
+
+**It deliberately does not count green days in a row.** That streak is the easiest number here to
+draw and the worst one to show: at this sample size a run of winning days is mostly luck &mdash; the
+luck panel puts a number on exactly how much &mdash; and a run somebody is watching is a run they
+will hold a loser to protect. A number that changes behaviour that way is a signal, and this project
+does not signal.
+
+What accumulates instead is what a person controls: whether they turned up, the size of the session
+against their own usual, and their own checklist. Those move with effort rather than luck, they read
+the same on a red day, and **a red day worked properly reads as a day done right** &mdash; which is
+both true and the only version of encouragement worth printing.
+
+The result is still shown, because hiding it is its own kind of lie. It is shown against the
+member's own recent days rather than against zero: *better than 4 of your last 20* is a fact,
+*you made money* is a coin landing. The comparison window excludes the day itself, since a day
+always beats itself.
+
+The checklist card is hidden entirely on a journal that has never used it. An imported journal has
+`checklist_done` false on every row, and printing a streak of zero would be the page telling
+somebody off for using the importer.
+
+### Still to do on this
+
+- Nothing here notices a day that broke a rule the member set &mdash; over their own trade count,
+  or trading after a stop-loss day. Those are process facts and would belong here rather than in
+  the findings, because they are about today rather than about a pattern.
+
+---
+
 ## Open questions
 
 - `J-01` Is hold time reliable on imported data? Answered in part: `closed_at` now imports from the

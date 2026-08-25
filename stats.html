@@ -113,6 +113,7 @@
     <p class="form-status" id="risk-status"></p>
   </details>
 
+  <div id="today"></div>
   <div id="findings"></div>
   <div id="summary"></div>
   <div id="behaviour"></div>
@@ -410,6 +411,7 @@ function render() {
           'State your risk per account below to include the rest.' + cappedNote;
 
   if (list.length) {
+    renderToday(list);
     renderFindings(list);
     renderSummary(list);
     renderBehaviour(list);
@@ -915,6 +917,115 @@ function lessonLink(key) {
   // ?slug=, which is what lesson.html reads. ?lesson= looks right and is not.
   return ' <a class="finding-lesson" href="lesson.html?slug=' + encodeURIComponent(entry[0]) +
     '">Read: ' + escapeHtml(entry[1]) + '</a>';
+}
+
+/* ==========================================================================
+   YOUR LAST SESSION
+   ==========================================================================
+
+   Asked for as morale - "how did I do today, micro progression" - and that is
+   the request most likely to turn this page into something it should not be.
+
+   THE THING THIS DELIBERATELY DOES NOT DO IS COUNT GREEN DAYS IN A ROW.
+
+   A streak of winning days is the easiest number here to draw and the worst
+   one to show. It is mostly luck at this sample size, the site says so three
+   panels further down, and a person watching a streak trades to protect it -
+   which means holding a loser through the close and taking a trade they did
+   not want on a Friday afternoon. A number that changes behaviour that way is
+   a signal, and this project does not signal.
+
+   So what accumulates here is what a person actually controls: whether they
+   showed up, how many decisions they made against how many they usually make,
+   and whether they worked their own checklist. Those move with effort rather
+   than with luck, they are the same numbers on a red day, and a red day worked
+   properly reads as a day done right - which is both true and the only version
+   of encouragement worth printing.
+
+   The result is shown, because hiding it would be its own kind of lie. It is
+   shown against the member's own recent days rather than against zero, because
+   "better than eleven of your last twenty" is a fact and "you made money" is a
+   coin landing.
+   ========================================================================== */
+
+function renderToday(list) {
+  const mount = document.getElementById('today');
+  const val = UNIT[unit].value;
+  const fmt = UNIT[unit].fmt;
+
+  const byDay = new Map();
+  for (const r of list) {
+    const day = localDay(r.opened_at);
+    if (!day) continue;
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(r);
+  }
+
+  const days = [...byDay.keys()].sort();
+  if (!days.length) { mount.innerHTML = ''; return; }
+
+  const day = days[days.length - 1];
+  const rows = byDay.get(day);
+  const taken = decisions(rows);
+  const value = rows.reduce((a, r) => a + val(r), 0);
+
+  /* Against their own recent days, not against zero. The last twenty
+   * EXCLUDING this one - comparing a day with itself always beats itself. */
+  const prior = days.slice(Math.max(0, days.length - 21), days.length - 1)
+    .map((d) => byDay.get(d).reduce((a, r) => a + val(r), 0));
+  const beat = prior.filter((v) => value > v).length;
+
+  const sizes = days.map((d) => decisions(byDay.get(d)).length).sort((a, b) => a - b);
+  const usual = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+
+  /* The checklist is only worth mentioning if this journal uses it. An
+   * imported journal has it false on every row, and a streak of zero printed
+   * as though it were a habit somebody had failed at would be the page telling
+   * them off for using the importer. */
+  const usesChecklist = list.some((r) => r.checklist_done);
+  const ticked = taken.filter((r) => r.checklist_done).length;
+
+  let kept = 0;
+  if (usesChecklist) {
+    for (let i = days.length - 1; i >= 0; i--) {
+      const d = decisions(byDay.get(days[i]));
+      if (d.length && d.every((r) => r.checklist_done)) kept++;
+      else break;
+    }
+  }
+
+  const nice = new Date(day + 'T12:00:00').toLocaleDateString(undefined,
+    { weekday: 'long', day: 'numeric', month: 'long' });
+  const isToday = day === localDay(new Date().toISOString());
+
+  const card = (label, big, note) =>
+    '<div class="card"><h3>' + escapeHtml(label) + '</h3>' +
+    '<div class="readout-big">' + escapeHtml(big) + '</div><p>' + note + '</p></div>';
+
+  return void (mount.innerHTML =
+    '<h2>' + (isToday ? 'Today' : 'Your last session') + '</h2>' +
+    '<p class="stat-note">' + escapeHtml(nice) +
+      (isToday ? '' : ' &mdash; the most recent day you traded') + '.</p>' +
+    '<div class="card-grid">' +
+      card('Result', fmt(value),
+        prior.length >= 5
+          ? 'Better than ' + beat + ' of your last ' + prior.length + ' days'
+          : 'Not enough days yet to compare it against') +
+      card('Decisions', String(taken.length),
+        usual ? 'Your usual day is ' + usual : 'first day recorded') +
+      card('Day', String(days.length),
+        days.length === 1 ? 'the first one recorded' : 'trading days recorded') +
+      (usesChecklist
+        ? card('Checklist', ticked + ' of ' + taken.length,
+            kept > 1 ? kept + ' days running with every box ticked'
+              : kept === 1 ? 'every box ticked today' : 'the run resets tomorrow')
+        : '') +
+    '</div>' +
+    '<p class="stat-note"><strong>Deliberately no streak of green days.</strong> At this sample ' +
+    'size a run of them is mostly luck &mdash; the panels below put a number on how much &mdash; ' +
+    'and a run somebody is watching is a run they will hold a loser to protect. What is counted ' +
+    'here is what you control: turning up, the size of the session, and your own checklist. ' +
+    'A red day with those right is a day done right.</p>');
 }
 
 /* What the gate found, said in words rather than as a p value.

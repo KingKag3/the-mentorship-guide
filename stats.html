@@ -1017,10 +1017,10 @@ function progressCurve(list) {
       'aria-label="Trailing expectancy over 20 decisions, against the range randomness produces">' +
       '<rect class="progress-band" x="0" y="' + y(hi).toFixed(1) + '" width="' + W +
         '" height="' + Math.max(1, y(lo) - y(hi)).toFixed(1) + '"/>' +
-      '<line class="progress-zero" x1="0" y1="' + y(0).toFixed(1) + '" x2="' + W +
-        '" y2="' + y(0).toFixed(1) + '"/>' +
-      '<polyline class="progress-line" points="' +
-        roll.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' +
+      '<line class="progress-zero" fill="none" stroke="currentColor" x1="0" y1="' +
+        y(0).toFixed(1) + '" x2="' + W + '" y2="' + y(0).toFixed(1) + '"/>' +
+      '<polyline class="progress-line" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'points="' + roll.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' +
     '</svg>' +
     '<p class="stat-note">Your average decision over a trailing twenty, against the shaded range ' +
     'the same twenty produce when your own results are reshuffled &mdash; what this line does when ' +
@@ -1170,7 +1170,8 @@ function sessionStrip(dayRows) {
 
   return '<svg class="strip" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
       'aria-label="Each decision as a block: when, how long, how big, and how it went">' +
-      '<line class="strip-base" x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
+      '<line class="strip-base" fill="none" stroke="currentColor" x1="0" y1="' + base +
+        '" x2="' + W + '" y2="' + base + '"/>' +
       blocks +
     '</svg>' +
     '<p class="stat-note">Each block is a decision &mdash; where it sits is when, how wide is how ' +
@@ -1234,14 +1235,28 @@ function dayPath(dayRows) {
   const zero = y(0).toFixed(1);
   const peakAt = points.find((p) => p.run === peak);
 
+  /* The area between the line and zero, tinted. A bare stroke on a wide canvas
+   * reads as a squiggle; the fill is what makes above-and-below legible at a
+   * glance, which is the only thing this chart is for. */
+  const area = '0,' + zero + ' ' +
+    points.map((p) => x(p.at).toFixed(1) + ',' + y(p.run).toFixed(1)).join(' ') +
+    ' ' + x(last).toFixed(1) + ',' + zero;
+
   return {
     gave,
     peak,
     html: '<svg class="daypath" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
         'aria-label="Running total through the session">' +
-      '<line class="daypath-zero" x1="0" y1="' + zero + '" x2="' + W + '" y2="' + zero + '"/>' +
+      '<line class="daypath-zero" fill="none" stroke="currentColor" x1="0" y1="' + zero +
+        '" x2="' + W + '" y2="' + zero + '"/>' +
+      '<polygon class="daypath-area' + (close < 0 ? ' is-bad' : '') +
+        '" fill="none" points="' + area + '"/>' +
+      // `fill` and `stroke` as attributes, not only in CSS. An SVG with no
+      // stylesheet defaults to a BLACK FILL and no stroke, which turns this
+      // line into a solid blob - and a stylesheet is stale for ten minutes
+      // after every deploy, so that is a state real people see.
       '<polyline class="daypath-line' + (close < 0 ? ' is-bad' : '') +
-        '" points="' + path + '"/>' +
+        '" fill="none" stroke="currentColor" stroke-width="2" points="' + path + '"/>' +
       (peakAt && peak > 0 && gave > 0
         ? '<circle class="daypath-peak" cx="' + x(peakAt.at).toFixed(1) + '" cy="' +
           y(peak).toFixed(1) + '" r="3"/>'

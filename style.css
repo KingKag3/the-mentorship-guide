@@ -3034,11 +3034,28 @@ textarea + .field-note,
   margin: var(--s-3) auto 0;
 }
 
+/* Every chart sets `color`, and every shape in them asks for
+   `currentColor` as a presentation attribute. So a stale stylesheet
+   - which is every stylesheet for ten minutes after a deploy - gets
+   a readable grey line rather than the browser default of a solid
+   black fill, which turned the session path into a blob. */
+.daypath, .strip, .progress, .spread { color: var(--ink-500); }
+
 .daypath-zero {
   stroke: var(--line);
   stroke-width: 1;
   stroke-dasharray: 2 3;
 }
+
+/* The area is what makes above-and-below legible at a glance. Kept
+   faint on purpose: it is the shape that carries the meaning, and a
+   heavy fill starts competing with the numbers beside it. */
+.daypath-area {
+  fill: color-mix(in srgb, var(--bull) 14%, transparent);
+  stroke: none;
+}
+
+.daypath-area.is-bad { fill: color-mix(in srgb, var(--bear) 14%, transparent); }
 
 .daypath-line {
   fill: none;
@@ -3072,9 +3089,12 @@ textarea + .field-note,
 
 .strip-base { stroke: var(--line); stroke-width: 1; }
 
+/* Softened from a flat fill. Forty blocks at full strength is a
+   barcode - the eye cannot pick a shape out of it - and the point
+   of the strip is the pattern of gaps and heights, not each block. */
 .strip-block {
   fill: var(--ink-500);
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
 /* ---------------------------------------------------------------
@@ -3114,6 +3134,7 @@ textarea + .field-note,
 
 .strip-block.is-up   { fill: var(--bull); }
 .strip-block.is-down { fill: var(--bear); }
+.strip-block:hover   { opacity: 1; }
 
 .daypath-close { fill: var(--bull); }
 .daypath-close.is-bad { fill: var(--bear); }

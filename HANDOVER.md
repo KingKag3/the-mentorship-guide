@@ -720,8 +720,15 @@ Be honest about this list before trusting anything below it.
   section for the evidence both ways.
 
   2. ~~An admin being *refused* on a trade nobody shared.~~ **Attacked, failed, fixed, confirmed.**
-  4. A *different* member not being able to read it. **Still unrun**, and it is now the last unknown
-     on this migration.
+  4. ~~A *different* member not being able to read it.~~ **Attacked 19 August 2026 and it holds.**
+     A, as admin, sees **7 reviews across three trades**. B, a plain member, sees **1** — the reply
+     on B's own trade 27658 — and the count of replies on trades that are not B's is zero.
+
+     The admin count is what makes this conclusive rather than vacuous. An empty result and a
+     working filter look identical, and the only thing separating them is knowing there was
+     something to find: six reviews existed that B correctly could not reach.
+
+  **Every policy on `trade-reviews.sql` is now observed.** One of the four was wrong.
 
   **The whole round trip is confirmed as of 19 August 2026**, with two real accounts rather than a
   screenshot: B ticked *ask the mentor*, A answered from the Review tab, and the reply rendered in

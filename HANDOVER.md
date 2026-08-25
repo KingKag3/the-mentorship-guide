@@ -1064,6 +1064,34 @@ statistic.
 
 ---
 
+## Verified by attack — storage, 19 August 2026, with a second member
+
+The August test below was run by one person against their own object. This one was run by a
+**different signed-in member**, which is the case the policies exist for and had never been tried.
+
+Three calls from B's console, B being a plain member with no relationship to the file:
+
+| | result |
+| --- | --- |
+| `createSignedUrl('journal/d1b5b810-…/79fa58ef-….png')` | `Object not found` |
+| `upload('avatars/52204624-…/attack.png')` | `new row violates row-level security policy` |
+| **control:** `createSignedUrl('lessons/edba55cf-….webp')` | `true`, no error |
+
+**`Object not found` is the right answer and better than a refusal.** That file demonstrably
+exists — it is in `storage.objects` and the SQL editor lists it. A policy error would have
+confirmed the path; this does not. Existence is not leaked, which is a property worth keeping if
+anybody ever rewrites these.
+
+The control is what makes the two refusals mean anything. Same bucket, same member, same call, the
+only difference being the folder — so the bucket is reachable and B's session is live. Without it,
+two failures are equally consistent with storage being broken.
+
+So `is distinct from 'journal'` in the read policy holds against a second member, and the avatar
+write policies are symmetric where `trade_reviews` was not.
+
+**Left over:** `d1b5b810-…` owns that screenshot and is neither of the accounts under test. Some
+earlier account with real journal media sitting in a live bucket. Worth finding out whose.
+
 ## Verified by attack — journal screenshots, 12 August 2026
 
 The hole was real and is closed. What follows is what was observed, not what was intended, because

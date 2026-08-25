@@ -713,12 +713,20 @@ Be honest about this list before trusting anything below it.
   rendered beneath it. That is an admin insert on a shared trade **and** the member reading it back
   on their own — items 1 and 3 below, both of which had never returned a row.
 
-  Two remain, and both are the attacking half:
+  **Item 2 was attacked on 19 August 2026 and the policy failed it.** The suspicion in the sentence
+  below was correct: the insert policy was permissive, a mentor could write on any trade in the
+  system, and nothing in the UI looked wrong. Demonstrated with a second account, fixed by
+  `review-write-needs-sharing.sql`, and re-confirmed refusing — see the entry at the top of this
+  section for the evidence both ways.
 
-  2. An admin being *refused* on a trade nobody shared. Worth attacking, because a permissive insert
-     policy would let a mentor write on any trade in the system and nothing in the UI would look
-     wrong.
-  4. A *different* member not being able to read it.
+  2. ~~An admin being *refused* on a trade nobody shared.~~ **Attacked, failed, fixed, confirmed.**
+  4. A *different* member not being able to read it. **Still unrun**, and it is now the last unknown
+     on this migration.
+
+  **The whole round trip is confirmed as of 19 August 2026**, with two real accounts rather than a
+  screenshot: B ticked *ask the mentor*, A answered from the Review tab, and the reply rendered in
+  B's own journal. That exercises the admin insert on a shared trade, the member reading it back,
+  and `editor.js` writing against a live database for the first time.
 
   What *was* verified on 12 August 2026, in a browser against the shipped source rather than a
   retyping of it: `admin.html`, `journal.html` and `design.html` all parse, and `isWaiting()` was
@@ -748,24 +756,10 @@ Be honest about this list before trusting anything below it.
   4. Whether their reply actually puts the trade back in the mentor's queue, which depends on
      `created_at` landing after the mentor's message on the same server clock.
 
-- **`editor.js` — the reply editor, never used against a live database.** Editor.js ran here for one
-  afternoon and was moved back; see `DECISIONS.md` for why and `ROADMAP.md` for where it went
-  instead. The box is the local editor again: WYSIWYG on screen, Markdown in the column, no network
-  dependency.
-
-  Verified in a browser after the revert: 29 checks — the Markdown round trip, the toolbar driven
-  the way a person drives it (bold from a selection, bullets across two paragraphs), the toolbar's
-  active states including the false-italic case a blockquote used to cause, and eight hostile
-  inputs through both readers.
-
-  **`renderBody()` is the one thing kept from the experiment**, and it is not dead code. Any reply
-  written during that afternoon is an Editor.js JSON document, and without this it would render as
-  a wall of raw JSON — which reads as though the sender typed it. Whether any such row exists is
-  unknown and nobody needs to find out; the reader costs nothing and the lessons migration will
-  want it.
-
-  **What has never happened: a message going through Postgres.** Worth one send containing a bold
-  word, a bullet list and a link, read back on the other side.
+- **`editor.js` — used against a live database on 19 August 2026, once.** A mentor reply written in
+  the Review tab saved and rendered in the member's journal, which is the round trip this had never
+  had. What is still unexercised is everything around the edges: a picture pasted into a notice,
+  resizing one, and the member's own reply box on their side of a thread.
 
 - **`last_seen_at` — the column is confirmed, and nothing has been seen writing to it.**
   `supabase/member-last-seen.sql` ran on 13 August 2026. Signed out with the publishable key,

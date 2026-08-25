@@ -1985,8 +1985,19 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
    one: show me only what I have already answered.
    --------------------------------------------------------------- */
 
+/* `inline-flex` with no wrap was fine at two segments and pushed the
+   statistics page 92px past a phone screen at five. A control that
+   makes the whole page scroll sideways is worse than one that wraps,
+   and `max-width` keeps it honest as more get added.
+
+   Wrapping rather than scrolling on purpose: five ways to cut a
+   session are five things somebody has to know exist, and a
+   horizontal scroller hides the last two. The site nav scrolls
+   because its items are already known. */
 .seg {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 2px;
   padding: 3px;
   margin: var(--s-3) 0;

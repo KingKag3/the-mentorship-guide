@@ -976,8 +976,20 @@ Be honest about this list before trusting anything below it.
   files say so at the top.
 - **The pre-trade checklist end to end.** The roll-up logic was run in a browser across all five
   states; the module load, the save-time confirmation and the value reaching the database were not.
-- **Mobile layout.** `.tool-grid` and `.field-pair` have media queries but have not been looked at
-  on a narrow viewport.
+- **Mobile layout — looked at on 19 August 2026, and mostly fine.** The item below said it had
+  never been checked. It has now, at 375px:
+
+  * **Public content pages are clean.** No sideways scroll, sensible type size, and the site nav's
+    apparent overflow is deliberate — `nav.site` is `overflow-x: auto`.
+  * **`journal.html` and `calendar.html` are clean**, and every table on the site bar one is inside
+    a `.table-scroll`. The exception is a demo table in `design.html`, which is internal.
+  * **`stats.html` was NOT**, and the cause was added the same day: the five-segment tab strip on
+    the lean radar pushed the page to 467px in a 375px viewport. `.seg` was `inline-flex` with no
+    wrap, which was fine at two segments and broke at five. Fixed by wrapping.
+  * All five session charts scale correctly and the day cards stack one per row.
+
+  **Still unlooked-at:** `props.html`, `admin.html` and `import.html` at phone width, and nothing
+  has been checked on a real device rather than an emulated viewport.
 - **The new-indicator badge count.** The rendering is exercised; the count against real rows needs a
   signed-in session. Publish something and check the members index reads `new`.
 - **The pine scripts are no longer on this list.** `trade-karma-pd-arrays.pine` compiled and ran on

@@ -417,6 +417,19 @@ anything else.
 
 Be honest about this list before trusting anything below it.
 
+- **A gap found by reading the policies, not by testing them.** 19 August 2026.
+  `admins read shared` on `trades` is correctly narrow — `shared_with_mentor and is_admin()`. But
+  **`admins write reviews` on `trade_reviews` checks neither**: only `is_admin()` and authorship. So
+  an admin who has a trade id can write a review on a trade that was never shared, or on one the
+  member has since unshared — and the reply lands in that member's journal.
+
+  Not a leak: the admin still cannot read the trade. It is a **write outside the consent boundary**,
+  and the id is not a secret — it was visible for as long as the trade was shared.
+
+  **Predicted to be exploitable and not yet confirmed.** The test and the one-policy fix are both in
+  `supabase/RLS-ATTACK-TESTS.md`. Do not apply the fix before running the test: if the write is
+  refused, the policy is narrower than it reads and the interesting question is why.
+
 - **Nineteen accounts still carry a null product, so nothing on them is being checked.** 19 August
   2026. Every migration is applied and the presets hold sixteen rows, but nothing was backfilled —
   naming the product is a decision only the member can make, and until it is made the card looks up

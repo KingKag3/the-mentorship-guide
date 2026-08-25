@@ -541,6 +541,19 @@ than the reading.</p>
 <p>Counted in decisions rather than money. Weighting by profit would make a lucky hour look like a
 habit, which is the opposite of what the chart is for.</p>
 
+<p><strong>The clock is the least interesting of the five axes it offers</strong> &mdash; it mostly
+says what time zone somebody lives in. The other four are habits, and every one is derived from what
+a broker export already carries: <em>how long</em> a trade was held, <em>how big</em> it was against
+that member&rsquo;s own median, <em>how deep</em> into the day it came, and <em>what came before
+it</em> &mdash; first of the day, after a win, after a loss. Model and entry type would make good
+axes too and are empty on an imported journal, so a chart built on them would be blank for the
+member with the most trades.</p>
+
+<p>Ordinal axes keep their own order and show every band, including the ones never used. Sorting
+&ldquo;3x or more&rdquo; between &ldquo;usual&rdquo; and &ldquo;smaller&rdquo; because it happens to
+be more common would make the shape unreadable, and a missing band would hide the fact that it has
+never happened.</p>
+
 <div class="demo">
   <div class="radar-wrap">
     <svg class="radar" viewBox="0 0 220 200" role="img" aria-label="A session spent almost entirely in one hour, against a usual even spread"><polygon class="radar-ring" points="110.0,77.5 127.6,90.3 120.9,111.0 99.1,111.0 92.4,90.3"/><polygon class="radar-ring" points="110.0,59.0 145.2,84.6 131.7,125.9 88.3,125.9 74.8,84.6"/><polygon class="radar-ring" points="110.0,40.5 162.8,78.8 142.6,140.9 77.4,140.9 57.2,78.8"/><polygon class="radar-ring" points="110.0,22.0 180.4,73.1 153.5,155.9 66.5,155.9 39.6,73.1"/><line class="radar-spoke" x1="110" y1="96" x2="110.0" y2="22.0"/><line class="radar-spoke" x1="110" y1="96" x2="180.4" y2="73.1"/><line class="radar-spoke" x1="110" y1="96" x2="153.5" y2="155.9"/><line class="radar-spoke" x1="110" y1="96" x2="66.5" y2="155.9"/><line class="radar-spoke" x1="110" y1="96" x2="39.6" y2="73.1"/><polygon class="radar-base" points="110.0,74.3 128.8,89.9 122.8,113.6 99.6,110.4 93.1,90.5"/><polygon class="radar-now" points="110.0,22.0 133.5,88.4 110.0,96.0 110.0,96.0 110.0,96.0"/><text class="radar-label" x="110.0" y="7.2">11:00</text><text class="radar-label" x="194.5" y="68.6">09:00</text><text class="radar-label" x="162.2" y="167.8">10:00</text><text class="radar-label" x="57.8" y="167.8">13:00</text><text class="radar-label" x="25.5" y="68.6">12:00</text></svg>

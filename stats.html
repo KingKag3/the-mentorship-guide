@@ -948,6 +948,82 @@ function lessonLink(key) {
    coin landing.
    ========================================================================== */
 
+/* FIVE WAYS TO CUT A SESSION, NONE OF WHICH NEEDS A TAG.
+ *
+ * The clock was the obvious axis and it is the least interesting: it says when
+ * somebody was at the desk, which is mostly their job and their timezone. The
+ * four below are habits - how long they sit in a trade, how big they go, how
+ * deep into the day they keep going, and what they are reacting to.
+ *
+ * Every one is derived from what a broker export already carries, which is the
+ * point. Model, session and entry type would all make good axes and all of them
+ * are empty on an imported journal, so a chart built on them would be blank for
+ * the member who has the most trades.
+ *
+ * ORDER IS FIXED, NOT BY POPULARITY, on everything except the clock. These are
+ * ordinal - small to large, early to late - and sorting them by how often each
+ * is used would put "3x or more" between "usual" and "smaller" and make the
+ * shape unreadable. The clock has no natural order, so there it stays sorted by
+ * use and the busiest hour leads.
+ *
+ * SIZE IS RELATIVE TO THEIR OWN MEDIAN. Two contracts is enormous on one
+ * account and nothing on another, and the question is whether today was bigger
+ * than usual for them.
+ */
+function leanViews(allRows) {
+  const sizes = decisions(allRows)
+    .map((r) => Number(r.contracts))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .sort((a, b) => a - b);
+  const usualSize = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+
+  return [
+    { key: 'hour', label: 'When',
+      bucket: (r) => hhmm(hourOf(r)) },
+
+    { key: 'hold', label: 'How long',
+      order: ['under a minute', '1-5 min', '5-20 min', '20-60 min', 'over an hour'],
+      bucket: (r) => {
+        const s = holdSec(r);
+        if (s === null) return '';
+        return s < 60 ? 'under a minute' : s < 300 ? '1-5 min'
+          : s < 1200 ? '5-20 min' : s < 3600 ? '20-60 min' : 'over an hour';
+      } },
+
+    { key: 'size', label: 'How big',
+      order: ['smaller', 'usual', 'double', '3x or more'],
+      bucket: (r) => {
+        const n = Number(r.contracts);
+        if (!usualSize || !Number.isFinite(n) || n <= 0) return '';
+        const ratio = n / usualSize;
+        return ratio < 0.75 ? 'smaller' : ratio < 1.5 ? 'usual'
+          : ratio < 2.5 ? 'double' : '3x or more';
+      } },
+
+    { key: 'seq', label: 'How deep in',
+      order: ['1st', '2nd', '3rd', '4th', '5th or later'],
+      bucket: (r) => {
+        const n = seqOf(r);
+        if (!n) return '';
+        return n >= 5 ? '5th or later' : ['1st', '2nd', '3rd', '4th'][n - 1];
+      } },
+
+    /* The one that is about reacting rather than choosing, and the reason the
+     * tilt work exists. Same-day only: a fresh morning is not a reaction to
+     * yesterday afternoon. */
+    { key: 'after', label: 'After what',
+      order: ['first of the day', 'after a win', 'after a loss'],
+      bucket: (r) => {
+        const prev = prevOf(r);
+        if (!prev || dayOf(prev) !== dayOf(r)) return 'first of the day';
+        const v = UNIT[unit].value(prev);
+        return v > 0 ? 'after a win' : v < 0 ? 'after a loss' : '';
+      } }
+  ];
+}
+
+let leanView = 'hour';
+
 /* A RADAR OF WHERE THE DAY'S TRADES WENT, AGAINST WHERE THEY USUALLY GO.
  *
  * One day is three or four decisions, and a radar of three decisions on its own
@@ -966,12 +1042,16 @@ function lessonLink(key) {
  * Every colour is a token: this has to survive the dark theme, and it has to
  * survive somebody changing the brand.
  */
-function leanRadar(dayRows, allRows) {
-  const bucket = (r) => hhmm(hourOf(r));
+function leanRadar(dayRows, allRows, view) {
+  const bucket = view.bucket;
 
   const tally = (rows) => {
     const m = new Map();
-    for (const r of decisions(rows)) m.set(bucket(r), (m.get(bucket(r)) || 0) + 1);
+    for (const r of decisions(rows)) {
+      const k = bucket(r);
+      if (!k) continue;              // unknown is not a category
+      m.set(k, (m.get(k) || 0) + 1);
+    }
     return m;
   };
 
@@ -979,17 +1059,25 @@ function leanRadar(dayRows, allRows) {
   const today = tally(dayRows);
   if (overall.size < 3) return '';
 
-  /* The axes are the hours they actually trade, most-used first, so the shape
-   * means the same thing tomorrow. More than seven and the labels collide, so
-   * the tail is gathered rather than dropped - an hour missing from the chart
-   * would read as an hour never traded. */
+  /* An ordinal view keeps its own order and shows every band, including the
+   * ones never used - "you have never held one over an hour" is a fact about
+   * the habit and dropping the empty spoke would hide it. The clock has no
+   * natural order, so it sorts by use, leads with the busiest hour, and gathers
+   * a long tail rather than dropping it. */
   const ordered = [...overall.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const head = ordered.slice(0, 7);
-  const tail = ordered.slice(7);
+  let axes;
+  let tail = [];
 
-  const axes = head.map(([key]) => key);
+  if (view.order) {
+    axes = view.order.slice();
+  } else {
+    const head = ordered.slice(0, 7);
+    tail = ordered.slice(7);
+    axes = head.map(([key]) => key);
+    if (tail.length) axes.push('other');
+  }
+
   const sumOf = (m, keys) => keys.reduce((a, k) => a + (m.get(k) || 0), 0);
-  if (tail.length) axes.push('other');
 
   const share = (m) => {
     const total = [...m.values()].reduce((a, b) => a + b, 0) || 1;
@@ -1046,7 +1134,8 @@ function leanRadar(dayRows, allRows) {
 
   return '<div class="radar-wrap">' +
     '<svg class="radar" viewBox="0 0 220 200" role="img" ' +
-      'aria-label="Where the day’s decisions fell, by hour, against the usual spread">' +
+      'aria-label="Where this session fell against the usual spread, by ' +
+      escapeHtml(view.label.toLowerCase()) + '">' +
       rings + spokes +
       '<polygon class="radar-base" points="' + poly(base) + '"/>' +
       '<polygon class="radar-now" points="' + poly(now) + '"/>' +
@@ -1094,6 +1183,15 @@ function renderToday(list) {
    * imported journal has it false on every row, and a streak of zero printed
    * as though it were a habit somebody had failed at would be the page telling
    * them off for using the importer. */
+  const views = leanViews(list);
+  const leanControls = () =>
+    '<div class="seg" role="tablist" aria-label="What to cut the session by">' +
+      views.map((v) => '<button type="button" class="seg-btn' +
+        (v.key === leanView ? ' is-on' : '') + '" role="tab" data-lean="' + v.key +
+        '" aria-selected="' + (v.key === leanView) + '">' + escapeHtml(v.label) +
+        '</button>').join('') +
+    '</div>';
+
   const usesChecklist = list.some((r) => r.checklist_done);
   const ticked = taken.filter((r) => r.checklist_done).length;
 
@@ -1133,13 +1231,25 @@ function renderToday(list) {
               : kept === 1 ? 'every box ticked today' : 'the run resets tomorrow')
         : '') +
     '</div>' +
-    leanRadar(rows, list) +
+    leanControls() +
+    leanRadar(rows, list, views.find((v) => v.key === leanView) || views[0]) +
     '<p class="stat-note"><strong>Deliberately no streak of green days.</strong> At this sample ' +
     'size a run of them is mostly luck &mdash; the panels below put a number on how much &mdash; ' +
     'and a run somebody is watching is a run they will hold a loser to protect. What is counted ' +
     'here is what you control: turning up, the size of the session, and your own checklist. ' +
     'A red day with those right is a day done right.</p>');
 }
+
+/* Delegated once, at the document, rather than rebound on every draw. The
+ * segment buttons are replaced whenever the block redraws, and a listener
+ * attached to a button that no longer exists is a listener leaking on every
+ * unit toggle. */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-lean]');
+  if (!btn) return;
+  leanView = btn.getAttribute('data-lean');
+  render();
+});
 
 /* What the gate found, said in words rather than as a p value.
  *

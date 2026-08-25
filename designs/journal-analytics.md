@@ -343,11 +343,33 @@ decoration. Below two decisions it declines to read a shape at all and says so.
 Hand-drawn SVG — no build step, no library for one polygon — with every colour a token, so it
 survives the dark theme and a change of brand. Verified in both.
 
+**Five axes, four of them habits.** The clock turned out to be the least interesting: it mostly says
+what time zone somebody lives in. The others are behaviour, and all four are derived from what a
+broker export already carries:
+
+| Axis | Bands |
+| --- | --- |
+| How long | under a minute · 1–5 · 5–20 · 20–60 · over an hour |
+| How big | smaller · usual · double · 3x or more, against that member's own median |
+| How deep in | 1st · 2nd · 3rd · 4th · 5th or later |
+| After what | first of the day · after a win · after a loss |
+
+Size is relative to their own median because two contracts is enormous on one account and nothing on
+another, and the question is whether *today* was bigger than usual *for them*.
+
+Ordinal axes keep their own order and show every band including the unused ones — sorting "3x or
+more" between "usual" and "smaller" because it happens to be more common would make the shape
+unreadable, and a missing band would hide that it has never happened. Only the clock sorts by use,
+because it has no natural order.
+
+Proved on a session planted to be scalped at triple size: *under a minute, 100% against 4% usually*
+and *3x or more, 100% against 4% usually*, while the two axes with nothing planted stayed quiet.
+
 ### Still to do on this
 
-- The axes are hours, because that is all an imported journal carries. On a hand-logged journal the
-  same chart over **model** or **entry type** would be a better answer to "where did I lean" — the
-  code takes a bucket function and does not care which.
+- Model and entry type would make good axes and are empty on an imported journal. The bucket is a
+  function, so they are a one-line addition the day somebody is hand-logging — worth gating on the
+  tag actually being used, the way the checklist card is.
 - Nothing here notices a day that broke a rule the member set &mdash; over their own trade count,
   or trading after a stop-loss day. Those are process facts and would belong here rather than in
   the findings, because they are about today rather than about a pattern.

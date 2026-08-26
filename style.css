@@ -2258,6 +2258,26 @@ input[type="file"]::file-selector-button:hover { background: var(--hover); }
   min-height: 1.2em;
 }
 
+/* The accounts page is a long list of cards, so a message at the top
+   of it is a message somebody has already scrolled past. Sticky, and
+   only occupying space once it has something to say - min-height on
+   .form-status would otherwise leave a permanent gap. */
+.props-status {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 0;
+  margin: 0;
+  background: var(--page);
+}
+
+.props-status:not(:empty) {
+  padding: var(--s-2) var(--s-3);
+  margin: var(--s-3) 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+
 .form-status-info  { color: var(--ink-500); }
 .form-status-ok    { color: var(--bull); }
 .form-status-error { color: var(--bear); }

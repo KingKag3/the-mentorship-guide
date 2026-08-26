@@ -99,6 +99,14 @@
 
   <div id="bulk"></div>
 
+  <!-- Five call sites wrote to `#status` and it did not exist, so every one of
+       them was silent: a failed forget, a failed payout, a failed high-water
+       toggle. setStatus returns quietly when its target is missing, which is
+       right for an optional slot and wrong when the slot was simply never
+       added. Sticky, because a card list is long and an error at the top of a
+       page somebody has scrolled away from is an error nobody reads. -->
+  <p class="form-status props-status" id="status"></p>
+
   <div id="pager-top"></div>
   <div id="accounts"></div>
   <div id="pager-bottom"></div>
@@ -716,6 +724,40 @@ const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
  * the safe way to be wrong. Too LARGE tells you there is room that was never
  * there, and that is the one that ends an account.
  */
+/* GETTING RID OF AN ACCOUNT, WHICH THERE WAS NO WAY TO DO AT ALL.
+ *
+ * An account on this page is not a record. It is a name that appears either on
+ * a trade or in `prop_accounts`, and the page lists the union of the two - so
+ * a config row created while testing produces a card for ever, with no trades
+ * behind it and nothing anywhere that removes it. The only way out was the SQL
+ * editor, which is the one place on this project where a missing WHERE reaches
+ * every member.
+ *
+ * IT ONLY OFFERS WHEN THERE ARE NO TRADES, and that is the whole design rather
+ * than a caution. Deleting the config on an account that still has trades would
+ * delete the drawdown, the target and the attempt history and leave the card
+ * standing - because the trades still name it - so the member would have
+ * destroyed their settings and changed nothing they could see. Where trades
+ * exist the journal is the right tool and this says so.
+ */
+function forgetBlock(name, cfg) {
+  if (!cfg || !cfg.id) return '';           // nothing configured, nothing to forget
+
+  const used = trades.some((t) => (t.account || '') === name);
+  if (used) return '';
+
+  return '<div class="callout warn"><span class="callout-label">No trades on this account</span>' +
+    '<p>Nothing in your journal names <strong>' + escapeHtml(label(name)) + '</strong>, so this ' +
+    'card is here only because the account was set up. If that was a test, it can go.</p>' +
+    '<div class="row-actions">' +
+      '<button type="button" class="btn-danger" data-forget="' + escapeHtml(name) + '">' +
+        'Forget this account</button>' +
+    '</div>' +
+    '<p class="stat-note">Removes the settings, the attempt history and any payouts recorded ' +
+    'against it. No trade is touched &mdash; there are none. If you later import trades under ' +
+    'this name the card comes back, empty, which is the right way round.</p></div>';
+}
+
 /* AN UNCLASSIFIED ACCOUNT LOOKS NOTHING UP, AND THE CARD HAS TO SAY SO.
  *
  * The control that fixes it sits inside "What this account has to do", which
@@ -1477,6 +1519,8 @@ function card(name) {
         escapeHtml(label(cfg.from_account)) + '</strong>.</p>'
       : '') +
 
+    forgetBlock(name, cfg) +
+
     '<details><summary>What this account has to do</summary>' +
       '<form class="auth-form auth-form-wide" data-form="' + escapeHtml(name) + '">' +
         '<label>What kind of account</label>' +
@@ -1981,6 +2025,9 @@ function render() {
   for (const b of mount.querySelectorAll('[data-drop-adj]')) {
     b.addEventListener('click', () => dropAdjustment(b.getAttribute('data-drop-adj')));
   }
+  for (const b of mount.querySelectorAll('[data-forget]')) {
+    b.addEventListener('click', () => forgetAccount(b.getAttribute('data-forget')));
+  }
   for (const box of mount.querySelectorAll('[data-mark-falls]')) {
     box.addEventListener('change', () => setMarkFalls(box.getAttribute('data-mark-falls'),
                                                       box.checked));
@@ -2033,6 +2080,57 @@ function render() {
     if (productSel) productSel.addEventListener('change', offer);
     if (kindSel) kindSel.addEventListener('change', offer);
   }
+}
+
+/* Removing a configured account that has no trades.
+ *
+ * Every delete is scoped to `user_id` as well as the name. PostgREST would
+ * refuse a cross-member delete anyway - the policies see to that - but the
+ * filter is written rather than relied upon, because the day somebody runs the
+ * same statement in the SQL editor the policy is not there and the WHERE is
+ * all that stands between one member and everybody.
+ *
+ * The trades are checked again here rather than trusting the button. The card
+ * that drew it may be a minute old, and an import in another tab is exactly
+ * the kind of thing that happens between rendering a button and pressing it.
+ */
+async function forgetAccount(name) {
+  if (trades.some((t) => (t.account || '') === name)) {
+    setStatus('#status', 'That account has trades now. Delete them from the journal first.',
+      'error');
+    render();
+    return;
+  }
+
+  if (!confirm('Forget "' + name + '"? Its settings, attempts and any recorded payouts go. ' +
+               'No trades are touched, because there are none.')) return;
+
+  setStatus('#status', 'Forgetting ' + name + '...', 'info');
+
+  // Children first. A settings row deleted while its attempts survive leaves
+  // rows nothing can reach and nothing can show.
+  for (const table of ['prop_attempts', 'account_adjustments', 'prop_accounts']) {
+    const { error } = await supabase.from(table).delete()
+      .eq('user_id', profile.id).eq('account', name);
+    // A table the project has not migrated yet is not an error here - the
+    // account simply has nothing in it.
+    if (error && error.code !== 'PGRST205' && !migrationHint(error)) {
+      setStatus('#status', error.message, 'error');
+      return;
+    }
+  }
+
+  saved.delete(name);
+  attemptsByAccount.delete(name);
+  for (let i = adjustments.length - 1; i >= 0; i--) {
+    if (adjustments[i].account === name) adjustments.splice(i, 1);
+  }
+  const at = names.indexOf(name);
+  if (at >= 0) names.splice(at, 1);
+
+  setStatus('#status', escapeHtml(name) + ' forgotten.', 'ok');
+  render();
+  renderBulk();
 }
 
 /* ---------------------------- money in and out ---------------------------- */

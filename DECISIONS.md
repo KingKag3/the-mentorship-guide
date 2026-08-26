@@ -780,3 +780,82 @@ lessons migration will need, which is the second reason not to delete it.
 rendered to a more privileged one must not reach `innerHTML` as markup. Markdown satisfies it, an
 Editor.js document satisfies it, and stored HTML does not. That is the thing to hold on to when this
 question comes round a fourth time.
+
+---
+
+## 2026-08-26 — `checklist_done = false` was two different facts, and the importer made one of them the majority
+
+**Decided:** `checklist_done` is no longer read directly by any page. `app.js` exports
+`checklistState(row)`, which returns `done`, `skipped` or `not-asked`, and `wasWrittenUp(row)`,
+which asks whether anything only a person could supply is on the row.
+
+**The problem, which nobody introduced and everybody built:** ROADMAP 2.2 assumed every trade passes
+through the journal form. ROADMAP 2.5 — the importer, and correctly described there as "the one that
+unblocks everything else at scale" — built the path where none of them do. The column is
+`boolean not null default false`, so an imported trade is indistinguishable from a member who was
+shown five checkboxes and ticked none.
+
+Members import daily. So on a realistic journal that column reads false almost everywhere, and every
+page consulting it was reporting a discipline failure where there was only a CSV:
+
+- `admin.html` put a red **no checklist** on a mentor's screen against a member whose only act was
+  using a feature this site built for them. A tag that fires on most rows also stops carrying
+  information — it had become furniture long before it was noticed to be wrong.
+- The **By checklist** slice on `stats.html` — the one comparison the 2026-08-05 entry protected
+  from a hard gate, on the grounds that a gate would make the column stop describing reality — was
+  comparing the trades somebody typed against the trades somebody did not, and calling the
+  difference discipline. The importer did to that comparison exactly what a hard gate would have
+  done, from the other side, and silently.
+- The daily card read *"2 of 47"* on a day with 44 imports.
+
+**How the three states are told apart,** with no migration and no new column:
+
+- `imported_at` is null on anything typed (`trade-import.sql`: *"Null means it was typed."*).
+- The judgement columns — model, PD array, liquidity, bias, management — are ones only a person
+  fills in. The importer deliberately refuses to guess them. So an imported row carrying any of them
+  is one the member opened in the journal, which means they saw the checklist and saved anyway.
+- `notes` is deliberately **not** in that list: a journal exported from this site and read back in
+  carries its own notes. `session_kz` is not either — the importer derives it from the clock.
+
+`undefined` and `null` are treated as different answers. `admin.html` drops `imported_at` from its
+select when the migration is missing, and a missing column must not be read as "typed" — that is
+precisely how somebody gets flagged for a checklist they were never shown. Where there is nothing to
+go on, the guess falls toward `not-asked`.
+
+**Two real bugs found on the way, both from the same mechanism.** `upsert` writes every key in the
+payload, on insert *and* on conflict. The importer was sending `checklist_done: false`, `notes`,
+`stop` and `target` on every row:
+
+- **Re-importing wiped a hand-ticked checklist.** The member most likely to go back and write their
+  trades up was the one whose work was destroyed every time they imported. Re-importing is the
+  normal case — exports are date ranges and date ranges overlap; the whole reason `external_id`
+  exists is so August can be run twice.
+- **It also wiped hand-typed stops, targets and notes,** because a Tradovate orders file has no such
+  columns and an absent column reads as null.
+
+The fix is to omit them. `checklist_done boolean not null default false` then does the right thing
+by itself: a DEFAULT fires on INSERT and never on `ON CONFLICT DO UPDATE`, so a new row gets false —
+true, nobody was asked — and an existing row is left alone.
+
+That makes the payload ragged, and PostgREST refuses a ragged batch (`PGRST102 All object keys must
+match`), so the write now groups rows by key signature and sends one request per shape. In practice
+that is one or two: a broker export is uniform, and a journal re-export is uniform the other way.
+The mixed case is the one that used to fail outright.
+
+**What is now derivable, which is the thing worth keeping:** the importer cannot record a reason,
+so an imported journal is a complete record of results and an empty record of decisions. That is not
+a moral failure and is not drawn as one. It is stated where it has consequences — a **Written up**
+card on the daily panel, a callout above the slices explaining why six of the eight sections have
+vanished — and it is asked as a question the gate can actually answer: *do the decisions you took
+the trouble to write up finish differently from the ones you only imported?* The permutation shuffles
+labels within a day, so only days holding both kinds inform the answer, which removes "started
+journaling in July" for free. It cannot remove that the member chose which trades to write up, and
+the finding says so in its own text.
+
+**Reversible:** `checklistState` is twelve lines in `app.js` and four call sites. If the mentorship
+decides an imported trade *should* count as a skipped checklist, change the function.
+
+**Known limit:** a member who imports, opens a trade, fills in the model and does not tick the boxes
+reads as `skipped` — correct — but one who opens a trade, ticks nothing and fills in nothing reads
+as `not-asked`, and they were asked. There is no column recording that the form was opened. The
+error is in the direction of not accusing anybody, which is the direction chosen deliberately.

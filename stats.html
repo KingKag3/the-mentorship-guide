@@ -191,7 +191,8 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
-         decisionKey, fetchPaged, barTrack } from './app.js';
+         decisionKey, fetchPaged, barTrack, checklistState,
+         wasWrittenUp } from './app.js';
 import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequenceOfDecisions,
          permutationExtremes, permutationStatistic,
@@ -1520,17 +1521,48 @@ function renderToday(list) {
         '</button>').join('') +
     '</div>';
 
+  /* OUT OF WHAT WAS ASKED, not out of everything.
+   *
+   * Every imported trade has `checklist_done` false, so "2 of 47" was really
+   * "2 of the 3 you typed, plus 44 the importer was never going to tick", and
+   * it read as a collapse in discipline on the days somebody imported most.
+   * The denominator is now the decisions where a checklist was actually
+   * offered. */
   const usesChecklist = list.some((r) => r.checklist_done);
-  const ticked = taken.filter((r) => r.checklist_done).length;
+  const askedToday = taken.filter((r) => checklistState(r) !== 'not-asked');
+  const ticked = askedToday.filter((r) => r.checklist_done).length;
 
+  /* A DAY OF PURE IMPORTS NEITHER COUNTS NOR BREAKS THE RUN.
+   *
+   * Breaking it would end a streak because somebody used the importer, which
+   * is punishing them for the tool. Counting it would run the streak through
+   * days on which no box was offered, which inflates it. Skipped is the only
+   * honest option, and it makes the number mean "days you journaled, with
+   * every box ticked" rather than "days". */
   let kept = 0;
   if (usesChecklist) {
     for (let i = days.length - 1; i >= 0; i--) {
-      const d = decisions(byDay.get(days[i]));
-      if (d.length && d.every((r) => r.checklist_done)) kept++;
+      const asked = decisions(byDay.get(days[i]))
+        .filter((r) => checklistState(r) !== 'not-asked');
+      if (!asked.length) continue;
+      if (asked.every((r) => r.checklist_done)) kept++;
       else break;
     }
   }
+
+  /* WHAT THE IMPORTER CANNOT RECORD, WHICH IS THE POINT OF THIS CARD.
+   *
+   * A member importing daily has a complete record of results and an empty
+   * record of reasons: model, PD array, liquidity, bias and management are all
+   * null on an imported row, because the importer refuses to guess them. Every
+   * question this page exists to answer - which model pays, which liquidity
+   * precedes a good trade, whether trading against your own read costs you -
+   * is asked of those columns, so a journal with none of them filled in gets
+   * an empty answer to all of them and no explanation of why.
+   *
+   * This is the explanation, and it is the one number on the card the member
+   * can move today without trading. */
+  const writtenUp = taken.filter(wasWrittenUp).length;
 
   const nice = new Date(day + 'T12:00:00').toLocaleDateString(undefined,
     { weekday: 'long', day: 'numeric', month: 'long' });
@@ -1559,10 +1591,23 @@ function renderToday(list) {
         usual ? 'Your usual day is ' + usual : 'first day recorded') +
       card('Day', String(days.length),
         days.length === 1 ? 'the first one recorded' : 'trading days recorded') +
-      (usesChecklist
-        ? card('Checklist', ticked + ' of ' + taken.length,
-            kept > 1 ? kept + ' days running with every box ticked'
-              : kept === 1 ? 'every box ticked today' : 'the run resets tomorrow')
+      (usesChecklist && askedToday.length
+        ? card('Checklist', ticked + ' of ' + askedToday.length,
+            (askedToday.length < taken.length
+              ? 'of the ones you wrote up' + (kept ? ' &mdash; ' : '')
+              : '') +
+            (kept > 1 ? kept + ' journalled days running with every box ticked'
+              : kept === 1 ? 'every box ticked today'
+              : askedToday.length < taken.length ? '' : 'the run resets tomorrow'))
+        : '') +
+      // Only where there is something to say. A journal that is entirely typed
+      // has nothing missing, and a card reading "3 of 3" is a card spent
+      // congratulating somebody for the absence of a problem.
+      (writtenUp < taken.length
+        ? card('Written up', writtenUp + ' of ' + String(taken.length),
+            writtenUp === 0
+              ? 'the rest arrived from a file and carry no reason'
+              : 'the rest carry a result and no reason')
         : '') +
     '</div>' +
     path.html +
@@ -1572,8 +1617,9 @@ function renderToday(list) {
     '<p class="stat-note"><strong>Deliberately no streak of green days.</strong> At this sample ' +
     'size a run of them is mostly luck &mdash; the panels below put a number on how much &mdash; ' +
     'and a run somebody is watching is a run they will hold a loser to protect. What is counted ' +
-    'here is what you control: turning up, the size of the session, and your own checklist. ' +
-    'A red day with those right is a day done right.</p>' +
+    'here is what you control: turning up, the size of the session, your own checklist, and ' +
+    'whether you wrote down why you took the trade. A red day with those right is a day done ' +
+    'right.</p>' +
     progressCurve(list) +
     outcomeSpread(list));
 }
@@ -1922,6 +1968,75 @@ function computeFindings(list) {
     }
   }
 
+  // --- written up, or only imported ---------------------------------------
+  //
+  /* THE QUESTION THE IMPORTER CREATED, AND THE ONLY ONE IT CAN ANSWER ABOUT
+   * ITSELF.
+   *
+   * A member who imports daily has every result and almost no reasons. Every
+   * other finding on this page reads a column the importer leaves empty, so
+   * none of them can say anything about the bulk of such a journal. This one
+   * can, because it reads the emptiness itself: do the decisions you took the
+   * trouble to write up finish differently from the ones you only imported?
+   *
+   * THE SHUFFLE IS WHAT MAKES IT ANSWERABLE. Labels are permuted within a day,
+   * so a day that is entirely imported contributes nothing and only days
+   * holding both kinds inform the contrast. That removes the obvious
+   * confounder for free: somebody who started journaling in July would
+   * otherwise be comparing July against June and calling the difference a
+   * habit.
+   *
+   * WHAT IT STILL CANNOT REMOVE is that the member chose which trades to write
+   * up. Writing up the ones that felt planned, or the ones that hurt, produces
+   * a real difference that is about the choosing rather than the writing. The
+   * text says so rather than pretending otherwise, because this is the one
+   * finding here where the member is also the sampler. */
+  {
+    const byWriteUp = (r) => wasWrittenUp(r) ? 'Written up' : 'Imported only';
+    const groups = new Map();
+    for (const r of ev) {
+      const k = byWriteUp(r);
+      groups.set(k, (groups.get(k) || 0) + 1);
+    }
+
+    /* Both sides need a real sample, and MIXED DAYS are what carries the test.
+     *
+     * The shuffle is within a day, so a day where every decision is written up
+     * - or none is - contributes nothing either way: permuting identical
+     * labels changes nothing. Counting the whole journal would let a gate run
+     * on a sample of one real day and report a p value for it. */
+    const perDay = new Map();
+    for (const r of ev) {
+      const d = dayOf(r);
+      if (!perDay.has(d)) perDay.set(d, { up: 0, only: 0 });
+      perDay.get(d)[wasWrittenUp(r) ? 'up' : 'only']++;
+    }
+    const mixed = [...perDay.values()].filter((c) => c.up && c.only).length;
+
+    if ((groups.get('Written up') || 0) >= MIN_SAMPLE &&
+        (groups.get('Imported only') || 0) >= MIN_SAMPLE && mixed >= 5) {
+      const gate = gateGroups(byWriteUp);
+      const worse = gate.worst && gate.worst.p < GATE_P && gate.worst.value < 0;
+      if (asked(worse)) {
+        const which = String(gate.worst.key);
+        const other = which === 'Written up' ? 'Imported only' : 'Written up';
+        const cost = impactOf(byWriteUp, which);
+        add(cost, which === 'Written up' ? 'the trades you write up'
+                                         : 'the trades you never wrote up',
+          '<strong>' + (which === 'Written up'
+            ? 'The trades you write up are the expensive ones.'
+            : 'The trades you never wrote up are the expensive ones.') + '</strong> ' +
+          gate.worst.n + ' of them across ' + gate.worst.days + ' days, ' + fmt(cost) +
+          ' between them, against the ' + escapeHtml(other.toLowerCase()) + ' decisions on the ' +
+          'same days. ' + chanceNote(gate.worst.p) + ' ' +
+          '<em>You chose which trades to write up, so this may be about the choosing rather ' +
+          'than the writing</em> &mdash; but it is measured only on days you did both, so it ' +
+          'is not simply a comparison of one month against another.', 'journalling',
+          keysWhere((r) => byWriteUp(r) === which));
+      }
+    }
+  }
+
   /* The shape of the edge is NOT gated, and that is not an oversight.
    *
    * Everything above picks something - the worst of seven hours, the worst of
@@ -2181,12 +2296,57 @@ function renderSlices(list) {
     ['By agreement with your bias', 'Whether trading against your own read costs you.',
       (r) => r.agreed_with_bias === true ? 'Agreed with bias'
            : r.agreed_with_bias === false ? 'Against bias' : ''],
-    ['By checklist', 'The discipline question, answered with numbers rather than assertion.',
-      (r) => r.checklist_done ? 'Checklist done' : 'No checklist']
+    /* THREE BUCKETS, because false means two different things.
+     *
+     * `checklist_done` is false on every imported row - the importer has no
+     * boxes to tick - so a two-way cut put the entire import into "No
+     * checklist" and then reported the difference as discipline. On a journal
+     * that is mostly imports, which is most journals, that compares the trades
+     * somebody typed against the trades somebody did not, and calls the answer
+     * a discipline finding.
+     *
+     * The third bucket is not dropped. Dropping it would leave a clean-looking
+     * two-way comparison over a fraction of the journal with nothing on screen
+     * to say so - and the size of that bucket is itself the most useful number
+     * here, because it is how much of this journal has no reasoning attached
+     * to it at all. */
+    ['By checklist', 'Ticked, skipped, or never asked because it came from a file. ' +
+      'Only the first two are a discipline comparison.',
+      (r) => ({ done: 'Checklist done', skipped: 'No checklist',
+                'not-asked': 'Imported, never asked' })[checklistState(r)]]
   ];
 
-  document.getElementById('slices').innerHTML = sections
-    .map(([title, note, keyFn]) => renderSlice(title, note, groupBy(list, keyFn)))
+  /* WHY MOST OF THESE ARE MISSING, SAID OUT LOUD.
+   *
+   * `renderSlice` returns nothing for an empty group, which is right - a
+   * heading over no rows is worse than no heading. But on an imported journal
+   * that silently removes almost every section on the page, and the member is
+   * left with two cuts and no idea that six others exist or what they would
+   * need to do to see them. An absence explains nothing by itself.
+   *
+   * The importer is not at fault and the note does not imply it is. It fills
+   * in what a broker file knows and deliberately refuses to guess a model or a
+   * PD array, because inventing them would put made-up data into the exact
+   * comparisons these sections are. The consequence is simply that nobody has
+   * recorded a reason yet, and that is a thing the member can change. */
+  const reasoned = list.filter(wasWrittenUp).length;
+  const gap = list.length - reasoned;
+  const note = gap && list.length >= MIN_SAMPLE
+    ? '<div class="callout"><span class="callout-label">' +
+      (reasoned ? 'Some cuts are thin' : 'Most cuts are missing') + '</span>' +
+      '<p>' + (reasoned ? gap + ' of your ' + list.length + ' trades carry'
+                        : 'Your trades carry') +
+      ' a result and no reasoning &mdash; no model, no PD array, no liquidity, no bias. ' +
+      'That is what an imported trade looks like: the file knows what happened and cannot ' +
+      'know why, and the importer will not invent it, because a guessed model would end up ' +
+      'in these very comparisons as though somebody had meant it.</p>' +
+      '<p>Sections below can only cut by what has been filled in. Opening a trade in the ' +
+      'journal and naming the model takes a few seconds and is what turns a record of ' +
+      'results into a record of decisions.</p></div>'
+    : '';
+
+  document.getElementById('slices').innerHTML = note + sections
+    .map(([title, sub, keyFn]) => renderSlice(title, sub, groupBy(list, keyFn)))
     .filter(Boolean)
     .join('');
 }

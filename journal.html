@@ -390,7 +390,7 @@ import {
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor,
-  distinctDecisions, hasResult, localDay, fetchPaged } from './app.js';
+  distinctDecisions, hasResult, localDay, fetchPaged, checklistState } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -1240,6 +1240,7 @@ function chartCell(r, shotUrl) {
 
 function renderRow(r, shotUrl) {
   const when = new Date(r.opened_at);
+  const state = checklistState(r);
   const result = (r.r_multiple === null || r.r_multiple === undefined)
     ? '<span class="tag">open</span>'
     : '<span class="tag' + tone(r) + '">' +
@@ -1266,8 +1267,19 @@ function renderRow(r, shotUrl) {
         : '') +
       (r.account ? '<br><span class="acct-muted">' + escapeHtml(r.account) + '</span>' : '') +
       '</td>' +
+    /* "no checklist" is only said where a checklist was offered. An imported
+     * row has `checklist_done` false because the importer has no boxes, and
+     * printing a red note on every row of a journal that is mostly imports
+     * tells the member off for using a feature this site built for them - and
+     * turns the note into wallpaper on the rows where it does mean something.
+     * "imported" in muted type instead, which is also the reason the model
+     * cell next to it is empty. */
     '<td>' + escapeHtml(r.model || '—') +
-      (r.checklist_done ? '' : '<br><span class="field-note-bad">no checklist</span>') + '</td>' +
+      (state === 'skipped'
+        ? '<br><span class="field-note-bad">no checklist</span>'
+        : state === 'not-asked'
+          ? '<br><span class="acct-muted">imported</span>'
+          : '') + '</td>' +
     '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
     '<td>' + escapeHtml(r.pd_array || '—') +
       (r.liquidity ? '<br><span class="acct-muted">after ' + escapeHtml(r.liquidity) + '</span>' : '') +

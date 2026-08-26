@@ -83,12 +83,25 @@ day, and easy to get wrong in exactly one way: everything in the model is New Yo
 be computed in `America/New_York` with `Intl.DateTimeFormat`, never with a fixed UTC offset. Grey
 the whole thing out on CME holidays.
 
-### 2.2 Pre-trade checklist
+### 2.2 Pre-trade checklist — **built, and softened twice**
 
 Bias, draw on liquidity, PD array, killzone, risk — all ticked before the journal will accept an
 entry. This reads as friction because it is friction; it is also the discipline the mentorship is
 actually selling. The statistics page then compares checklist-complete trades against the impulsive
 ones, which settles the argument empirically rather than by assertion.
+
+**The gate was not built** — see DECISIONS 2026-08-05. Refusing incomplete entries makes every
+stored trade checklist-complete, which destroys the comparison this item exists for and teaches
+people to tick boxes to get past a door. The friction is applied at save time instead, as a
+confirmation naming what was skipped.
+
+**And 2.5 undid the rest of it, quietly.** This item assumes every trade passes through the form.
+The importer is the path where none of them do, and it has no boxes to tick, so `checklist_done`
+reads false on the bulk of any real journal. For a while the site read that as a discipline failure
+and told a mentor so. Fixed on 2026-08-26 — DECISIONS has the detail — but the general lesson
+belongs here: **anything this roadmap says the journal form guarantees, the importer does not.**
+Model, PD array, liquidity, bias and management are all in that category. Check any new item that
+leans on them against the import path before building it.
 
 ### 2.3 CBDR / Asian range calculator
 

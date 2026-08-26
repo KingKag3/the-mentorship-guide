@@ -483,7 +483,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus,
          copyText, toPineTrades,
          pageSize, setPageSize, pageSlice, renderPager, CARD_SIZES,
          fromMember, isWaitingForMentor, isSetAside, MOTD_KEY,
-         faceHtml } from './app.js';
+         faceHtml, checklistState } from './app.js';
 import { mountEditor, renderBody, imagePathsIn } from './editor.js';
 
 renderAccountStrip();
@@ -648,15 +648,36 @@ if (me) {
  */
 
 async function loadShared() {
-  const { data, error } = await supabase
+  const SHARED_COLUMNS =
+    'id, user_id, opened_at, closed_at, updated_at, symbol, direction, contracts, ' +
+    'entry, stop, target, exit_price, points, fees, net_pnl, r_multiple, outcome, ' +
+    'model, session_kz, pd_array, liquidity, bias, agreed_with_bias, ' +
+    'checklist_done, management, notes, screenshot_path, chart_url';
+
+  /* `imported_at` is asked for separately, and its absence is survivable.
+   *
+   * It comes from trade-import.sql, which is a later migration than the one that
+   * made this table. Naming an absent column does not degrade the answer, it
+   * fails the whole request with a 400 - which on this page would replace the
+   * mentor's entire queue with a schema error, over a column used for one tag.
+   * That has happened twice on the accounts page and cost a working page both
+   * times.
+   *
+   * So: ask for it, and on failure ask again without it. `checklistState` reads
+   * the difference between a column that came back null and one that was never
+   * selected, and where it has nothing to go on it under-claims - no tag rather
+   * than a red one against somebody who was never shown a checklist. */
+  const SHARED_OPTIONAL = 'imported_at';
+
+  const ask = (cols) => supabase
     .from('trades')
-    .select('id, user_id, opened_at, closed_at, updated_at, symbol, direction, contracts, ' +
-            'entry, stop, target, exit_price, points, fees, net_pnl, r_multiple, outcome, ' +
-            'model, session_kz, pd_array, liquidity, bias, agreed_with_bias, ' +
-            'checklist_done, management, notes, screenshot_path, chart_url')
+    .select(cols)
     .eq('shared_with_mentor', true)
     .order('opened_at', { ascending: false })
     .limit(500);
+
+  let { data, error } = await ask(SHARED_COLUMNS + ', ' + SHARED_OPTIONAL);
+  if (error) ({ data, error } = await ask(SHARED_COLUMNS));
 
   if (error) {
     document.getElementById('review-list').innerHTML = dbError(error, 'Could not read shared trades');
@@ -785,7 +806,20 @@ function reviewTags(r) {
   add(r.liquidity ? 'after ' + r.liquidity : '');
   add(r.bias ? r.bias + ' bias' : '');
   if (r.agreed_with_bias === false) add('against own bias', ' bear');
-  if (!r.checklist_done) add('no checklist', ' bear');
+
+  /* THREE STATES, NOT TWO. `checklist_done` is false on every imported trade
+   * because nobody was asked, and this used to put a red "no checklist" on a
+   * mentor's screen against a member whose only sin was owning a CSV. A tag
+   * that fires on most rows of most journals also stops meaning anything - it
+   * became furniture long before anybody noticed it was wrong.
+   *
+   * Skipped is still flagged, because that one is a member declining a
+   * question they were shown, and it is worth a mentor's attention. Imported
+   * is stated in plain type: it explains why the other tags on this row are
+   * empty, which is a genuinely useful thing to know while reading it. */
+  const ck = checklistState(r);
+  if (ck === 'skipped') add('no checklist', ' bear');
+  else if (ck === 'not-asked') add('imported');
   if (r.outcome) add(r.outcome, r.outcome === 'win' ? ' bull' : r.outcome === 'loss' ? ' bear' : '');
 
   return tags.map(([open, text]) => open + escapeHtml(String(text)) + '</span>').join('');
@@ -1258,7 +1292,8 @@ document.getElementById('review-list').addEventListener('click', async (e) => {
       ', result ' + (Number.isFinite(rm) ? rm.toFixed(2) + 'R' : 'open'),
     [r.model, r.session_kz, r.pd_array, r.liquidity && 'after ' + r.liquidity]
       .filter(Boolean).join(' / '),
-    r.checklist_done ? 'checklist done' : 'no checklist',
+    { done: 'checklist done', skipped: 'no checklist',
+      'not-asked': 'imported, no checklist asked' }[checklistState(r)],
     r.management ? 'managed: ' + r.management : '',
     r.notes ? 'notes: ' + r.notes : ''
   ].filter(Boolean);

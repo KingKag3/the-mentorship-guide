@@ -975,6 +975,75 @@ export function hasResult(row) {
   return Number.isFinite(toNumber(row.r_multiple)) || Number.isFinite(toNumber(row.net_pnl));
 }
 
+/* ------------------------- was the member asked? -------------------------
+
+   `checklist_done` is `boolean not null default false`, and false has been
+   carrying two completely different facts:
+
+     - a trade typed into the journal with the boxes left unticked, which is a
+       member declining a question they were asked, and
+     - a trade that arrived in a CSV, where nobody was asked anything.
+
+   Most members import, most days. So on almost every journal the column reads
+   false almost everywhere, and the pages that consulted it were reporting a
+   discipline problem where there was only a file. `admin.html` put "no
+   checklist" on a mentor's screen as a red flag against a member who had done
+   nothing but use the importer. The statistics page ran its one honest
+   discipline comparison - ticked trades against the rest - with the entire
+   import sitting in "the rest", which does not measure discipline, it measures
+   which trades were typed.
+
+   Nothing distinguishes the two in that column, so this reads the two others
+   that do:
+
+     - `imported_at` is null on anything typed. A row with it set came from a
+       file. (trade-import.sql: "Null means it was typed.")
+     - the judgement columns - model, PD array, liquidity, bias, management -
+       are ones only a person fills in. The importer deliberately leaves every
+       one of them empty rather than guessing, so an imported row carrying any
+       of them is one the member went back and wrote up, which means they saw
+       the checklist and saved anyway.
+
+   `notes` is not in that list: a journal re-exported from this site and
+   imported back carries its own notes, so notes can arrive from a file.
+   `session_kz` is not either - the importer derives it from the clock.
+
+   Returns 'done', 'skipped' or 'not-asked'. The last one is not a failure and
+   must never be drawn as one.
+------------------------------------------------------------------------- */
+
+const JUDGEMENTS = ['model', 'pd_array', 'liquidity', 'bias', 'management'];
+
+/** Whether a trade carries anything only a person could have put there. */
+export function wasWrittenUp(row) {
+  if (!row) return false;
+  if (row.agreed_with_bias === true || row.agreed_with_bias === false) return true;
+  return JUDGEMENTS.some((k) => {
+    const v = row[k];
+    return v !== null && v !== undefined && String(v).trim() !== '';
+  });
+}
+
+/** 'done' | 'skipped' | 'not-asked' - see the note above. */
+export function checklistState(row) {
+  if (!row) return 'not-asked';
+  if (row.checklist_done) return 'done';
+
+  /* `null` and `undefined` are different answers here and the difference
+   * matters. Null means the column was read and the trade was typed: the
+   * member saw the checklist and saved without it. Undefined means the column
+   * was never selected - admin.html drops it when the migration is missing -
+   * and nothing has been read at all.
+   *
+   * Only null is treated as evidence. Where there is none, the judgement
+   * columns decide, and a row with nothing in them reads as not-asked, which
+   * under-claims. The failure this exists to prevent is telling somebody they
+   * skipped a checklist they were never shown, so a guess should fall that
+   * way. */
+  if (row.imported_at === null) return 'skipped';
+  return wasWrittenUp(row) ? 'skipped' : 'not-asked';
+}
+
 export function tradeValue({ symbol, points, contracts, fees, netPnl }) {
   const spec = contractFor(symbol);
   const pts = toNumber(points);

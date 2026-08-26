@@ -3,7 +3,67 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 11 August 2026, seventh session.
+Last updated: 26 August 2026.
+
+## 26 August 2026 — the importer was quietly failing the checklist
+
+**No migration. Nothing to run.** Everything below is code.
+
+### What was wrong
+
+`trades.checklist_done` is `boolean not null default false`, and false had been carrying two
+unrelated facts: a member shown five checkboxes who ticked none, and a trade that came out of a CSV
+where nobody was asked anything. Members import daily, so on any real journal the column reads false
+almost everywhere — and every page that read it directly was reporting a discipline failure where
+there was only a file.
+
+- `admin.html` showed a red **no checklist** on the mentor's queue against a member whose only act
+  was using the importer.
+- The **By checklist** slice on `stats.html` compared the trades somebody typed against the trades
+  somebody did not, and called the difference discipline.
+- The daily card read *"2 of 47"* on a day with 44 imports.
+
+### Two data-loss bugs found underneath it
+
+`upsert` writes every key in the payload, on insert **and** on conflict, and `import.html` was
+sending `checklist_done: false`, `notes`, `stop` and `target` on every row.
+
+- **A re-import wiped a hand-ticked checklist.** Re-importing is normal — exports are date ranges
+  and ranges overlap.
+- **It also wiped hand-typed stops, targets and notes,** because a Tradovate orders file has no such
+  columns and an absent column reads as null.
+
+Those keys are now omitted unless the file carries them. `checklist_done` is never sent at all: the
+column default fires on INSERT and never on `ON CONFLICT DO UPDATE`, which gives exactly the wanted
+behaviour. Because that makes the payload ragged, and PostgREST refuses a ragged batch
+(`PGRST102 All object keys must match`), the write groups rows by key signature — one request per
+shape, normally one or two.
+
+### What replaced it
+
+`app.js` now exports `checklistState(row)` → `done` / `skipped` / `not-asked`, and
+`wasWrittenUp(row)`. See DECISIONS 2026-08-26 for how the three are told apart without a migration.
+`stats.html` gained a **Written up** card, a callout explaining why most slices are empty on an
+imported journal, and a gated finding asking whether written-up decisions finish differently —
+shuffled within a day, so only days holding both kinds inform it.
+
+### Verified
+
+All five Python checkers green. Three probes green: `probe-checklist-state.mjs`,
+`probe-import-shape.mjs`, `probe-forget-account.mjs`. Every page loaded over `http://localhost:8848`
+reaches `requireRole` and stops with `not signed in` and nothing before it.
+
+**Not verified:** none of it has been run against a live database with a real import. The three
+things that would prove it are (1) import an overlapping range twice and confirm a hand-ticked
+checklist and a hand-typed note survive, (2) confirm a file that carries notes on some rows and not
+others still imports — that is the case that used to fail outright — and (3) look at the mentor
+queue and confirm imported trades read *imported* rather than *no checklist*.
+
+### Also this day
+
+Removing a prop account now removes the whole account from `props.html` — settings, attempts,
+adjustments and trades, trades last — rather than requiring a trip to the journal first. It
+previously refused entirely when there was no config row, which is the shape most likely to need it.
 
 ## Seventh session — 11 August 2026, overnight
 

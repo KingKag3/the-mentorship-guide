@@ -929,8 +929,6 @@ function mapRow(row, fallbackAccount, dayFirst) {
     direction,
     contracts: numeric(row, 'contracts'),
     entry,
-    stop,
-    target: numeric(row, 'target'),
     exit_price: exit,
     points,
     r_multiple: risk && points !== null ? Number((points / risk).toFixed(3)) : null,
@@ -945,24 +943,53 @@ function mapRow(row, fallbackAccount, dayFirst) {
     // whatever anybody thinks about it. A file that carries its own session
     // column still wins.
     session_kz: text(row, 'session_kz') || sessionAt(stamp),
-    notes: text(row, 'notes'),
-    imported_at: new Date().toISOString(),
-    checklist_done: false
+    imported_at: new Date().toISOString()
   };
 
-  /* chart_url is added only when the file actually has one.
+  /* WHAT THE FILE DID NOT SAY, THE IMPORT MUST NOT SAY EITHER.
    *
+   * This is an upsert, and a key present in the payload is written on the way
+   * in AND on the way over the top. So every column named here with a null
+   * beside it is not "left alone" on a re-import - it is actively set to null,
+   * over whatever the member typed.
+   *
+   * Most people re-import: the export is a date range, the ranges overlap, and
+   * the whole reason `external_id` exists is so that running August twice does
+   * not double August. Every one of those runs used to erase the stop, the
+   * target and the notes off any trade the member had gone back and filled in,
+   * because a Tradovate orders file has no such columns and null is what an
+   * absent column reads as.
+   *
+   * These are the columns only a person can supply. They are sent when the file
+   * actually carries them - somebody re-importing a journal exported from this
+   * site does have notes, and means them - and omitted otherwise, which leaves
+   * the existing value standing.
+   *
+   * `chart_url` was already conditional, for a second reason that still holds:
    * PostgREST rejects a key the table does not have whatever its value is, so
-   * sending `chart_url: null` from a broker export that has never heard of a
-   * chart link fails the whole import until a migration is run - for a column
-   * the file did not use. That is a bad trade: the person paying is the one who
-   * pasted nothing.
+   * sending `chart_url: null` from a broker export fails the entire import
+   * until a migration is run, for a column the file did not use. */
+  for (const [key, value] of [['stop',      stop],
+                              ['target',    numeric(row, 'target')],
+                              ['notes',     text(row, 'notes')],
+                              ['chart_url', text(row, 'chart_url')]]) {
+    if (value !== null) trade[key] = value;
+  }
+
+  /* CHECKLIST_DONE IS NOT SENT AT ALL, and the column definition is what makes
+   * that work:
    *
-   * Present-and-mapped is the honest condition. Somebody re-importing a journal
-   * exported from this site does have the column and does need the migration,
-   * and gets told which file to run. */
-  const chart = text(row, 'chart_url');
-  if (chart !== null) trade.chart_url = chart;
+   *     checklist_done boolean not null default false
+   *
+   * A DEFAULT fires on INSERT and never on ON CONFLICT DO UPDATE. Omitting the
+   * key therefore says false on a row arriving for the first time - which is
+   * true, nobody was asked - and says nothing at all about a row that already
+   * exists, so a member who imported a trade, opened it in the journal and
+   * ticked the boxes keeps that when the next export overlaps.
+   *
+   * It used to send `checklist_done: false` explicitly, which meant the one
+   * member most likely to go back and write their trades up was also the one
+   * whose work was wiped every time they imported. */
 
   return trade;
 }
@@ -1249,17 +1276,48 @@ async function runImport() {
   for (const row of parsed) byId.set(row.external_id, { ...row, user_id: profile.id });
   const payload = [...byId.values()];
 
-  const { error } = await supabase
-    .from('trades')
-    .upsert(payload, { onConflict: 'user_id,external_id' });
+  /* SENT IN GROUPS THAT SHARE A SHAPE, because PostgREST will not take a batch
+   * whose objects have different keys:
+   *
+   *     PGRST102  All object keys must match
+   *
+   * `mapRow` now omits a column the file said nothing about, so that a
+   * re-import leaves a hand-typed stop or note alone. That makes the payload
+   * ragged by design - one row carrying notes and the next not - and one call
+   * with all of them in it would be refused outright, with an error naming a
+   * rule about keys rather than anything the member did.
+   *
+   * Grouping by the key signature keeps every row exact and costs one request
+   * per distinct shape, which in practice is one or two: a broker export is
+   * uniform, and a journal re-export is uniform in the other direction. The
+   * mixed case - a notes column filled in on some rows - is precisely the one
+   * that used to fail, and is now the one that works.
+   */
+  const shapes = new Map();
+  for (const row of payload) {
+    const key = Object.keys(row).sort().join(',');
+    if (!shapes.has(key)) shapes.set(key, []);
+    shapes.get(key).push(row);
+  }
 
-  if (error) {
-    const file = migrationHint(error);
-    say(file ? error.message + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
-           : error.message,
-      'error');
-    busy(false);
-    return;
+  for (const batch of shapes.values()) {
+    const { error } = await supabase
+      .from('trades')
+      .upsert(batch, { onConflict: 'user_id,external_id' });
+
+    if (error) {
+      const file = migrationHint(error);
+      say(file ? error.message + ' — run ' + file + ' in the Supabase SQL editor, then reload.'
+             : error.message,
+        'error');
+      busy(false);
+      /* Not a return that pretends nothing happened. An earlier group may have
+       * saved, and the read-back below is the only thing that knows - but it
+       * only runs on the success path, so say so here rather than leaving the
+       * member to guess whether to run the file again. Re-running is safe: the
+       * external_id makes it an update. */
+      return;
+    }
   }
 
   /* READ THEM BACK. The upsert not returning an error is not the same as the

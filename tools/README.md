@@ -259,3 +259,63 @@ node tools/probe-forget-account.mjs
 ```
 
 Exits non-zero on the first failure, so it is safe to chain.
+
+## probe-checklist-state.mjs
+
+`checklist_done` is `boolean not null default false`, and false was carrying two
+completely different facts: a member who was shown five checkboxes and ticked
+none, and a trade that arrived in a CSV where nobody was asked anything.
+
+Members import daily, so on a real journal the column reads false almost
+everywhere. Every page that read it directly was reporting a discipline problem
+where there was only a file — a red **no checklist** on the mentor's queue, and
+a **By checklist** slice comparing the trades somebody typed against the trades
+somebody did not.
+
+This runs `checklistState` and `wasWrittenUp` out of `app.js` over the cases
+that are easy to get wrong:
+
+- `imported_at` **null** (the column was read, the trade was typed) versus
+  **undefined** (`admin.html` drops it when the migration is missing). Only null
+  is evidence; undefined must never be read as "typed".
+- `notes` and `session_kz`, which can both arrive from a file and therefore
+  prove nothing about who filled them in.
+- a blank string in a judgement column, which is not an answer.
+
+```
+node tools/probe-checklist-state.mjs
+```
+
+## probe-import-shape.mjs
+
+`upsert` writes every key in the payload — on the way in **and** on the way over
+the top. So a column named with a null beside it is not left alone on a
+re-import, it is set to null. Re-importing is the normal case: broker exports
+are date ranges, date ranges overlap, and `external_id` exists so that running
+August twice does not double August.
+
+The importer used to send `checklist_done: false`, `notes`, `stop` and `target`
+on every row, so every import erased whatever the member had gone back and
+typed. This checks that those are gone from the row literal and are added only
+when the file actually carries them.
+
+It also checks the consequence. Omitting keys per row makes the payload ragged,
+and PostgREST refuses a ragged batch outright:
+
+```
+PGRST102  All object keys must match
+```
+
+so the write groups rows by key signature and sends one request per shape. The
+probe feeds it ragged rows and asserts every batch is uniform, no row is lost,
+and a normal uniform export is still a single request.
+
+One check reads `supabase/trades.sql` rather than the page: omitting
+`checklist_done` is only correct while the column keeps `not null default
+false`. A DEFAULT fires on INSERT and never on `ON CONFLICT DO UPDATE`, which is
+exactly the behaviour wanted — but drop the default and every import starts
+failing on a not-null violation.
+
+```
+node tools/probe-import-shape.mjs
+```

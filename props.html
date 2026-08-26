@@ -391,6 +391,16 @@ function adjustmentsFor(account, win) {
 }
 
 const trades = (tradesRes.data || []).filter(hasResult);
+
+/* EVERY row, including the ones with no result yet.
+ *
+ * `trades` is what the arithmetic is allowed to see - a trade still open, or
+ * imported without a fill, has no dollars and would drag every average toward
+ * zero. But a delete is not arithmetic: `delete ... eq('account', name)` takes
+ * those rows too, so anything that counts what is about to be destroyed has to
+ * count from here. Counting from `trades` would promise "3 trades" and remove
+ * five. */
+const allTrades = tradesRes.data || [];
 const saved = new Map((accountsRes.data || []).map((r) => [r.account, r]));
 
 // Every account the journal has seen, plus any configured that have no trades
@@ -724,38 +734,83 @@ const pctOf = (a, b) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
  * the safe way to be wrong. Too LARGE tells you there is room that was never
  * there, and that is the one that ends an account.
  */
-/* GETTING RID OF AN ACCOUNT, WHICH THERE WAS NO WAY TO DO AT ALL.
+/* GETTING RID OF AN ACCOUNT, THE WHOLE THING.
  *
- * An account on this page is not a record. It is a name that appears either on
- * a trade or in `prop_accounts`, and the page lists the union of the two - so
- * a config row created while testing produces a card for ever, with no trades
- * behind it and nothing anywhere that removes it. The only way out was the SQL
- * editor, which is the one place on this project where a missing WHERE reaches
- * every member.
+ * An account on this page is not a record. It is a name appearing on trades,
+ * in `prop_accounts`, or both, and the page lists the union - so there was no
+ * way to remove one at all, and the only route out was the SQL editor.
  *
- * IT ONLY OFFERS WHEN THERE ARE NO TRADES, and that is the whole design rather
- * than a caution. Deleting the config on an account that still has trades would
- * delete the drawdown, the target and the attempt history and leave the card
- * standing - because the trades still name it - so the member would have
- * destroyed their settings and changed nothing they could see. Where trades
- * exist the journal is the right tool and this says so.
+ * THE FIRST VERSION OF THIS ONLY OFFERED WHEN THERE WERE NO TRADES, and made
+ * the member go to the journal, filter, select and delete before coming back
+ * here to finish. That is this table's schema handed to somebody as a chore.
+ * An account is one thing to the person who owns it, and it should take one
+ * action.
+ *
+ * It also refused entirely when there was no config row - which is the case
+ * most likely to need it, since an account created by a typo in the importer's
+ * account field is trades and nothing else.
+ *
+ * What survives from that caution is the confirmation. Deleting trades is the
+ * only irreversible thing on this page, so the count, the date span and what
+ * they were worth are all named before anything happens - the same sentence
+ * the journal uses for a bulk delete, because it is the same act.
  */
 function forgetBlock(name, cfg) {
-  if (!cfg || !cfg.id) return '';           // nothing configured, nothing to forget
+  const mine = allTrades.filter((t) => (t.account || '') === name);
+  const configured = !!(cfg && cfg.id);
+  if (!mine.length && !configured) return '';
 
-  const used = trades.some((t) => (t.account || '') === name);
-  if (used) return '';
+  /* NOT WHILE THE NAMES ARE HIDDEN.
+   *
+   * With the toggle on every card is headed "Account", and the only thing
+   * telling one from another is which one you scrolled to. That is fine for
+   * reading and wrong for the one action here that cannot be undone. Naming
+   * the account in the confirmation would work, and would also print the name
+   * on a screen being shared - which is the entire reason the toggle exists. */
+  if (hidden) {
+    return '<details class="acct-details"><summary>Remove this account</summary>' +
+      '<p>Turn account names back on first. While they are hidden every card ' +
+      'reads the same, and this is the one thing on the page that cannot be ' +
+      'undone.</p></details>';
+  }
 
-  return '<div class="callout warn"><span class="callout-label">No trades on this account</span>' +
-    '<p>Nothing in your journal names <strong>' + escapeHtml(label(name)) + '</strong>, so this ' +
-    'card is here only because the account was set up. If that was a test, it can go.</p>' +
+  return '<details class="acct-details"><summary>Remove this account</summary>' +
+    (mine.length
+      ? '<p><strong>' + describeTrades(mine) + '</strong> are filed under ' +
+        escapeHtml(label(name)) + '. Removing the account deletes them, along with its settings, ' +
+        'attempts and any recorded payouts.</p>' +
+        '<p class="stat-note">They leave the journal, the calendar and the statistics at the same ' +
+        'time, because they are the same rows. There is no undo &mdash; if you only wanted to ' +
+        'stop tracking the account rather than lose the record, close this and leave it alone.</p>'
+      : '<p>Nothing in your journal names <strong>' + escapeHtml(label(name)) + '</strong>, so ' +
+        'this card is here only because the account was set up. If that was a test, it can go.</p>' +
+        '<p class="stat-note">Removes the settings, attempts and any recorded payouts. No trade ' +
+        'is touched &mdash; there are none.</p>') +
     '<div class="row-actions">' +
       '<button type="button" class="btn-danger" data-forget="' + escapeHtml(name) + '">' +
-        'Forget this account</button>' +
+        (mine.length ? 'Delete this account and its ' + mine.length + ' trade' +
+                       (mine.length === 1 ? '' : 's')
+                     : 'Forget this account') + '</button>' +
     '</div>' +
-    '<p class="stat-note">Removes the settings, the attempt history and any payouts recorded ' +
-    'against it. No trade is touched &mdash; there are none. If you later import trades under ' +
-    'this name the card comes back, empty, which is the right way round.</p></div>';
+    '</details>';
+}
+
+/* The same sentence the journal puts in front of a bulk delete, because the
+ * thing being deleted is the same thing and somebody who has seen one should
+ * recognise the other. Count, span and what it was worth - a confirmation that
+ * says "are you sure" tells nobody anything. */
+function describeTrades(list) {
+  const stamps = list.map((t) => new Date(t.opened_at)).sort((a, b) => a - b);
+  /* `dollars`, not `net_pnl`. An imported trade can carry points and contracts
+   * and no net - the page works those out - and reading the raw column would
+   * report "worth nothing between them" over a real loss. */
+  const net = list.reduce((a, t) => a + (dollars(t) || 0), 0);
+  const span = stamps.length
+    ? stamps[0].toLocaleDateString() +
+      (stamps.length > 1 ? ' to ' + stamps[stamps.length - 1].toLocaleDateString() : '')
+    : '';
+  return list.length + ' trade' + (list.length === 1 ? '' : 's') +
+    (span ? ', ' + span : '') + (net ? ', worth ' + money(net) + ' between them' : '');
 }
 
 /* AN UNCLASSIFIED ACCOUNT LOOKS NOTHING UP, AND THE CARD HAS TO SAY SO.
@@ -2095,27 +2150,34 @@ function render() {
  * the kind of thing that happens between rendering a button and pressing it.
  */
 async function forgetAccount(name) {
-  if (trades.some((t) => (t.account || '') === name)) {
-    setStatus('#status', 'That account has trades now. Delete them from the journal first.',
-      'error');
-    render();
-    return;
-  }
+  const mine = allTrades.filter((t) => (t.account || '') === name);
 
-  if (!confirm('Forget "' + name + '"? Its settings, attempts and any recorded payouts go. ' +
-               'No trades are touched, because there are none.')) return;
+  const warning = mine.length
+    ? 'Delete "' + name + '" and ' + describeTrades(mine) + '?\n\n' +
+      'The trades go from the journal, the calendar and the statistics at the same time, ' +
+      'because they are the same rows. This cannot be undone.'
+    : 'Forget "' + name + '"? Its settings, attempts and any recorded payouts go. ' +
+      'No trades are touched, because there are none.';
+  if (!confirm(warning)) return;
 
-  setStatus('#status', 'Forgetting ' + name + '...', 'info');
+  setStatus('#status', 'Removing ' + name + '...', 'info');
 
-  // Children first. A settings row deleted while its attempts survive leaves
-  // rows nothing can reach and nothing can show.
-  for (const table of ['prop_attempts', 'account_adjustments', 'prop_accounts']) {
+  /* Trades last, deliberately.
+   *
+   * If the settings go and the trades fail, the card comes back on the next
+   * load with its configuration lost - the worst outcome, because the member
+   * has been silently charged for a delete that did not happen. Trades last
+   * means a failure leaves the account whole and the error visible.
+   *
+   * A table this project has not migrated yet is not an error here: the
+   * account simply has nothing in it. */
+  for (const table of ['prop_attempts', 'account_adjustments', 'prop_accounts', 'trades']) {
+    if (table === 'trades' && !mine.length) continue;
     const { error } = await supabase.from(table).delete()
       .eq('user_id', profile.id).eq('account', name);
-    // A table the project has not migrated yet is not an error here - the
-    // account simply has nothing in it.
     if (error && error.code !== 'PGRST205' && !migrationHint(error)) {
-      setStatus('#status', error.message, 'error');
+      setStatus('#status', 'Stopped at ' + table + ': ' + error.message +
+        '. Nothing after it was removed.', 'error');
       return;
     }
   }
@@ -2125,10 +2187,17 @@ async function forgetAccount(name) {
   for (let i = adjustments.length - 1; i >= 0; i--) {
     if (adjustments[i].account === name) adjustments.splice(i, 1);
   }
+  for (const list of [trades, allTrades]) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if ((list[i].account || '') === name) list.splice(i, 1);
+    }
+  }
   const at = names.indexOf(name);
   if (at >= 0) names.splice(at, 1);
 
-  setStatus('#status', escapeHtml(name) + ' forgotten.', 'ok');
+  setStatus('#status', name + ' removed' +
+    (mine.length ? ', with ' + mine.length + ' trade' + (mine.length === 1 ? '' : 's') : '') +
+    '. The journal and the calendar will agree on the next load.', 'ok');
   render();
   renderBulk();
 }

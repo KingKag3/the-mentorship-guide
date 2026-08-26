@@ -225,3 +225,37 @@ Companion to `check-tdz.py`, which catches the other cause of the same symptom.
 ```
 python tools/check-imports.py
 ```
+
+## probe-forget-account.mjs
+
+Runs the real `forgetBlock`, `describeTrades` and `forgetAccount` — cut out of
+`props.html` by brace-matching, so a change to either is a change to what is
+tested — against a fake `supabase` that records every delete instead of sending
+one.
+
+It exists because removing an account is the only irreversible thing on the
+page, and the two shapes it has to handle look nothing like each other:
+
+- **Trades and no config row.** The likeliest case, and the one the first
+  version refused outright: an account created by a typo in the importer, which
+  exists only as rows in `trades`.
+- **A config row and no trades.** A test account, which exists only in
+  `prop_accounts` and could not be removed from anywhere but the SQL editor.
+
+What it asserts, beyond the two shapes rendering a button at all:
+
+- every delete carries **both** `user_id` and `account`, on all four tables;
+- `trades` goes **last**, so a failure leaves the account whole rather than
+  stripped of its settings;
+- the trades table is skipped entirely when there are none;
+- the count comes from the unfiltered rows, so an open trade with no result is
+  still named — the delete takes it either way;
+- the confirmation names the count, the date span and what they were worth;
+- declining sends nothing;
+- with account names hidden it offers no button, and does not print the name.
+
+```
+node tools/probe-forget-account.mjs
+```
+
+Exits non-zero on the first failure, so it is safe to chain.

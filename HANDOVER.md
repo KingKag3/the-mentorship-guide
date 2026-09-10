@@ -7,8 +7,9 @@ Last updated: 10 September 2026.
 
 ## 10 September 2026 — notes on the day
 
-**Run `supabase/day-notes.sql`.** Until it is run nothing breaks: the calendar and the journal work
-as before and show the file name where the note box would be.
+**`supabase/day-notes.sql` was run on 10 September** and confirmed from outside the same day —
+`200 []` on the table with every column named, `400 42703` on a made-up column. The first real note
+saved from the calendar or the journal is the proof the page end of it works.
 
 ### What it is
 

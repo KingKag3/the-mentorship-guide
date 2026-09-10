@@ -11,14 +11,7 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-### `day-notes.sql` &mdash; notes on the day (10 September 2026)
-
-One table, `day_notes`, with its policies. Nothing else depends on it: until it is run, the
-calendar and the journal both work exactly as before and show the file name where the note box
-would be.
-
-**After running it,** confirm the policies from a browser, not the editor &mdash; the editor is the
-table owner and sees everybody's rows. Test 5 in `RLS-ATTACK-TESTS.md`.
+Nothing.
 
 `prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
 `prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.
@@ -141,6 +134,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 
 | File | Run on | Notes |
 | --- | --- | --- |
+| `day-notes.sql` | 10 Sep 2026 | One private note per member per local day, written from the journal and the calendar. **Confirmed from outside the same day, with two controls**: signed out with the publishable key, `day_notes?select=day,body,created_at,updated_at,user_id` answers `200 []`; `?select=not_a_real_column` answers `400 42703`; and a table that does not exist answers `404 PGRST205` — whose hint, usefully, suggests `public.day_notes`. So the table and all five columns exist and RLS holds for an anonymous caller. **Not confirmed:** that one member cannot read another's notes. That needs two signed-in accounts — Test 5 in `RLS-ATTACK-TESTS.md` |
 | `drawdown-eod.sql`, `prop-presets-by-product.sql` | 18 Aug 2026 | Two things the site had been getting wrong about the same account. `drawdown_type` had existed since the first migration and was never read, so every card was modelled as an intraday trailing drawdown and every caveat said the figure was a floor — which is false of an end-of-day account, where the closing balances the journal holds are the numbers the firm used. And the presets were keyed on `(firm, size)`, which cannot separate three Apex products: **Legacy and Intraday both trail intraday and their drawdowns differ by up to $1,000**, so a size match filled in the larger ladder — room the account does not have. Both fixed, with a `product` column on presets and accounts, and `drawdown_type` read from the product's own preset row so the two cannot drift. **Every drawdown is derived rather than quoted**: Apex publishes the safety net and defines it as the drawdown plus $100, so all three ladders fall out of their own payout tables — which independently confirms the six Legacy figures previously seeded on trust. **Not confirmed from outside**, and there is nothing to confirm until an account is classified: every row keeps `trailing` and a null product, which looks up no terms at all rather than the wrong ones |
 | `prop-presets-by-product.sql` | 18 Aug 2026 | A `product` column on presets and accounts, the presets re-keyed on `(firm, product, size)`, and all three Apex ladders seeded. **It took five attempts and every one of them is worth knowing about**, because four failed invisibly. The editor runs a script as one transaction, so each failure rolled back the fifteen statements before it and left the database untouched — while the accounts page could only report that the presets table was empty, which was true and was not the reason. The causes in order: a rewrite dropped the `add column drawdown_type` statement while keeping every reference to it; `product` and `payout_lowers_mark` were in the required half of a select, so a half-applied schema 400'd the whole query and printed "prop accounts are not set up" over nineteen working accounts; and finally `profit_target` was `numeric not null`, which refused the twelve Intraday and EOD rows that deliberately carry no target. **Confirmed by the seed reading back**: sixteen rows, with $25k, $50k, $100k and $150k each appearing under more than one product at different drawdowns. What is NOT confirmed is any account being classified — nothing was backfilled, so every account still carries a null product until somebody names it |
 | `review-write-needs-sharing.sql` | 19 Aug 2026 | Narrows `admins write reviews` to require the trade to be shared. **The only migration in this file that fixes a vulnerability confirmed by attack rather than a bug found by reading.** An admin who could not read a trade could write a mentor reply into that member's journal on it, and `trades.id` being a bigint meant no prior knowledge of the id was needed. **Confirmed both ways from a browser console, which is the only place that can confirm it** — the same insert wrote before and answered `42501` after, with the read control returning `[] null` throughout. See `RLS-ATTACK-TESTS.md` |

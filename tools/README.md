@@ -319,3 +319,19 @@ failing on a not-null violation.
 ```
 node tools/probe-import-shape.mjs
 ```
+
+## probe-day-notes.browser.js
+
+The day-note editor in `app.js`, exercised for real. It cannot run under node — `app.js` imports
+the Supabase client from a CDN and the editor is DOM — so it is pasted into the console on
+`design.html`, which is public and needs no sign-in.
+
+It imports the real `app.js`, swaps `supabase.from` for a recorder so nothing reaches the database,
+and checks what is easy to get subtly wrong: the save sends the user id and day the upsert's
+conflict target needs; an emptied box deletes, after asking, and only then; a failed save keeps the
+text and names the migration; a stored note is escaped rather than rendered; a day key never slides
+a day through UTC.
+
+It waits on microtasks, never timers. A hidden tab throttles `setTimeout` to a second or more, and a
+probe waiting on timers there looks exactly like a hang — which is how the first attempt at the
+calendar version of this ended, with its clicks still firing half a minute later into the next run.

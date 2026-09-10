@@ -912,6 +912,7 @@ const MIGRATIONS = [
   [/trade_reviews/i,                     'supabase/trade-reviews.sql'],
   [/last_seen_at/i,                      'supabase/member-last-seen.sql'],
   [/risk_settings/i,                     'supabase/risk-settings.sql'],
+  [/day_notes/i,                         'supabase/day-notes.sql'],
   [/\btrade_exits\b/i,                       'supabase/trade-exits.sql'],
   [/\b(account|net_pnl)\b/i,                 'supabase/trade-accounts.sql'],
   [/\bfees\b/i,                              'supabase/trade-exits.sql'],
@@ -1982,4 +1983,213 @@ export function setStatus(selector, message, kind = 'info') {
   if (!el) return;
   el.className = 'form-status form-status-' + kind;
   el.textContent = message;
+}
+
+
+/* ============================ notes on the day ============================
+
+   One private note per member per local day - `supabase/day-notes.sql` says
+   why the day is the right unit and a trade is not. Written from two places,
+   the journal and the calendar, which is exactly why the editor lives here: two
+   copies of a save routine that decides between an upsert and a delete do not
+   stay equal, and the first time they differ one page deletes a note the other
+   would have kept.
+
+   DAY KEYS ARE STRINGS, 'YYYY-MM-DD', AND NEVER GO NEAR `new Date(key)`. The
+   column is a DATE and so is what the calendar groups by. `new Date('2026-09-10')`
+   is midnight UTC, which is the evening of the 9th in New York - pass that
+   through `localDay` and every note lands on the day before the one it was
+   written about. `dayKeyLabel` builds its Date from the parts, at noon.
+========================================================================== */
+
+export const DAY_NOTE_MAX = 8000;
+
+/** Today's local day as 'YYYY-MM-DD'. */
+export function todayKey() {
+  return localDay(new Date());
+}
+
+/** A day key drawn for a person: "Wednesday 10 September". */
+export function dayKeyLabel(key, options) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  // Noon, not midnight: a DST change at 02:00 cannot move noon off the day.
+  return new Date(y, m - 1, d, 12).toLocaleDateString(undefined,
+    options || { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/**
+ * Every note this member has, as a Map of day key to { body, updated_at }.
+ *
+ * `missing` names the migration when the table is not there. That is not an
+ * error for the page to paint over the calendar: the calendar works without
+ * notes, and replacing a month of trades with a schema message because an
+ * optional table has not been created is the failure the accounts page had
+ * twice. Callers show the file where the editor would have been.
+ */
+export async function loadDayNotes() {
+  const { data, error } = await fetchPaged(() => supabase
+    .from('day_notes')
+    .select('day, body, updated_at')
+    .order('day', { ascending: false }), 5000);
+
+  if (error) {
+    const file = migrationHint(error);
+    return { notes: new Map(), missing: file, error: file ? null : error };
+  }
+  return {
+    notes: new Map((data || []).map((n) => [n.day, { body: n.body, updated_at: n.updated_at }])),
+    missing: null,
+    error: null
+  };
+}
+
+/* Unsaved text is the one thing on these pages a member cannot get back, so a
+ * page with a dirty editor on it asks before it is left. One listener for the
+ * whole document, reading a set, rather than one per editor - the calendar
+ * redraws its editor every time a cell is clicked, and a listener per draw
+ * would pile up. */
+const dirtyNotes = new Set();
+let unloadGuarded = false;
+
+function guardUnload() {
+  if (unloadGuarded) return;
+  unloadGuarded = true;
+  window.addEventListener('beforeunload', (e) => {
+    for (const el of [...dirtyNotes]) {
+      if (!el.isConnected) { dirtyNotes.delete(el); continue; }
+      e.preventDefault();
+      e.returnValue = '';
+      return;
+    }
+  });
+}
+
+/** True when any note editor on the page holds text that has not been saved. */
+export function dayNotesDirty() {
+  for (const el of [...dirtyNotes]) {
+    if (el.isConnected) return true;
+    dirtyNotes.delete(el);
+  }
+  return false;
+}
+
+let noteEditors = 0;
+
+/**
+ * Draw an editor for one day's note into `mount`.
+ *
+ *   userId   - the member, sent explicitly so the upsert's conflict target
+ *              (user_id, day) can match; the column default alone cannot.
+ *   day      - 'YYYY-MM-DD'.
+ *   body     - the note as it stands, or '' for none.
+ *   onSaved  - called with (day, body | null) after the database has agreed;
+ *              null means the note was deleted.
+ *   label    - the heading over the box, if not "Notes on <day>".
+ *
+ * An empty save DELETES rather than storing blank text. The table refuses a
+ * blank body anyway, and a row that exists only to hold nothing would draw a
+ * note marker on the calendar over a day with nothing written on it.
+ */
+export function dayNoteEditor(mount, { userId, day, body = '', onSaved, label } = {}) {
+  if (!mount) return null;
+  guardUnload();
+
+  const id = 'day-note-' + (++noteEditors);
+  let saved = body || '';
+
+  mount.innerHTML =
+    '<div class="day-note-editor">' +
+      '<label for="' + id + '">' + escapeHtml(label || ('Notes on ' + dayKeyLabel(day))) + '</label>' +
+      '<textarea id="' + id + '" rows="4" maxlength="' + DAY_NOTE_MAX + '" ' +
+        'placeholder="How the day went, what you saw, why you sat out. Only you can read this.">' +
+        escapeHtml(saved) + '</textarea>' +
+      '<div class="row-actions">' +
+        '<button type="button" class="btn-primary" data-note-save disabled>Save note</button>' +
+        '<button type="button" class="link-button" data-note-delete' + (saved ? '' : ' hidden') +
+          '>Delete note</button>' +
+        '<span class="acct-muted" data-note-count></span>' +
+      '</div>' +
+      '<p class="form-status" data-note-status></p>' +
+    '</div>';
+
+  const box = mount.querySelector('textarea');
+  const saveBtn = mount.querySelector('[data-note-save]');
+  const delBtn = mount.querySelector('[data-note-delete]');
+  const count = mount.querySelector('[data-note-count]');
+  const status = mount.querySelector('[data-note-status]');
+
+  const say = (message, kind = 'info') => {
+    status.className = 'form-status form-status-' + kind;
+    status.textContent = message;
+  };
+
+  const sync = () => {
+    const dirty = box.value.trim() !== saved.trim();
+    saveBtn.disabled = !dirty;
+    if (dirty) dirtyNotes.add(box); else dirtyNotes.delete(box);
+    // Only near the limit. A running count from the first keystroke turns a
+    // note into a word-count exercise.
+    const left = DAY_NOTE_MAX - box.value.length;
+    count.textContent = left < 500 ? left + ' characters left' : '';
+  };
+  box.addEventListener('input', () => { sync(); if (status.textContent) say(''); });
+  sync();
+
+  const failed = (error, what) => {
+    const file = migrationHint(error);
+    say(file ? 'Notes are not set up yet. Run ' + file + ' in the Supabase SQL editor, then reload.'
+             : 'Could not ' + what + ': ' + error.message, 'error');
+  };
+
+  const remove = async () => {
+    const { error } = await supabase.from('day_notes').delete()
+      .eq('user_id', userId).eq('day', day);
+    if (error) { failed(error, 'delete the note'); sync(); return false; }
+    saved = '';
+    box.value = '';
+    delBtn.hidden = true;
+    sync();
+    say('Note deleted.', 'ok');
+    if (onSaved) onSaved(day, null);
+    return true;
+  };
+
+  saveBtn.addEventListener('click', async () => {
+    const text = box.value.trim();
+    saveBtn.disabled = true;
+
+    if (!text) {
+      // Emptying the box and pressing save is a delete - but it is only asked
+      // about when there was something to delete, and it is still asked, because
+      // clearing a box is an easy thing to do by accident.
+      if (saved && confirm('Delete your note for ' + dayKeyLabel(day) + '? This cannot be undone.')) {
+        await remove();
+      } else {
+        sync();
+      }
+      return;
+    }
+
+    say('Saving…');
+    const { error } = await supabase.from('day_notes')
+      .upsert({ user_id: userId, day, body: text }, { onConflict: 'user_id,day' });
+
+    if (error) { failed(error, 'save the note'); sync(); return; }
+
+    saved = text;
+    box.value = text;
+    delBtn.hidden = false;
+    sync();
+    say('Saved.', 'ok');
+    if (onSaved) onSaved(day, text);
+  });
+
+  delBtn.addEventListener('click', async () => {
+    if (!confirm('Delete your note for ' + dayKeyLabel(day) + '? This cannot be undone.')) return;
+    delBtn.disabled = true;
+    await remove();
+    delBtn.disabled = false;
+  });
+
+  return { focus: () => box.focus(), isDirty: () => dirtyNotes.has(box) };
 }

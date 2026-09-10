@@ -62,7 +62,7 @@
   <div class="cal-toggle">
     <label class="check-line">
       <input type="checkbox" id="hide-accounts">
-      <span>Hide account numbers, for a screenshot</span>
+      <span>Hide account numbers and day notes, for a screenshot</span>
     </label>
   </div>
 
@@ -88,6 +88,7 @@
 
   <div id="summary"></div>
   <div id="grid" class="cal-scroll"></div>
+  <div id="day-panel"></div>
   <div id="month-trades"></div>
 
 </div>
@@ -158,7 +159,8 @@
 import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError, fetchPaged,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
-         pageSize, setPageSize, pageSlice, renderPager, barTrack } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, barTrack,
+         loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty } from './app.js';
 import { longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
@@ -221,6 +223,15 @@ const targets = new Map();
     }
   }
 }
+
+/* Notes on the day - supabase/day-notes.sql.
+ *
+ * Loaded after the trades and allowed to fail on its own. A missing table
+ * leaves the calendar exactly as it was and puts the file to run where the
+ * editor would have been; it does not replace a month of trades with a schema
+ * error over a feature somebody may not have set up yet. */
+const noteLoad = await loadDayNotes();
+const notes = noteLoad.notes;
 
 // Everything downstream was written against oldest-first, so it is handed
 // back that way rather than teaching each part a second order.
@@ -408,9 +419,20 @@ function render() {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     const rows = byDay.get(key);
+    const mark = noteMark(key);
+    const chosen = key === selected ? ' is-selected' : '';
 
+    /* EVERY DAY IS A BUTTON NOW, not only the ones with trades.
+     *
+     * A note is most worth writing on exactly the days with nothing else on
+     * them - "sat out, CPI at 8:30" - and those were the one kind of cell that
+     * could not be clicked. A day somebody chose not to trade is a decision,
+     * and it had nowhere to be recorded. */
     if (!rows) {
-      push('<div class="cal-cell"><span class="cal-date">' + d + '</span></div>');
+      push('<button type="button" class="cal-cell is-quiet' + (mark ? ' has-note' : '') + chosen +
+        '" data-day="' + key + '" aria-label="' + escapeHtml(dayKeyLabel(key)) +
+        (mark ? ', has a note' : ', no trades') + '">' +
+        '<span class="cal-date">' + d + mark + '</span></button>');
       continue;
     }
 
@@ -423,8 +445,9 @@ function render() {
     const cls = value === null ? 'is-unknown' : value > 0 ? 'is-up' : value < 0 ? 'is-down' : 'is-flat';
 
     push(
-      '<button type="button" class="cal-cell has-trades ' + cls + '" data-day="' + key + '">' +
-        '<span class="cal-date">' + d + '</span>' +
+      '<button type="button" class="cal-cell has-trades ' + cls + (mark ? ' has-note' : '') + chosen +
+        '" data-day="' + key + '">' +
+        '<span class="cal-date">' + d + mark + '</span>' +
         '<span class="cal-value">' + fmt(value) + '</span>' +
         '<span class="cal-count">' + countLabel(t) + '</span>' +
       '</button>'
@@ -442,7 +465,110 @@ function render() {
     '</div>';
 
   renderSummary(monthRows);
+  renderDayPanel();
   renderMonthTrades(monthRows);
+}
+
+/* ------------------------------ the day panel ------------------------------
+
+   The grid is the navigator and this is the day: its note, and a way to its
+   trades. It sits between the two rather than inside a day's group in the list
+   below, because the days most worth a note are the days with no group at all.
+
+   A cell used to scroll straight down to its trades. It no longer does, because
+   that would carry the reader away from the note they had just opened - the
+   panel offers the jump instead, as a link, on the days that have trades.
+------------------------------------------------------------------------- */
+
+// Today, when this month is the one on screen - the note most people are
+// about to write is tonight's. Otherwise nothing, until a day is picked.
+let selected = todayKey();
+
+function inView(key) {
+  return !!key && key.slice(0, 7) ===
+    cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0');
+}
+
+/* The marker on a cell. Present or absent, and nothing else: the note's text
+ * is never put in a title or a tooltip, where a screenshot or a shoulder could
+ * catch it. Drawn even in screenshot mode - that a note exists says nothing. */
+function noteMark(key) {
+  return notes.has(key) ? '<span class="cal-note" aria-hidden="true"></span>' : '';
+}
+
+function renderDayPanel() {
+  if (panelFrozen) return;
+  const mount = $('day-panel');
+
+  if (!inView(selected)) {
+    mount.innerHTML = '<p class="stat-note day-panel-hint">Pick any day above to write a note ' +
+      'on it &mdash; including the days you did not trade.</p>';
+    return;
+  }
+
+  const rows = byDay.get(selected) || [];
+  const t = rows.length ? dayTotals(rows) : null;
+
+  const head =
+    '<h2 class="day-panel-head">' +
+      '<span>' + escapeHtml(dayKeyLabel(selected)) + '</span>' +
+      (t ? '<span class="day-group-sum">' + fmt(dayValue(t)) + '</span>' : '') +
+    '</h2>' +
+    '<p class="stat-note">' +
+      (t ? countLabel(t) + '. <a href="#day-' + selected + '" data-jump="' + selected +
+           '">See them below</a>.'
+         : 'No trades on this day.') +
+    '</p>';
+
+  if (noteLoad.missing) {
+    mount.innerHTML = '<section class="day-panel">' + head +
+      '<div class="callout"><span class="callout-label">Notes on the day</span>' +
+      '<p>Not set up yet. Run <code>' + escapeHtml(noteLoad.missing) + '</code> in the Supabase ' +
+      'SQL editor, then reload.</p></div></section>';
+    return;
+  }
+
+  if (noteLoad.error) {
+    mount.innerHTML = '<section class="day-panel">' + head +
+      dbError(noteLoad.error, 'Could not read your notes') + '</section>';
+    return;
+  }
+
+  /* NOTHING DRAWN IN SCREENSHOT MODE, not blurred. The same rule the account
+   * aliases follow: what was never rendered cannot leak from a screenshot. A
+   * note is free text and can name anything - an account, a firm, a figure,
+   * how somebody felt - and the toggle exists for the moment a page is about
+   * to be shown to other people. */
+  if (hidden) {
+    mount.innerHTML = '<section class="day-panel">' + head +
+      '<p class="stat-note">' + (notes.has(selected) ? 'There is a note on this day. ' : '') +
+      'Notes are not shown while the screenshot toggle is on.</p></section>';
+    return;
+  }
+
+  mount.innerHTML = '<section class="day-panel">' + head + '<div id="day-note"></div></section>';
+
+  dayNoteEditor($('day-note'), {
+    userId: profile.id,
+    day: selected,
+    body: (notes.get(selected) || {}).body || '',
+    onSaved: (day, body) => {
+      if (body === null) notes.delete(day);
+      else notes.set(day, { body, updated_at: new Date().toISOString() });
+      // The marker on the cell and the note in the list below both read the
+      // map, so they are redrawn - but not the panel, which is what the member
+      // is typing in and which already says "Saved."
+      redrawAround();
+    }
+  });
+}
+
+/* Redraw everything except the panel. Re-rendering the panel after a save
+ * would replace the editor, and its "Saved." with it, under the cursor. */
+let panelFrozen = false;
+function redrawAround() {
+  panelFrozen = true;
+  try { render(); } finally { panelFrozen = false; }
 }
 
 function renderSummary(rows) {
@@ -704,6 +830,11 @@ function dayGroup(key, rows) {
       '<span class="day-group-sum">' + fmt(value) + '</span>' +
       '<span class="day-group-n">' + countLabel(t) + '</span>' +
     '</h3>' +
+    // Read-only here; it is written in the panel above. Not in screenshot mode.
+    (notes.has(key) && !hidden
+      ? '<p class="day-note-read">' + escapeHtml(notes.get(key).body) + ' ' +
+        '<a href="#day-panel" data-edit-note="' + key + '">edit</a></p>'
+      : '') +
     '<div class="table-scroll"><table><thead><tr>' +
       '<th>Time</th><th>Trade</th><th>Model</th><th>Session</th><th>Result</th>' +
     '</tr></thead><tbody>' + rows.map(tradeRow).join('') + '</tbody></table></div>' +
@@ -783,37 +914,77 @@ function renderMonthTrades(monthRows) {
   renderPager('#pager-bottom', state, onPage);
 }
 
-// A day square scrolls to its group rather than opening a panel, so the list
-// stays where the reader left it.
+/* Choosing a day. Asked first if the note on the current one is unsaved -
+ * swapping the editor out would throw the text away, and it is the one thing on
+ * this page that cannot be fetched again. */
+function choose(key) {
+  if (key !== selected && !leaveDraft()) return false;
+  selected = key;
+  for (const c of document.querySelectorAll('.cal-cell.is-selected')) c.classList.remove('is-selected');
+  const cell = document.querySelector('.cal-cell[data-day="' + key + '"]');
+  if (cell) cell.classList.add('is-selected');
+  renderDayPanel();
+  return true;
+}
+
+/* Turning the month or the day redraws the panel, and the panel holds the
+ * editor. */
+function leaveDraft() {
+  return !dayNotesDirty() ||
+    confirm('Your note for ' + dayKeyLabel(selected) + ' is not saved. Leave it?');
+}
+
 $('grid').addEventListener('click', (e) => {
   const cell = e.target.closest('[data-day]');
-  if (!cell) return;
+  if (cell) choose(cell.dataset.day);
+});
 
-  const group = document.getElementById('day-' + cell.dataset.day);
-  if (!group) return;
-
-  for (const other of document.querySelectorAll('.day-group.is-target')) {
-    other.classList.remove('is-target');
+document.addEventListener('click', (e) => {
+  // The panel's "See them below" - what a cell used to do, one click away.
+  const jump = e.target.closest('[data-jump]');
+  if (jump) {
+    e.preventDefault();
+    const group = document.getElementById('day-' + jump.dataset.jump);
+    if (!group) return;
+    for (const other of document.querySelectorAll('.day-group.is-target')) {
+      other.classList.remove('is-target');
+    }
+    group.classList.add('is-target');
+    group.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
   }
-  group.classList.add('is-target');
-  group.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // "edit" beside a note in the list: open that day in the panel.
+  const edit = e.target.closest('[data-edit-note]');
+  if (edit) {
+    e.preventDefault();
+    if (choose(edit.dataset.editNote)) {
+      $('day-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const box = $('day-panel').querySelector('textarea');
+      if (box) box.focus({ preventScroll: true });
+    }
+  }
 });
 
 // --- controls --------------------------------------------------------------
 
 $('prev').addEventListener('click', () => {
+  if (!leaveDraft()) return;
   cursor.setMonth(cursor.getMonth() - 1);
   render();
 });
 
 $('next').addEventListener('click', () => {
+  if (!leaveDraft()) return;
   cursor.setMonth(cursor.getMonth() + 1);
   render();
 });
 
 $('today').addEventListener('click', () => {
+  if (!leaveDraft()) return;
   cursor = new Date();
   cursor.setDate(1);
+  selected = todayKey();
   render();
 });
 

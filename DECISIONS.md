@@ -859,3 +859,54 @@ decides an imported trade *should* count as a skipped checklist, change the func
 reads as `skipped` — correct — but one who opens a trade, ticks nothing and fills in nothing reads
 as `not-asked`, and they were asked. There is no column recording that the form was opened. The
 error is in the direction of not accusing anybody, which is the direction chosen deliberately.
+
+---
+
+## 2026-09-10 — Notes belong to the day, not to a trade
+
+**Decided:** a new table, `day_notes`, one row per member per local calendar day, private with no
+mentor access. Written from a card at the top of the journal and from a panel under the calendar
+grid; both use one editor, `dayNoteEditor()` in `app.js`. The calendar marks a day that has a note.
+
+**Instead of:** a second use of `trades.notes`, which already exists and was the obvious reading.
+
+**Why the day:**
+
+- **Most of what somebody wants to say about their trading is not about one trade.** "Sat out —
+  CPI at 8:30" is about a day with no trades in it, so there is no row to hang it on. "Chased the
+  open, knew it" is about the morning, not about one of the five fills that followed.
+- **It is the only practical place for a copier's reasoning.** One decision arrives as eighteen
+  imported rows. Nobody will write the why eighteen times, and writing it on one of them at random
+  puts it on an account that means nothing. The 2026-08-26 entry found that an imported journal is a
+  complete record of results and an empty record of reasons; this is the cheapest way to start
+  filling in the second half.
+- **A day not traded is a decision, and was invisible.** Nothing records the absence of a row. Every
+  calendar cell is now a button — including the empty ones, which could not be clicked before —
+  because those are precisely the days most worth a sentence.
+
+**Why private, with no mentor policy.** A trade is shared one row at a time, deliberately, by the
+member. A note about how a day felt was never offered to anybody, and a policy letting the mentor
+read it would change what people are willing to write. If sharing a day is wanted later it should
+be a per-row flag like `shared_with_mentor`, never a widening of the read policy.
+
+**A DATE, not a timestamp, and the keys never go through `new Date(key)`.** The calendar groups
+trades by the member's local day. `new Date('2026-09-10')` is midnight UTC — the evening of the 9th
+in New York — so any code that parsed a day key as a date and then took its local day would file
+every note one day early. `dayKeyLabel` builds its date from the parts, at noon.
+
+**Hidden in screenshot mode, by not drawing it.** The toggle now reads *"Hide account numbers and
+day notes"*. A note is free text and can name an account, a firm, a figure, or how somebody felt,
+and the toggle exists for the moment the page is about to be shown to other people. The marker on a
+cell stays — that a note exists says nothing — and the note's text never goes into a tooltip.
+
+**A calendar cell no longer scrolls to its trades.** It opens the day in the panel, and the panel
+offers *See them below* as a link on days that have trades. Scrolling away from a note the member
+had just opened was the wrong default once there was a note to open.
+
+**Known limits:**
+
+- Notes are not in the statistics page, the CSV export, or anywhere a mentor can see. Each of those
+  is a decision, not an oversight, and none was asked for.
+- One note per day. Somebody wanting a pre-market plan *and* an end-of-day review writes both in the
+  same box. Two kinds of note would need a column and a choice on every save; nothing yet says it is
+  worth that.

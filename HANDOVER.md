@@ -3,7 +3,42 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 26 August 2026.
+Last updated: 10 September 2026.
+
+## 10 September 2026 — notes on the day
+
+**Run `supabase/day-notes.sql`.** Until it is run nothing breaks: the calendar and the journal work
+as before and show the file name where the note box would be.
+
+### What it is
+
+One private note per day. Written from a new card at the top of the journal (with a date picker, so
+last Tuesday can be written up too) or from a panel that now sits between the calendar grid and the
+month's trade list. A day with a note gets a small dot beside its date. Every calendar cell is a
+button now — the empty ones included, because a day somebody chose not to trade is the day most
+worth a sentence. DECISIONS 2026-09-10 has the reasoning, including why the day and not the trade.
+
+**One behaviour changed.** Clicking a calendar cell used to scroll straight down to that day's
+trades. It now opens the day in the panel, which offers *See them below* as a link. The screenshot
+toggle now hides notes as well as account numbers — reads *"Hide account numbers and day notes"*.
+
+### Verified, and how
+
+No live database, so none of this has touched Supabase. What was run instead:
+
+- **The editor**, in a real browser, against the real `app.js` with `supabase.from` swapped for a
+  recorder: 23 of 23. `tools/probe-day-notes.browser.js` is that test, pasteable into the console
+  on `design.html`.
+- **The calendar's own module**, loaded with `requireRole` and the data stubbed, then driven: 26 of
+  26 — markers, selection, the draft guard on day and month changes, save redrawing the grid without
+  replacing the editor under the cursor, delete, screenshot mode leaving no note text anywhere in
+  the page, and the missing-table path leaving the grid intact with the file name in the panel.
+- **The journal's card**, the same way: 12 of 12.
+- All five Python checkers green; every page loads to `requireRole` with nothing before it.
+
+**Not verified:** the policies. Run Test 5 in `RLS-ATTACK-TESTS.md` with two members after the
+migration. And no screenshot of the finished calendar was taken — the browser pane would not paint
+while hidden — so the layout was checked by computed style rather than by eye. Worth one look.
 
 ## 26 August 2026 — the importer was quietly failing the checklist
 

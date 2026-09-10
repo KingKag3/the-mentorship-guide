@@ -2158,6 +2158,8 @@ footer.site a:hover { color: var(--brand-500); text-decoration: underline; }
 .auth-form input,
 .auth-form textarea,
 .auth-form select,
+.day-note-editor textarea,
+.day-note-when input,
 input.name-input,
 select.role-select {
   width: 100%;
@@ -2174,7 +2176,8 @@ select.role-select {
 }
 
 .auth-form input::placeholder,
-.auth-form textarea::placeholder { color: var(--ink-400); }
+.auth-form textarea::placeholder,
+.day-note-editor textarea::placeholder { color: var(--ink-400); }
 
 /* Numbers typed into a tool are data, so they get the data face. */
 .auth-form input[type="number"],
@@ -2188,6 +2191,8 @@ select.role-select {
 .auth-form input:focus,
 .auth-form textarea:focus,
 .auth-form select:focus,
+.day-note-editor textarea:focus,
+.day-note-when input:focus,
 .search-bar input:focus,
 input.name-input:focus,
 select.role-select:focus {
@@ -3984,6 +3989,107 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 @media (prefers-reduced-motion: reduce) {
   .day-group.is-target { animation: none; box-shadow: var(--ring); }
 }
+
+/* ----------------------------- notes on the day -----------------------------
+
+   Written in the calendar's day panel and in a card at the top of the journal;
+   one editor, from app.js, so the two cannot drift apart in how they look any
+   more than in how they save. */
+
+/* A day with no trades is a button now, so that a note can be written on it.
+   It keeps the plain background - it is not a result - and gets only the
+   pointer and the hover edge that says it can be pressed. */
+.cal-cell.is-quiet { cursor: pointer; }
+.cal-cell.is-quiet:hover { border-color: var(--accent-dk); }
+
+/* The day the panel below is about. A ring rather than a fill: the fill is the
+   result, and changing it would make a red day look like something else while
+   it is selected. */
+.cal-cell.is-selected { box-shadow: var(--ring); }
+
+/* The marker. A dot beside the date, in the date's own colour, so it follows
+   the swatch ink on a green or red day and the muted ink on a plain one
+   without needing its own rule for each. Present or absent and nothing more -
+   the note's text never goes into a tooltip, where a screenshot could catch
+   it. */
+.cal-note {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+}
+
+.day-panel {
+  margin: var(--s-4) 0 var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.day-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-1);
+}
+
+.day-panel .day-group-sum { font-size: var(--step--1); }
+.day-panel-hint { margin: var(--s-3) 0 var(--s-5); }
+
+.day-note-editor label { display: block; font-weight: 600; margin-bottom: var(--s-2); }
+
+/* Borrows the form fields' look from the .auth-form rule above, and undoes
+   only its bottom margin - the buttons sit directly under the box. Serif, like
+   every other place on the site a member writes prose. */
+.day-note-editor textarea {
+  min-height: 6.5em;
+  margin: 0;
+  resize: vertical;
+  font-family: var(--serif);
+  line-height: 1.65;
+}
+
+.day-note-editor .row-actions { margin-top: var(--s-2); }
+
+/* The note again, read-only, above a day's trades in the list. Pre-wrap so the
+   line breaks somebody typed survive; it is their text, not markup, and it is
+   escaped before it gets here. */
+.day-note-read {
+  white-space: pre-wrap;
+  margin: 0 0 var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  font-family: var(--serif);
+  color: var(--fg);
+}
+
+/* The journal's card: the same editor, with a date picker above it. */
+.day-note-card {
+  margin: var(--s-4) 0 var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.day-note-card h2 { margin-top: 0; }
+
+.day-note-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.day-note-when input[type="date"] { width: auto; margin: 0; font-family: var(--mono); }
+.day-note-when label { font-weight: 600; }
 
 /* --------------------------- sent for review ------------------------------
  *

@@ -972,8 +972,8 @@ happened.</p>
       <span class="cal-value">$166.46</span>
       <span class="cal-count">1 trade</span>
     </div>
-    <div class="cal-cell has-trades is-down">
-      <span class="cal-date">5</span>
+    <div class="cal-cell has-trades is-down has-note">
+      <span class="cal-date">5<span class="cal-note" aria-hidden="true"></span></span>
       <span class="cal-value">−$298.12</span>
       <span class="cal-count">3 trades</span>
     </div>
@@ -987,14 +987,14 @@ happened.</p>
       <span class="cal-value">—</span>
       <span class="cal-count">1 trade, no result</span>
     </div>
-    <div class="cal-cell"><span class="cal-date">8</span></div>
-    <div class="cal-cell"><span class="cal-date">9</span></div>
+    <div class="cal-cell is-quiet has-note"><span class="cal-date">8<span class="cal-note" aria-hidden="true"></span></span></div>
+    <div class="cal-cell is-quiet"><span class="cal-date">9</span></div>
     <div class="cal-week is-up">
       <span class="cal-date">Week</span>
       <span class="cal-value">$2.68</span>
       <span class="cal-count">5 days</span>
     </div>
-    <div class="cal-cell has-trades is-down">
+    <div class="cal-cell has-trades is-down is-selected">
       <span class="cal-date">10</span>
       <span class="cal-value">−$412.90</span>
       <span class="cal-count">6 trades</span>
@@ -1022,13 +1022,46 @@ happened.</p>
   </div>
 </div>
 
+<p>Above: the 5th and the 8th carry a note, the 10th is selected. <code>.cal-note</code> is a dot
+in <code>currentColor</code>, so it takes the swatch ink on a green or red day and the muted ink on a
+plain one without a rule for each. It never carries the note's text in a tooltip — a screenshot
+would catch it. Days with no trades are <code>.is-quiet</code> buttons now, because the days most
+worth a note are the ones somebody chose not to trade. <code>.is-selected</code> is a ring, not a
+fill: the fill is the result.</p>
+
+<h3>Day panel and note editor</h3>
+
+<p>Between the grid and the list in <code>calendar.html</code>, and as <code>.day-note-card</code> at
+the top of <code>journal.html</code>. One editor, <code>dayNoteEditor()</code> in
+<code>app.js</code>, for both — two copies of a save that chooses between an upsert and a delete do
+not stay equal. Saving an empty box deletes the note, after asking. The textarea borrows the form
+fields' look from <code>.auth-form</code>, and the serif every other prose box on the site uses.</p>
+
+<div class="demo">
+  <section class="day-panel">
+    <h2 class="day-panel-head"><span>Monday 10 August</span>
+      <span class="day-group-sum">−$412.90</span></h2>
+    <p class="stat-note">6 trades. <a href="#">See them below</a>.</p>
+    <div class="day-note-editor">
+      <label for="demo-note">Notes on Monday 10 August</label>
+      <textarea id="demo-note" rows="4">Chased the open after the first push failed. Knew it at the time.</textarea>
+      <div class="row-actions">
+        <button type="button" class="btn-primary">Save note</button>
+        <button type="button" class="link-button">Delete note</button>
+      </div>
+      <p class="form-status form-status-ok">Saved.</p>
+    </div>
+  </section>
+</div>
+
 <h3>Day group</h3>
 
 <p>One block per day the month traded, listed under the calendar grid in <code>calendar.html</code>.
 The left edge carries the day's colour so the list scans the way the grid does without repeating
-its weight. Clicking a square in the grid scrolls to the matching group and flashes
-<code>.is-target</code>, which fades — it answers which one was clicked and nothing after that.
-Reduced motion gets the ring without the animation.</p>
+its weight. The panel's <em>See them below</em> scrolls to the matching group and flashes
+<code>.is-target</code>, which fades — it answers which one was asked for and nothing after that.
+Reduced motion gets the ring without the animation. A day with a note shows it read-only as
+<code>.day-note-read</code>, pre-wrapped so the member's line breaks survive.</p>
 
 <div class="demo">
   <section class="day-group is-up">
@@ -1041,7 +1074,8 @@ Reduced motion gets the ring without the animation.</p>
     <h3><span>Friday, 7 August</span>
       <span class="day-group-sum">−$250.00</span>
       <span class="day-group-n">1 trade</span></h3>
-    <p class="acct-muted">A red day, one trade.</p>
+    <p class="day-note-read">Took it into CPI. Should have waited for the second candle. <a href="#">edit</a></p>
+    <p class="acct-muted">A red day, one trade, with a note.</p>
   </section>
 </div>
 

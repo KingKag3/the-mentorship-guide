@@ -163,6 +163,41 @@ nothing — which is the failure mode that has fooled this project before.
 
 ---
 
+## Test 5 — a member reading another member's day notes
+
+`day_notes` is private with no exception at all: no mentor policy, no sharing flag. So there is
+nothing to widen and the test is short. Write one note as **A** and one as **B** first, from the
+calendar or the journal, or neither result below means anything.
+
+As **B**, in the console:
+
+```js
+const { data, error } = await supabase.from('day_notes').select('day, body');
+console.log(data, error);
+```
+
+* **Pass:** B's own note and nothing else.
+* **Fail:** A's note appears.
+
+Then a write, with its control. As **B**:
+
+```js
+// Must be refused: a row claiming to be A's.
+const bad = await supabase.from('day_notes')
+  .insert({ user_id: '<A''s user id>', day: '2026-01-01', body: 'attack test' });
+console.log(bad.error ?? 'WROTE IT — the insert policy did not refuse');
+
+// The control, which must succeed - B writing B's own.
+const ok = await supabase.from('day_notes')
+  .upsert({ user_id: '<B''s user id>', day: '2026-01-01', body: 'control' },
+          { onConflict: 'user_id,day' });
+console.log(ok.error ?? 'control wrote, as it should');
+```
+
+Delete the control note afterwards from the calendar.
+
+---
+
 ## Recording the result
 
 Whatever happens, write it into the **Verified by attack** section of `HANDOVER.md` with the date

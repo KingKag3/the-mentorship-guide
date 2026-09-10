@@ -58,6 +58,20 @@
   Nobody else can read these rows unless you flag one for the mentor.</p>
   <div id="tool-rail"></div>
 
+  <!-- Above the trade form, not below it. For somebody who imports - most
+       members, most days - the form is not where their day gets written down,
+       and a note under eighty lines of fields they never use is a note nobody
+       finds. It is small, and it says what it is. -->
+  <section class="day-note-card" id="day-note-card">
+    <h2>Notes on the day</h2>
+    <div class="day-note-when">
+      <label for="note-day">Day</label>
+      <input type="date" id="note-day">
+      <a href="calendar.html">See them on the calendar</a>
+    </div>
+    <div id="journal-day-note"><p class="stat-note">Loading&hellip;</p></div>
+  </section>
+
   <h2 id="form-heading">Log a trade</h2>
 
   <form class="auth-form auth-form-wide" id="trade-form" autocomplete="off">
@@ -390,7 +404,8 @@ import {
   tradeValue, money, CONTRACTS, weightedExit, migrationHint, dbError,
   toCsv, downloadText, stampedName, SESSIONS, chartLink, toPineTrades, copyText,
   pageSize, setPageSize, pageSlice, renderPager, isWaitingForMentor,
-  distinctDecisions, hasResult, localDay, fetchPaged, checklistState } from './app.js';
+  distinctDecisions, hasResult, localDay, fetchPaged, checklistState,
+  loadDayNotes, dayNoteEditor, todayKey, dayNotesDirty, dayKeyLabel } from './app.js';
 import { mountEditor, renderBody } from './editor.js';
 
 renderAccountStrip();
@@ -410,6 +425,62 @@ document.getElementById('body').hidden = false;
 
 const $ = (id) => document.getElementById(id);
 const form = $('trade-form');
+
+/* ----------------------------- notes on the day -----------------------------
+ *
+ * One note per day, the same row the calendar edits - see day-notes.sql for why
+ * the day and not the trade. Not awaited: the journal's trades are the page, and
+ * they should not wait on an optional table. A missing one turns this card into
+ * the file to run and leaves everything else alone.
+ */
+{
+  const picker = $('note-day');
+  const mount = $('journal-day-note');
+  let notes = new Map();
+  let shown = todayKey();
+
+  picker.value = shown;
+
+  const draw = () => dayNoteEditor(mount, {
+    userId: profile.id,
+    day: shown,
+    body: (notes.get(shown) || {}).body || '',
+    label: shown === todayKey() ? 'Today' : dayKeyLabel(shown),
+    onSaved: (day, body) => {
+      if (body === null) notes.delete(day);
+      else notes.set(day, { body });
+    }
+  });
+
+  loadDayNotes().then((got) => {
+    if (got.missing) {
+      mount.innerHTML = '<div class="callout"><span class="callout-label">Not set up yet</span>' +
+        '<p>Run <code>' + escapeHtml(got.missing) + '</code> in the Supabase SQL editor, then ' +
+        'reload.</p></div>';
+      picker.disabled = true;
+      return;
+    }
+    if (got.error) {
+      mount.innerHTML = dbError(got.error, 'Could not read your notes');
+      return;
+    }
+    notes = got.notes;
+    draw();
+  });
+
+  picker.addEventListener('change', () => {
+    // A cleared date input reads as '', which is not a day.
+    if (!picker.value) { picker.value = shown; return; }
+    if (picker.value === shown) return;
+    if (dayNotesDirty() &&
+        !confirm('Your note for ' + dayKeyLabel(shown) + ' is not saved. Leave it?')) {
+      picker.value = shown;
+      return;
+    }
+    shown = picker.value;
+    draw();
+  });
+}
 
 // Local datetime string for the datetime-local input, in the browser's own
 // timezone. Stored as a timestamptz, so the database keeps the absolute moment.

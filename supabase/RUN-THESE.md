@@ -11,7 +11,14 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+### `day-notes.sql` &mdash; notes on the day (10 September 2026)
+
+One table, `day_notes`, with its policies. Nothing else depends on it: until it is run, the
+calendar and the journal both work exactly as before and show the file name where the note box
+would be.
+
+**After running it,** confirm the policies from a browser, not the editor &mdash; the editor is the
+table owner and sees everybody's rows. Test 5 in `RLS-ATTACK-TESTS.md`.
 
 `prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
 `prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.

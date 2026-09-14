@@ -836,6 +836,9 @@ async function load() {
   const { data, error, capped: overCap } = await fetchPaged(() => supabase
     .from('trades')
     .select('*')
+    // Own rows only: an admin can read other members' shared trades, and they
+    // would otherwise be listed here as the admin's own. DECISIONS 2026-09-14.
+    .eq('user_id', profile.id)
     .order('opened_at', { ascending: false }), 5000);
 
   const mount = $('list');
@@ -1725,6 +1728,9 @@ $('export-journal').addEventListener('click', async () => {
   const { data, error } = await fetchPaged(() => supabase
     .from('trades')
     .select('*')
+    // An export is "my journal". Without this an admin's file would carry
+    // other members' shared trades. DECISIONS 2026-09-14.
+    .eq('user_id', profile.id)
     .order('opened_at', { ascending: true }), 50000);
 
   btn.disabled = false;

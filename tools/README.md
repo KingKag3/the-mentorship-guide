@@ -335,3 +335,27 @@ a day through UTC.
 It waits on microtasks, never timers. A hidden tab throttles `setTimeout` to a second or more, and a
 probe waiting on timers there looks exactly like a hang — which is how the first attempt at the
 calendar version of this ended, with its clicks still firing half a minute later into the next run.
+
+## check-own-trades.py
+
+Every personal read of `trades` must say whose trades it wants.
+
+Row-level security lets an admin read every member's **shared** trades — that is the Review tab. So a
+query with no `user_id` filter returns "my trades" for a member and "my trades plus everyone's shared
+ones" for the admin. It passes every test a member can run and is wrong only for the person building
+the site, which is how six such reads survived until 14 September 2026: the admin's journal,
+calendar, statistics, prop cards, export and import account list were all quietly mixing in other
+members' shared trades.
+
+It reads each `supabase.from('trades')` chain and flags a select that has neither
+`.eq('user_id', …)` nor `.eq('shared_with_mentor', true)` (the mentor's queue, where reading across
+members is the point) nor an id filter. Writes are ignored, because RLS refuses a write to somebody
+else's row regardless.
+
+**Proved against the code it was written for.** Pointed at a copy of the site from before the fix,
+it reports all six reads; on the fixed tree it reports none:
+
+```
+python tools/check-own-trades.py
+python tools/check-own-trades.py path/to/old/copy
+```

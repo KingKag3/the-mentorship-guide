@@ -910,3 +910,54 @@ had just opened was the wrong default once there was a note to open.
 - One note per day. Somebody wanting a pre-market plan *and* an end-of-day review writes both in the
   same box. Two kinds of note would need a column and a choice on every save; nothing yet says it is
   worth that.
+
+---
+
+## 2026-09-14 — "Rows the database returns" is not "my rows" when you are the admin
+
+**Decided:** every personal read of `trades` carries `.eq('user_id', profile.id)` in the query
+itself, and `tools/check-own-trades.py` fails the tree if one does not.
+
+**What was wrong.** `trades` has two read policies: *read own trades*, and *admins read shared* —
+an admin can read any member's trade the member has flagged for review. That second policy is the
+Review tab, and it is correct. But the journal, calendar, statistics, prop accounts, CSV export and
+the importer's account list all read `trades` with no owner filter, trusting row-level security to
+return "my trades". For a member it does. For the admin it returns their own trades **plus every
+shared trade on the site**.
+
+So for as long as anybody else had shared a trade, the admin's own journal listed it, the calendar
+added its result to the admin's days, the statistics counted it, the prop page drew a card for its
+account, and the export wrote it into the admin's file. Nothing looked wrong, because a shared trade
+looks exactly like a trade.
+
+**How it surfaced.** "Main" and "apex -001" kept being offered on the import page after being
+removed from the prop page. The likeliest explanation, **not yet confirmed**, is that they were never
+the admin's: they fit a test member's trades shared during the August attack tests. If so, the remove
+action deleted `where user_id = me and account = 'Main'`, matched nothing, and reported success
+anyway, and the names came back from the other member's rows. The console query in HANDOVER
+(14 Sep) settles whose they are.
+
+This is **not** how the six unrecognised `APEX-247230-…` / `APEX-28074-…` accounts were found in
+August. Those came from the SQL editor, which bypasses RLS entirely, a different mechanism. Whether
+they were also on the admin's pages depends on whether their owners shared anything, and nobody has
+checked.
+
+**Why it hid so well.** It is wrong for exactly one user, and that user is the person who builds and
+tests the site. Every check a member could run passes. The earlier attack tests were about what a
+member can *reach*; this is about what an admin's own pages *assume*, and RLS was working perfectly
+throughout — it was the page that asked the wrong question.
+
+**The rule:** RLS decides what a user may see. The query decides what a page means. A page that
+means "mine" says so, even where the policy would currently produce the same answer, because the
+policy is allowed to widen for good reasons and the page must not change meaning when it does.
+
+**Allowed exceptions, named in the checker:** `shared_with_mentor = true` reads (admin.html's queue
+and the masthead count in `app.js`), and reads addressed by id.
+
+**Nothing was deleted and nothing needs deleting.** The other members' trades are theirs and are
+untouched; they simply stop appearing on the admin's personal pages.
+
+**Known limit, not fixed here:** the prop page's remove action reports success without checking that
+anything was removed. With the filter in place it can no longer be offered an account that is not
+the admin's, so the case that exposed this cannot recur — but a delete that matches nothing should
+still say so, and it does not.

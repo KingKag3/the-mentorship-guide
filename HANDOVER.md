@@ -3,7 +3,33 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 10 September 2026.
+Last updated: 14 September 2026.
+
+## 14 September 2026 — the admin's own pages were showing other members' shared trades
+
+**No migration.** Code only; DECISIONS 2026-09-14 has the full account.
+
+`trades` lets an admin read any member's shared trade (that is the Review tab). Six personal reads
+(journal list, journal export, calendar, statistics, prop accounts, and the importer's account list)
+had no `user_id` filter, so for the admin they returned other members' shared trades as well. Each
+now filters to the signed-in member. `tools/check-own-trades.py` fails the tree if a new one appears;
+pointed at the pre-fix code it reports all six, and on the fixed tree none.
+
+**Not confirmed: whose "Main" and "apex -001" were.** Most likely a test member's shared trades. To
+settle it, open any members page signed in as admin and run this in the console. It only reads.
+
+```js
+const { data: { user } } = await supabase.auth.getUser();
+const { data } = await supabase.from('trades')
+  .select('account, user_id, shared_with_mentor, opened_at')
+  .in('account', ['Main', 'apex -001']);
+console.log('me:', user.id); console.table(data);
+```
+
+A `user_id` different from `me` confirms it. If any row **is** yours, the prop page's remove action
+failed silently and that needs looking at.
+
+**Also not fixed:** the prop page's remove reports success even when its delete matches nothing.
 
 ## 10 September 2026 — notes on the day
 
@@ -450,6 +476,13 @@ quietly rebuild something that already exists.
    122 trades, −2,866.12. Almost certainly other members' — the owner-scoped
    count proves they are not Kag3's — but nobody has looked at the email beside
    them yet. **Do not delete anything on the strength of an account name.**
+
+   *14 Sep 2026:* a related but separate problem was found and fixed — the admin's own pages read
+   `trades` with no owner filter, so other members' **shared** trades appeared on them (DECISIONS
+   2026-09-14). That is not how these six were found; they came from the SQL editor, which bypasses
+   RLS altogether. Whether they were also showing on the prop page depends on whether their owners
+   shared any trades, and nobody has checked. Either way the fix stops them appearing, and deletes
+   nothing.
 3. **`props.html` cards** settle three migrations still marked *not
    independently confirmed*, and the funded-account button has never been
    pressed.

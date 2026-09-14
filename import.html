@@ -207,7 +207,7 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
-         money, migrationHint, contractFor, sessionAt } from './app.js';
+         money, migrationHint, contractFor, sessionAt, fetchPaged } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'import.html');
@@ -353,9 +353,25 @@ let lastFile = null;
 
 // Accounts already in use, so a second import into the same one is a pick
 // rather than a retype that silently creates a second account.
+//
+// OWN ROWS ONLY. This read had no owner filter, and row-level security lets an
+// admin read every member's shared trades - so an admin was offered other
+// members' account names here, as though they were their own, and importing
+// into one would have filed trades under a name that belonged to somebody else.
+//
+// It was also `.limit(2000)` with no order, so past two thousand trades an
+// account could silently drop out of the list. Paged now, and topped up from
+// `prop_accounts`, so an account set up before its first trade is offered too.
 {
-  const { data } = await supabase.from('trades').select('account').limit(2000);
-  const names = [...new Set((data || []).map((r) => r.account).filter(Boolean))].sort();
+  const [tradeNames, configured] = await Promise.all([
+    fetchPaged(() => supabase.from('trades').select('account')
+      .eq('user_id', profile.id).order('opened_at', { ascending: false }), 50000),
+    supabase.from('prop_accounts').select('account').eq('user_id', profile.id)
+  ]);
+  const names = [...new Set([
+    ...((tradeNames.data || []).map((r) => r.account)),
+    ...((configured.data || []).map((r) => r.account))
+  ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   $('dl-acct').innerHTML = names.map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
 }
 

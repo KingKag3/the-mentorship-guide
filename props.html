@@ -256,8 +256,11 @@ const PRESET_OPTIONAL =
   'payout_day_min, payout_minimum, max_payouts, consistency_pct, safety_net_payouts';
 
 const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
+  // Own rows only - an admin can read other members' shared trades, and their
+  // accounts would otherwise appear here as cards. See DECISIONS 2026-09-14.
   fetchPaged(() => supabase.from('trades')
     .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
+    .eq('user_id', profile.id)
     .order('opened_at', { ascending: true }), 50000),
   supabase.from('prop_accounts')
     /* THE FIVE ON THE SECOND LINE WERE WRITTEN AND NEVER READ.

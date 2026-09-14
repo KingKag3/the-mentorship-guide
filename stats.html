@@ -223,9 +223,14 @@ const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
  * authoritative and describe a period the member did not ask about. */
 const STATS_CAP = 20000;
 
+/* OWN ROWS ONLY, SAID IN THE QUERY. Row-level security lets an admin read
+ * every member's SHARED trades - that is what the Review tab is for - so
+ * without this filter an admin's own page silently mixes other members'
+ * trades into theirs. See DECISIONS 2026-09-14. */
 const { data, error, capped: readAll } = await fetchPaged(() => supabase
   .from('trades')
   .select('*')
+  .eq('user_id', profile.id)
   .order('opened_at', { ascending: true }), STATS_CAP);
 
 if (error) {

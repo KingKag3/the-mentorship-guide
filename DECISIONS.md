@@ -1059,3 +1059,44 @@ entry chose too.
 **Counts will change.** Days already imported will report fewer decisions than they did yesterday —
 the old numbers were the inflated ones. Nothing about money changes: eighteen accounts really did
 make eighteen lots of it, and the totals were never deduplicated.
+
+---
+
+## 2026-09-17 — A note about a moment is neither a trade note nor a day note
+
+**Decided:** a third table, `chart_marks`, holding one note pinned to an instant and (optionally) a
+price on a session chart. Private to the member. Placed by arming a control and clicking the chart.
+
+**Why neither of the two that already exist can hold it.** `day_notes` is one row per day: it
+answers "how did today go" and has nowhere to put *at 09:47, right here at 29,704*. `trades.notes`
+is attached to a fill and inherits its time — but the moment somebody wants to mark is usually **not
+a fill**. It is the level they should have waited for, the candle that told them they were wrong,
+the point the trade turned over. A note about the trade that did not happen has no trade to hang on.
+
+**`price` is nullable, and that is a feature.** "The whole afternoon was tilt" is about a time and
+not a level. Such a mark is drawn as a line down the chart rather than a pin on it, because giving
+it a price would invent a claim the member did not make. The page reads a leading `time:` as meaning
+that, rather than adding a second control nobody would find.
+
+**Letters, not numbers.** Trades on the same chart are already numbered, and a second run of numbers
+beside them would be two counting systems in one picture. A mark is A, B, C.
+
+**Modal, deliberately.** Placing a mark needs a point, and a click on the chart already means "zoom
+to this trade". Rather than overload the click — guessing which was meant, and being wrong half the
+time — the member says *Mark a moment* first and the cursor changes to say the chart is armed.
+
+**The crop had to learn about marks**, found by testing rather than reasoning: the chart fits itself
+to the trading, so a note written at 16:30 over a morning's trades vanished the instant it saved. A
+note you cannot find is worse than a wider chart, so marks now count towards the fit.
+
+**The scale is published on the element** — `data-t0`, `data-t1`, `data-lo`, `data-hi` and the plot
+box — so a click can be read back into a moment and a price. The alternative was exporting a live
+object from `chart.js` and keeping two copies of the arithmetic in step.
+
+**Prices snap to the instrument's tick.** A click lands on 29,704.3718, and a price that cannot
+exist on the ladder reads as noise: it claims the member pointed at something finer than the market
+trades in.
+
+**Known limit:** the text is collected with `prompt()`. It is ugly, it cannot be styled, and on a
+phone it is a system dialog. It is also three lines instead of an editor, and this is the first
+version — if marks get used, an inline editor like the day note's is the obvious next step.

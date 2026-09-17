@@ -160,7 +160,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          tradeValue, money, localDay, hasResult, toNumber, dbError, fetchPaged,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager, barTrack,
-         loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty } from './app.js';
+         loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty,
+         contractFor, migrationHint } from './app.js';
 import { barChart, tradeMap, sessionRun, barSymbol } from './chart.js';
 import { longestRun, streakOdds } from './analytics.js';
 
@@ -637,6 +638,18 @@ let chartView = 'fit';
 let chartZoom = null;     // { from, to } in milliseconds
 let chartPicked = null;   // the decision numbers that were picked
 
+/* Marks: the member's own notes pinned to a moment on the chart.
+ *
+ * `marking` is the one piece of modal state on this page, and it is deliberate.
+ * Placing a mark needs a point, and the only way to get a point is a click on
+ * the chart - which already means "zoom to this trade" when it lands on a
+ * marker. Rather than overload the click, the member says "I am about to mark
+ * something" first, and the chart says so back by changing the cursor.
+ */
+let marksBySymbol = new Map();   // 'NQ' -> rows
+let marking = false;
+let marksMissing = null;         // the migration to run, when the table is absent
+
 async function drawDayChart(day) {
   const mine = drawToken = drawToken + 1;
   const mount = $('day-chart');
@@ -665,6 +678,10 @@ async function drawDayChart(day) {
     return v.dollars ?? 0;
   };
 
+  await loadMarks([...bySymbol.keys()], decisions);
+  // The cursor is the only thing that says the chart is armed.
+  document.body.classList.toggle('is-marking', marking);
+
   const parts = [];
   for (const [sym, list] of bySymbol) {
     const bars = await barsFor(sym, list);
@@ -676,14 +693,61 @@ async function drawDayChart(day) {
     if (bars && bars.length) {
       parts.push(barChart(bars, list, {
         symbol: sym, value, fmt, view: chartView,
-        zoom: chartZoom, picked: chartPicked
-      }));
+        zoom: chartZoom, picked: chartPicked,
+        marks: marksBySymbol.get(sym) || []
+      }) + markControls(sym));
     } else {
       parts.push(tradeMap(list, { value, fmt }) + await whyNoBars(sym, day));
     }
   }
 
   mount.innerHTML = parts.join('');
+}
+
+/* The member's marks for the symbols on screen.
+ *
+ * Asked for a day either side of the trades, the same window the bars use, so a
+ * mark made on the overnight session before an entry is still there. A missing
+ * table is not an error: the migration may not have been run, and the chart is
+ * useful without marks - the control says which file to run instead of the
+ * page falling over. */
+async function loadMarks(symbols, decisions) {
+  marksBySymbol = new Map();
+  if (!symbols.length || !decisions.length) return;
+
+  const stamps = decisions.map((d) => new Date(d.opened_at).getTime());
+  const from = new Date(Math.min(...stamps) - 24 * 3600 * 1000).toISOString();
+  const to = new Date(Math.max(...stamps) + 24 * 3600 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('chart_marks')
+    .select('id, symbol, at, price, body')
+    .eq('user_id', profile.id)
+    .in('symbol', symbols)
+    .gte('at', from).lte('at', to)
+    .order('at', { ascending: true });
+
+  if (error) { marksMissing = migrationHint(error) || 'supabase/chart-marks.sql'; return; }
+
+  marksMissing = null;
+  for (const row of data || []) {
+    if (!marksBySymbol.has(row.symbol)) marksBySymbol.set(row.symbol, []);
+    marksBySymbol.get(row.symbol).push(row);
+  }
+}
+
+/** The button under each chart, and whatever it is currently saying. */
+function markControls(symbol) {
+  if (marksMissing) {
+    return '<p class="stat-note">Marking the chart needs <code>' + escapeHtml(marksMissing) +
+      '</code> run in the Supabase SQL editor.</p>';
+  }
+  return '<div class="row-actions ch-tools">' +
+    '<button type="button" class="' + (marking ? 'btn-primary' : 'link-button') +
+      '" data-mark-add="' + escapeHtml(symbol) + '">' +
+      (marking ? 'Now click the chart' : 'Mark a moment') + '</button>' +
+    (marking ? '<button type="button" class="link-button" data-mark-cancel>Cancel</button>' : '') +
+    '</div>';
 }
 
 /* Bars around the trades, rather than a session window worked out here.
@@ -768,6 +832,106 @@ async function whyNoBars(symbol, day) {
       'roughly two months of history the source keeps.');
   }
   return note('Candles for this session have not been fetched yet. The job runs overnight.');
+}
+
+/* ------------------------------ marking -----------------------------------
+
+   Turning a click into a moment and a price.
+
+   The chart publishes its own scale on the element - t0, t1, lo, hi and the
+   plot box - so this does not need a live object from chart.js, and the two
+   cannot drift apart: whatever drew the picture is what is read back.
+
+   `getScreenCTM` does the hard part. The SVG scales to fit its box, so a page
+   pixel is not a drawing unit, and working that ratio out by hand means
+   duplicating what the browser already knows.
+-------------------------------------------------------------------------- */
+
+function pointAt(svg, event) {
+  const pt = svg.createSVGPoint();
+  pt.x = event.clientX;
+  pt.y = event.clientY;
+  const at = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+  const n = (k) => Number(svg.dataset[k]);
+  const x = (at.x - n('padLeft')) / n('plotW');
+  const y = (at.y - n('padTop')) / n('plotH');
+
+  // Outside the plot: the axis gutter, or the margin. Not a moment.
+  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+
+  return {
+    at: new Date(n('t0') + x * (n('t1') - n('t0'))),
+    price: n('lo') + (1 - y) * (n('hi') - n('lo')),
+    symbol: svg.dataset.symbol
+  };
+}
+
+/* Snapped to the instrument's own tick.
+ *
+ * A click lands on 29,704.3718, and a price that cannot exist on the ladder
+ * reads as noise - it says the member pointed at something more precise than
+ * the market trades in. The tick is what the sizer and the journal already use.
+ */
+function snapPrice(price, symbol) {
+  const spec = contractFor(symbol);
+  const tick = spec && spec.tick ? spec.tick : 0.01;
+  return Math.round(price / tick) * tick;
+}
+
+async function placeMark(svg, event) {
+  const spot = pointAt(svg, event);
+  if (!spot) return;
+
+  const price = snapPrice(spot.price, spot.symbol);
+  const body = prompt('A note at ' +
+    spot.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) +
+    ', ' + price + ':\n\nLeave the price out by starting with "time:" if it is about the ' +
+    'moment rather than the level.');
+
+  if (body === null) return;                 // cancelled
+  const text = body.trim();
+  if (!text) return;
+
+  /* "time: ..." stores no price, and the chart draws a line instead of a pin.
+   * The alternative was a second control nobody would find. */
+  const timeOnly = /^time\s*:/i.test(text);
+
+  const { error } = await supabase.from('chart_marks').insert({
+    user_id: profile.id,
+    symbol: spot.symbol,
+    at: spot.at.toISOString(),
+    price: timeOnly ? null : price,
+    body: timeOnly ? text.replace(/^time\s*:\s*/i, '') : text
+  });
+
+  marking = false;
+  if (error) {
+    alert(migrationHint(error)
+      ? 'Marking needs ' + migrationHint(error) + ' run first.'
+      : 'Could not save that mark: ' + error.message);
+    return;
+  }
+  drawDayChart(selected);
+}
+
+async function editMark(id) {
+  const all = [...marksBySymbol.values()].flat();
+  const mark = all.find((m) => m.id === id);
+  if (!mark) return;
+
+  const body = prompt('Edit this mark, or clear it to delete:', mark.body);
+  if (body === null) return;
+
+  const text = body.trim();
+  const { error } = text
+    ? await supabase.from('chart_marks').update({ body: text })
+        .eq('id', id).eq('user_id', profile.id)
+    : await supabase.from('chart_marks').delete()
+        .eq('id', id).eq('user_id', profile.id);
+
+  if (error) { alert('Could not save that: ' + error.message); return; }
+  drawDayChart(selected);
 }
 
 /** A day key shifted by whole days, without going near a timezone. */
@@ -1188,6 +1352,43 @@ document.addEventListener('click', (e) => {
     chartPicked = null;
     drawDayChart(selected);
     return;
+  }
+
+  // Arming and disarming the marker.
+  const addMark = e.target.closest('[data-mark-add]');
+  if (addMark) {
+    e.preventDefault();
+    marking = !marking;
+    drawDayChart(selected);
+    return;
+  }
+  if (e.target.closest('[data-mark-cancel]')) {
+    e.preventDefault();
+    marking = false;
+    drawDayChart(selected);
+    return;
+  }
+
+  // An existing mark, on the chart or in the list under it.
+  const mark = e.target.closest('[data-mark]');
+  if (mark) {
+    e.preventDefault();
+    editMark(Number(mark.dataset.mark));
+    return;
+  }
+
+  /* A click on the chart itself, while armed, is a new mark.
+   *
+   * Checked BEFORE the marker-picking branch below, because a member who has
+   * just pressed "Mark a moment" and clicked their own entry means to annotate
+   * it, not to zoom into it. */
+  if (marking) {
+    const svg = e.target.closest('.ch-svg');
+    if (svg) {
+      e.preventDefault();
+      placeMark(svg, e);
+      return;
+    }
   }
 
   /* A marker, a tally or a row in the key: zoom to what was clicked and mark it

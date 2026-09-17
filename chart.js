@@ -117,14 +117,24 @@ export function zoomToWindow(bars, from, to) {
   return bars;
 }
 
-/** The bars worth drawing for these decisions, and whether anything was cut. */
-export function cropToTrades(bars, decisions) {
+/** The bars worth drawing for these decisions and marks, and whether anything was cut.
+ *
+ * MARKS COUNT TOWARDS THE FIT, not only trades. A member who writes "the whole
+ * afternoon was tilt" at 16:30 over a morning's trading would otherwise watch
+ * the note vanish as it saved: the crop is fitted to the fills, 16:30 falls
+ * outside it, and nothing on the page says where it went. A note you cannot
+ * find is worse than a wider chart. */
+export function cropToTrades(bars, decisions, marks) {
   const stamps = [];
   for (const d of decisions) {
     const open = Date.parse(d.opened_at);
     const close = Date.parse(d.closed_at || d.opened_at);
     if (Number.isFinite(open)) stamps.push(open);
     if (Number.isFinite(close)) stamps.push(close);
+  }
+  for (const m of marks || []) {
+    const at = Date.parse(m.at);
+    if (Number.isFinite(at)) stamps.push(at);
   }
   if (!stamps.length) return { bars, cropped: false };
 
@@ -600,6 +610,98 @@ function legend(key, { money: fmtMoney = money, picked = null } = {}) {
     '</li>').join('') + '</ol>';
 }
 
+/* ------------------------------ marks on it ------------------------------
+
+   A note pinned to a moment: "added here", "this is where it went against me".
+   Not a trade and not a day note - supabase/chart-marks.sql says why neither of
+   those can hold it.
+
+   LETTERS, NOT NUMBERS. Trades are numbered on this chart already, and a second
+   run of numbers beside them would be two counting systems in one picture. A
+   mark is A, B, C; a trade is 1, 2, 3; nothing has to be explained.
+-------------------------------------------------------------------------- */
+
+const markLetter = (i) => {
+  // A..Z, then AA, AB. Twenty-seven marks on one session is unusual and should
+  // still get a label rather than wrapping back to A.
+  let n = i, out = '';
+  do { out = String.fromCharCode(65 + (n % 26)) + out; n = Math.floor(n / 26) - 1; } while (n >= 0);
+  return out;
+};
+
+const inView = (m, s) => {
+  const at = Date.parse(m.at);
+  return Number.isFinite(at) && at >= s.t0 && at <= s.t1;
+};
+
+function markLayer(marks, s, height) {
+  if (!marks || !marks.length) return '';
+
+  let out = '';
+  marks.forEach((m, i) => {
+    if (!inView(m, s)) return;
+
+    const x = s.x(m.at);
+    const letter = markLetter(i);
+    const price = num(m.price);
+    const hasPrice = Number.isFinite(price);
+    const label = escapeHtml(letter + ' - ' + hhmm(m.at) +
+      (hasPrice ? ' at ' + price : '') + ' - ' + m.body + ' (click to edit)');
+
+    const chip = (cx, cy) =>
+      '<rect x="' + (cx - 8).toFixed(1) + '" y="' + cy.toFixed(1) +
+        '" width="16" height="14" rx="3" fill="currentColor"/>' +
+      '<text x="' + cx.toFixed(1) + '" y="' + (cy + 10.5).toFixed(1) +
+        '" fill="var(--page, #fff)" font-size="10" font-weight="700" ' +
+        'text-anchor="middle">' + letter + '</text>';
+
+    if (!hasPrice) {
+      /* A mark about a TIME rather than a level: a line down the whole chart.
+       * "The afternoon was a mistake" has no price to sit at, and giving it one
+       * would invent a claim the member did not make. */
+      out +=
+        '<g class="ch-mark ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+          '<line x1="' + x.toFixed(1) + '" y1="' + PAD.top + '" x2="' + x.toFixed(1) +
+            '" y2="' + (height - PAD.bottom) + '" stroke="currentColor" stroke-width="1" ' +
+            'stroke-dasharray="4 4" opacity="0.7"/>' +
+          chip(x, height - PAD.bottom - 16) +
+          '<title>' + label + '</title>' +
+        '</g>';
+      return;
+    }
+
+    const y = s.y(price);
+    out +=
+      '<g class="ch-mark ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+        // A stalk, so the chip points at the level instead of covering it.
+        '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) +
+          '" y2="' + (y - 16).toFixed(1) + '" stroke="currentColor" stroke-width="1.2" opacity="0.8"/>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.6" fill="currentColor"/>' +
+        chip(x, y - 30) +
+        '<title>' + label + '</title>' +
+      '</g>';
+  });
+
+  return out;
+}
+
+/** The marks in view, listed under the chart, lettered as they are drawn. */
+function markList(marks, s) {
+  const shown = (marks || []).map((m, i) => ({ m, letter: markLetter(i) }))
+    .filter(({ m }) => inView(m, s));
+  if (!shown.length) return '';
+
+  return '<ul class="ch-marks">' + shown.map(({ m, letter }) =>
+    '<li class="ch-pick" tabindex="0" role="button" data-mark="' + m.id + '" ' +
+      'title="Click to edit or delete">' +
+      '<span class="ch-mark-n">' + letter + '</span>' +
+      '<span class="ch-mark-at">' + escapeHtml(hhmm(m.at)) +
+        (Number.isFinite(num(m.price)) ? ' at ' + escapeHtml(String(m.price)) : '') +
+      '</span>' +
+      '<span class="ch-mark-body">' + escapeHtml(m.body) + '</span>' +
+    '</li>').join('') + '</ul>';
+}
+
 /* --------------------------------- charts -------------------------------- */
 
 /**
@@ -610,7 +712,8 @@ function legend(key, { money: fmtMoney = money, picked = null } = {}) {
  * `value`     what a trade was worth, so dollars and R can both be drawn
  */
 export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zoom = null,
-                                            picked = null, width = 1200, height = 470 } = {}) {
+                                            picked = null, marks = null,
+                                            width = 1200, height = 470 } = {}) {
   if (!bars || !bars.length) return '';
 
   const allDecisions = decisions;
@@ -619,7 +722,7 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zo
     ? { bars: zoomToWindow(full, zoom.from, zoom.to), cropped: true, zoomed: true }
     : view === 'all'
       ? { bars: full, cropped: false }
-      : cropToTrades(full, decisions);
+      : cropToTrades(full, decisions, marks);
   bars = crop.bars;
   if (!bars.length) bars = full;
 
@@ -655,7 +758,7 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zo
    * the top of the chart. Past that the numerals do the job of saying WHICH
    * candle, and the key underneath does the job of saying what it was. */
   const fmtValue = fmt || money;
-  const marks = markers(decisions, s, value, {
+  const marksDrawn = markers(decisions, s, value, {
     flag: decisions.length <= 8,
     number: decisions.length > 8 && decisions.length <= 24,
     fmtValue, height, picked, numbers
@@ -671,14 +774,24 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zo
    * The viewBox is wider than it was for the same reason the labels were
    * colliding: a 23-hour session needs the room. */
   return '<figure class="ch-figure">' +
+    /* THE SCALE IS PUBLISHED ON THE ELEMENT, so a click on the chart can be
+     * turned back into a moment and a price. The page cannot ask a string of
+     * markup what the point 400,120 means, and handing it four numbers is
+     * cheaper than exporting a live object and keeping the two in step. */
     '<svg class="ch-svg" viewBox="0 0 ' + width + ' ' + height + '" ' +
       'preserveAspectRatio="xMidYMid meet" role="img" ' +
+      'data-symbol="' + escapeHtml(symbol) + '" ' +
+      'data-t0="' + s.t0 + '" data-t1="' + s.t1 + '" ' +
+      'data-lo="' + s.lo + '" data-hi="' + s.hi + '" ' +
+      'data-pad-left="' + PAD.left + '" data-pad-top="' + PAD.top + '" ' +
+      'data-plot-w="' + s.plotW + '" data-plot-h="' + s.plotH + '" ' +
       'aria-label="' + escapeHtml(symbol + ' five-minute candles from ' + from + ' to ' + to +
-        ', with ' + marks.drawn + ' of your ' +
+        ', with ' + marksDrawn.drawn + ' of your ' +
         (decisions.length === 1 ? 'decision' : 'decisions') + ' marked') + '">' +
       priceAxis(s, width) +
       candles(bars, s) +
-      marks.html +
+      marksDrawn.html +
+      markLayer(marks, s, height) +
       timeAxis(s, bars, height) +
     '</svg>' +
     '<figcaption class="stat-note">' + escapeHtml(symbol) + ' 5-minute candles, ' +
@@ -696,7 +809,7 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zo
           escapeHtml(hhmm(full[0].ts)) + ' to ' + escapeHtml(hhmm(full[full.length - 1].ts)) +
           '. <button type="button" class="link-button" data-chart-view="all">' +
           'Show the whole session</button>. '
-        : view === 'all' && cropToTrades(full, decisions).cropped
+        : view === 'all' && cropToTrades(full, decisions, marks).cropped
           ? '<button type="button" class="link-button" data-chart-view="fit">' +
             'Fit to your trading</button>. '
           : '') +
@@ -706,21 +819,22 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zo
        * anywhere, and saying nothing about it leaves a chart that looks like a
        * quiet day over a journal that says otherwise. */
       (decisions.length !== allDecisions.length
-        ? marks.drawn + ' of the day’s ' + allDecisions.length +
+        ? marksDrawn.drawn + ' of the day’s ' + allDecisions.length +
           ' decisions are in this view, marked at your own fill prices.'
-        : marks.drawn === decisions.length
-        ? marks.drawn + (marks.drawn === 1 ? ' decision marked' : ' decisions marked') +
+        : marksDrawn.drawn === decisions.length
+        ? marksDrawn.drawn + (marksDrawn.drawn === 1 ? ' decision marked' : ' decisions marked') +
           ' at your own fill prices, not at the candle.'
-        : marks.unasked
+        : marksDrawn.unasked
           /* Say which of the two it is. "No price recorded" sends somebody to
            * re-import a file that was always fine. */
-          ? marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; this page did ' +
+          ? marksDrawn.drawn + ' of ' + decisions.length + ' decisions marked &mdash; this page did ' +
             'not ask the database for fill prices, which is a fault here rather than anything ' +
             'missing from your journal.'
-          : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have ' +
+          : marksDrawn.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have ' +
             'no entry or exit price recorded, so there is nowhere on the chart to put them.') +
     '</figcaption>' +
-    legend(marks.key, { money: fmt || money, picked }) +
+    markList(marks, s) +
+    legend(marksDrawn.key, { money: fmt || money, picked }) +
   '</figure>';
 }
 
@@ -747,7 +861,7 @@ export function tradeMap(decisions, { value, fmt, width = 1200, height = 340 } =
                   low: Math.min(...prices) - pad, high: Math.max(...prices) + pad }];
 
   const s = scales(fake, usable, width, height);
-  const marks = markers(usable, s, value, {
+  const marksDrawn = markers(usable, s, value, {
     flag: usable.length <= 8,
     number: usable.length > 8 && usable.length <= 24,
     fmtValue: fmt || money
@@ -763,7 +877,7 @@ export function tradeMap(decisions, { value, fmt, width = 1200, height = 340 } =
         (usable.length === 1 ? 'decision' : 'decisions') +
         ' by time and price, ' + hhmm(first) + ' to ' + hhmm(last)) + '">' +
       priceAxis(s, width) +
-      marks.html +
+      marksDrawn.html +
       // Two labels rather than an hourly axis: with no bars behind them there
       // is nothing for hourly ticks to line up with, and a grid of times over
       // empty space suggests a precision this view does not have.
@@ -775,6 +889,6 @@ export function tradeMap(decisions, { value, fmt, width = 1200, height = 340 } =
     '</svg>' +
     '<figcaption class="stat-note">Your fills by time and price. No candles &mdash; see the note ' +
       'under the chart for why.</figcaption>' +
-    legend(marks.key, { money: fmt || money }) +
+    legend(marksDrawn.key, { money: fmt || money }) +
   '</figure>';
 }

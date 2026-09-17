@@ -4132,6 +4132,44 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .ch-key li.ch-pick:hover { background: var(--inset); }
+/* Marks: the member's own notes pinned to the chart. Letters rather than
+   numbers, because the trades on the same picture are numbered. */
+.ch-mark { color: var(--accent); font-family: var(--mono); }
+
+.ch-marks {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ch-marks li {
+  display: grid;
+  grid-template-columns: 1.6rem 6.5rem 1fr;
+  gap: var(--s-2);
+  align-items: baseline;
+  padding: 3px var(--s-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.ch-marks li:hover { background: var(--inset); }
+.ch-mark-n {
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: center;
+  color: var(--accent);
+}
+.ch-mark-at { font-family: var(--mono); color: var(--muted); }
+.ch-mark-body { font-family: var(--serif); }
+
+/* While armed, the chart is a surface to point at rather than a picture to
+   read, and the cursor is the only thing that can say so. */
+.ch-tools { margin-top: var(--s-2); }
+body.is-marking .ch-svg { cursor: crosshair; }
+
 .ch-key li.is-picked {
   box-shadow: inset 0 0 0 2px var(--accent);
   background: var(--paper);

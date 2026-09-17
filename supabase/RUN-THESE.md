@@ -11,7 +11,13 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+### `chart-marks.sql` — notes pinned to the chart (17 September 2026)
+
+One table. Until it is run the chart works exactly as it does now and the control under it says
+which file to run, so nothing breaks by waiting.
+
+It is what lets a member say *"I added here"* or *"this is where it went against me"* on the session
+chart itself. Private, like the day note, and for the same reason.
 
 `prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
 `prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.

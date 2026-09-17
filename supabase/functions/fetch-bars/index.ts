@@ -33,10 +33,14 @@
  *   POST { symbol, day }             - one session, for a retry by hand.
  *   POST { symbol, day, force: true } - refetch one that is already recorded.
  *
- * Callers: the scheduled job, with the service-role key; or a signed-in admin,
+ * Callers: the scheduled job, sending FETCH_BARS_SECRET; or a signed-in admin,
  * whose JWT is checked against `profiles.role`. Nothing else. A member's own
  * page never calls this - it reads `market_bars`, which is why the whole point
  * of the nightly run is that no page ever touches the source at request time.
+ *
+ * FETCH_BARS_SECRET is set on the function in the dashboard. Any long random
+ * string will do; it is compared whole. See the README for why it exists rather
+ * than reusing the project's service key.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -265,34 +269,95 @@ async function logRun(symbol: string, trading_day: string, status: string,
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/* ------------------------------ who may call ----------------------------- */
+/* ------------------------------ who may call -----------------------------
+ *
+ * THREE WAYS IN, AND THE FIRST ONE EXISTS BECAUSE THE OTHER TWO DEPEND ON
+ * THINGS THIS FUNCTION DOES NOT CONTROL.
+ *
+ * The first version accepted only `SUPABASE_SERVICE_ROLE_KEY` - the value the
+ * platform injects - or an admin's JWT. It refused every call on the project it
+ * was written for, and the reason is worth keeping: Supabase has two
+ * generations of keys, the JWT-shaped `eyJ...` and the newer `sb_secret_...`,
+ * and a project on one generation has an injected value that is simply a
+ * different string from the key its owner copies out of the dashboard. Nothing
+ * is wrong with either key. They are just not equal, which is all the check was
+ * asking.
+ *
+ * So the check no longer depends on guessing which generation a project is on.
+ * `FETCH_BARS_SECRET` is a value the owner sets and the caller sends, and it is
+ * the same string by construction.
+ */
 
-/** The service role key itself, or a signed-in admin. Nothing else. */
-async function allowed(req: Request): Promise<boolean> {
+/** Which credential, if any, this request carries. Refusals say which. */
+async function callerKind(req: Request): Promise<string> {
   const auth = req.headers.get('Authorization') || '';
   const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return false;
+  if (!token) return '';
 
-  // The schedule calls with the service key. Compared whole rather than
-  // decoded: it is a secret this function already holds.
-  if (token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) return true;
+  // 1. A shared secret the owner set on this function. Independent of key
+  //    generations, and what the nightly schedule sends.
+  const shared = Deno.env.get('FETCH_BARS_SECRET');
+  if (shared && token === shared) return 'secret';
 
-  // Otherwise it must be a member's JWT, and that member must be an admin.
+  // 2. The platform's own service key, whichever generation it is. Kept so a
+  //    project that never sets FETCH_BARS_SECRET still works.
+  if (token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) return 'service';
+
+  // 3. A signed-in admin, for retrying one day by hand from the site.
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return false;
+  if (error || !data?.user) return '';
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', data.user.id).maybeSingle();
 
-  return profile?.role === 'admin';
+  return profile?.role === 'admin' ? 'admin' : '';
 }
 
+/* CORS, so the retry can be triggered from the site.
+ *
+ * The README claimed a signed-in admin could call this from the browser, and
+ * that was not true as written: a cross-origin POST carrying an Authorization
+ * header is preflighted, and a function that answers OPTIONS with "POST only"
+ * fails before the real request is ever sent.
+ *
+ * Origin is `*` rather than the site's own, because the answer is worthless
+ * without a credential this function checks itself, and pinning it would break
+ * the moment the site is opened from localhost or a preview URL. */
+const CORS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+
   if (req.method !== 'POST') {
     return json({ error: 'POST only' }, 405);
   }
-  if (!(await allowed(req))) {
-    return json({ error: 'not allowed' }, 401);
+
+  const kind = await callerKind(req);
+  if (!kind) {
+    /* SAY ENOUGH TO DEBUG IT, AND NOTHING THAT HELPS AN ATTACKER.
+     *
+     * The first refusal of this said `{"error":"not allowed"}` and cost an
+     * evening: the logs showed the function booting and shutting down, which
+     * proves the request arrived and says nothing about why it was turned away.
+     * What follows is the SHAPE of the token - its first three characters and
+     * its length - which is enough to tell "you sent the publishable key" from
+     * "you sent a key of the wrong generation", and is not enough to reconstruct
+     * anything. */
+    const auth = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const shape = auth ? auth.slice(0, 3) + '...(' + auth.length + ' chars)' : 'no token';
+    console.log('refused a call; token shape: ' + shape +
+      '; FETCH_BARS_SECRET is ' + (Deno.env.get('FETCH_BARS_SECRET') ? 'set' : 'NOT set'));
+
+    return json({
+      error: 'not allowed',
+      sent: shape,
+      hint: 'Send FETCH_BARS_SECRET as the bearer token, or sign in as an admin. ' +
+            'Set that secret on this function in the dashboard if it is not set.'
+    }, 401);
   }
 
   const body = await req.json().catch(() => ({}));
@@ -332,5 +397,5 @@ Deno.serve(async (req) => {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body, null, 2),
-    { status, headers: { 'Content-Type': 'application/json' } });
+    { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }

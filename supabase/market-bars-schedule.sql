@@ -24,21 +24,29 @@ create extension if not exists pg_net;
 
 
 -- ---------------------------------------------------------------------------
--- 2. The service-role key, in the vault rather than in the schedule
+-- 2. The calling secret, in the vault rather than in the schedule
 --
--- The cron job has to authenticate as something, and the only caller the
--- function accepts besides an admin is the service role. Writing that key into
--- the job body would put it in `cron.job`, readable by anything with the right
--- grants and dumped by every backup - so it goes in Supabase's vault and the
--- job reads it by name.
+-- The cron job has to authenticate as something. That something is
+-- FETCH_BARS_SECRET - the value set on the function under Edge Functions ->
+-- Secrets - and NOT the project's service-role key.
 --
--- REPLACE the placeholder, run this once, and do not commit the result.
--- Dashboard -> Project Settings -> API -> service_role key.
+-- Why not the service key: Supabase has two generations of keys, `eyJ...` and
+-- `sb_secret_...`, and on a project that has moved generations the value the
+-- platform injects into the function is a different string from the one the
+-- dashboard shows its owner. Comparing them refuses every call, which is
+-- exactly what happened on 17 September 2026. A secret set by hand is the same
+-- string on both sides by construction.
+--
+-- It goes in the vault rather than in the job body because `cron.job` is
+-- readable by anything with the right grants and is dumped by every backup.
+--
+-- REPLACE the placeholder with the SAME value set on the function, run once,
+-- and do not commit the result.
 --
 --   select vault.create_secret(
---     'PASTE_SERVICE_ROLE_KEY_HERE',
+--     'PASTE_FETCH_BARS_SECRET_HERE',
 --     'fetch_bars_key',
---     'Service role key used by the nightly market_bars fetch');
+--     'Shared secret used by the nightly market_bars fetch');
 --
 -- Already created it and need to change it:
 --

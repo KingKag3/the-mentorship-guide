@@ -27,7 +27,8 @@ no candles, which is the view members without NQ or ES trades get anyway.
 
 ## Deploy
 
-From the repo root:
+Either paste the file into the dashboard's function editor (**Edge Functions → Deploy a new
+function → via editor**, named `fetch-bars`, entry file `index.ts`), or from the repo root:
 
 ```bash
 supabase functions deploy fetch-bars
@@ -36,16 +37,42 @@ supabase functions deploy fetch-bars
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided by the platform — do not set them, and
 do not put the service key anywhere in this repo.
 
+## Set FETCH_BARS_SECRET, or nothing can call it
+
+**Edge Functions → Secrets**, add `FETCH_BARS_SECRET` with any long random string. That value is
+what the caller sends as its bearer token.
+
+**Why a secret of your own rather than the project's service key.** The first version accepted only
+the injected `SUPABASE_SERVICE_ROLE_KEY`, and refused every call on the project it was written for.
+Supabase has two generations of keys — the JWT-shaped `eyJ…` and the newer `sb_secret_…` — and on a
+project that has moved, the value the platform injects is simply a different string from the one its
+owner copies out of the dashboard. Nothing is wrong with either key; they are not equal, which is
+all the comparison was asking. A secret you set is the same string on both sides by construction.
+
+The old path still works where it works: the injected service key is accepted too, as is a
+signed-in admin's JWT.
+
+## Turn off "Verify JWT" for this function
+
+In the function's settings. Supabase's gate rejects tokens that are not JWTs for this project, which
+includes the shared secret above. The function does its own check — secret, service key, or an admin
+JWT, and a plain `401` for anything else — so the gate is a second lock that only turns the right
+key away.
+
 ## Try it before scheduling it
 
 One session, by hand. Replace the key and pick a day you traded NQ or ES:
 
 ```bash
 curl -X POST https://djqpgdchknwgmjmkagnr.supabase.co/functions/v1/fetch-bars \
-  -H "Authorization: Bearer <SERVICE_ROLE_KEY>" \
+  -H "Authorization: Bearer <FETCH_BARS_SECRET>" \
   -H "Content-Type: application/json" \
   -d '{"symbol":"NQ","day":"2026-09-16"}'
 ```
+
+On Windows use `curl.exe`, not PowerShell's `curl` alias, and escape the quotes:
+`-d "{\"symbol\":\"NQ\",\"day\":\"2026-09-16\"}"`. `Invoke-RestMethod` works too but hides the
+response body on an error, which is exactly when you need it.
 
 Expect `{"ran":[{"symbol":"NQ","day":"2026-09-16","status":"ok","bars":276}]}`. A full Globex
 session of 5-minute bars is about 276 of them; a number far below that means the window is wrong,
@@ -80,15 +107,16 @@ select * from public.bar_fetch_log where status = 'failed' order by trading_day 
 
 ```bash
 curl -X POST .../functions/v1/fetch-bars \
-  -H "Authorization: Bearer <SERVICE_ROLE_KEY>" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <FETCH_BARS_SECRET>" -H "Content-Type: application/json" \
   -d '{"symbol":"NQ","day":"2026-09-16","force":true}'
 ```
 
 `force` is only needed for a day already recorded `ok` or `empty`; a `failed` day is retried by the
 next nightly sweep on its own.
 
-An admin signed into the site can call it with their own JWT instead of the service key — the
-function checks `profiles.role`. Members cannot call it at all.
+An admin signed into the site can call it with their own JWT instead of the secret — the function
+checks `profiles.role`, and answers CORS preflight so a browser call works. Members cannot call it
+at all.
 
 **Failure modes worth recognising:**
 
@@ -98,6 +126,12 @@ function checks `profiles.role`. Members cannot call it at all.
 | `source answered 404` | The ticker changed, or the day is outside the history window. |
 | `source returned no result block` | An HTML page came back instead of JSON — a consent or block page. |
 | `write failed: …` | Postgres refused. Nothing to do with the source; read the message. |
+
+A `401` with `{"error":"not allowed"}` is not a fetch failure and never reaches the log: the call was
+turned away at the door. The body names the shape of the token it was sent — its first three
+characters and its length — and the function logs the same line along with whether
+`FETCH_BARS_SECRET` is set at all. That is enough to tell "wrong key" from "no secret configured"
+without printing a credential.
 
 A day recorded `empty` is settled — a holiday, or older than the roughly sixty days of intraday
 history the source keeps — and is not asked for again. If that is wrong, `force` it.

@@ -1082,6 +1082,21 @@ stop being labels and become a second layer of noise — while the key still num
 was the loser", and that is read by comparing the last figure down a list. Proportional type, with
 the numbers landing in a different place on every row, defeats exactly that.</p>
 
+<p><strong>A busy day is cropped to the trading.</strong> A Globex session is 23 hours and members
+trade in bursts: on a real day of 39 decisions the fills spanned about two hours and were given 12%
+of the width, with twenty-one empty hours taking the rest. The axis fits itself to the fills plus an
+hour either side &mdash; the hour is context, not padding, because the move that explains an
+afternoon burst usually happened before it. The caption says what is being shown and out of what,
+and offers the whole session; the choice sticks while you move between days.</p>
+
+<p><strong>Markers that would overlap are tallied instead of stacked.</strong> Six triangles at the
+same six pixels are one triangle with a worse edge, and the chart ends up claiming a density it
+cannot draw. A marker within eleven units of another joins it and the group carries a count; hover
+names the trades and whether they won. Longs and shorts never merge &mdash; the triangles point
+different ways and that is the thing worth seeing. Grouping is by distance rather than by grid cell:
+cells split neighbours that sit either side of an edge, which is how the first version found nothing
+to group on a day with 39 trades.</p>
+
 <p>When no bars exist — an untracked symbol, or a session the nightly job has not fetched —
 <code>tradeMap()</code> draws the same markers with no candles behind them, and the page says which
 of the four reasons applies. That view is not a placeholder: for anything but NQ and ES it is the

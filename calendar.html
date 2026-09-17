@@ -624,6 +624,12 @@ function renderDayPanel() {
 const barCache = new Map();          // 'NQ|2026-09-16' -> bars
 let drawToken = 0;
 
+/* 'fit' crops the axis to the trading, 'all' shows the whole session. Kept on
+ * the page rather than per chart: a member who asked for the whole session
+ * meant it, and having it snap back on the next click of a day would be the
+ * page arguing with them. */
+let chartView = 'fit';
+
 async function drawDayChart(day) {
   const mine = drawToken = drawToken + 1;
   const mount = $('day-chart');
@@ -661,7 +667,7 @@ async function drawDayChart(day) {
      * says $125 while the cards above it say 0.83R is the same day described
      * two ways on one screen. */
     if (bars && bars.length) {
-      parts.push(barChart(bars, list, { symbol: sym, value, fmt }));
+      parts.push(barChart(bars, list, { symbol: sym, value, fmt, view: chartView }));
     } else {
       parts.push(tradeMap(list, { value, fmt }) + await whyNoBars(sym, day));
     }
@@ -1149,6 +1155,15 @@ document.addEventListener('click', (e) => {
     }
     group.classList.add('is-target');
     group.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
+  // The chart's own control: fit to the trading, or show the whole session.
+  const view = e.target.closest('[data-chart-view]');
+  if (view) {
+    e.preventDefault();
+    chartView = view.dataset.chartView;
+    drawDayChart(selected);
     return;
   }
 

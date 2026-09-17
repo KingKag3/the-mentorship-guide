@@ -75,6 +75,53 @@ export function sessionRun(bars, at) {
   return holding || runs.sort((a, b) => b.length - a.length)[0];
 }
 
+/* ------------------------------ cropping ---------------------------------
+
+   A Globex session is 23 hours and a member trades in bursts. On a real day -
+   16 September, 39 decisions - the fills spanned two windows adding up to about
+   two hours, and got 12% of the chart's width between them while twenty-one
+   empty hours took the rest. Every marker was stacked into two smears.
+
+   So the view fits itself to the trades, with an hour of room either side.
+
+   THE HOUR IS NOT PADDING. On that same day the 14:00 drop is the reason the
+   afternoon burst happened, and a crop tight to the fills would have hidden the
+   thing that explains them. An hour is enough context to see what the price was
+   doing before the member acted, without paying for the night.
+
+   The whole session stays one click away, and the caption says what is being
+   shown rather than letting a cropped axis pass as the day.
+-------------------------------------------------------------------------- */
+
+const CROP_PAD_MS = 60 * 60 * 1000;
+
+/** The bars worth drawing for these decisions, and whether anything was cut. */
+export function cropToTrades(bars, decisions) {
+  const stamps = [];
+  for (const d of decisions) {
+    const open = Date.parse(d.opened_at);
+    const close = Date.parse(d.closed_at || d.opened_at);
+    if (Number.isFinite(open)) stamps.push(open);
+    if (Number.isFinite(close)) stamps.push(close);
+  }
+  if (!stamps.length) return { bars, cropped: false };
+
+  const from = Math.min(...stamps) - CROP_PAD_MS;
+  const to = Math.max(...stamps) + CROP_PAD_MS;
+  const kept = bars.filter((b) => {
+    const t = new Date(b.ts).getTime();
+    return t >= from && t <= to;
+  });
+
+  /* Not worth doing below a point, in both directions. Fewer than thirty bars
+   * is a chart of almost nothing, and keeping three quarters of the session
+   * means the crop buys no room while costing the context. */
+  if (kept.length < 30 || kept.length > bars.length * 0.75) {
+    return { bars, cropped: false };
+  }
+  return { bars: kept, cropped: true };
+}
+
 /** Root symbol for a traded one: micros print the same prices as the full size. */
 export function barSymbol(symbol) {
   const s = String(symbol || '').toUpperCase();
@@ -272,6 +319,29 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
   const ordered = decisions.slice()
     .sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
 
+  /* WHERE MARKERS WOULD SIT ON TOP OF EACH OTHER, COUNT THEM INSTEAD.
+   *
+   * Six triangles drawn at the same six pixels are one triangle with a worse
+   * edge, and the chart ends up claiming a density it cannot show: a reader
+   * sees three marks and there were eleven trades. A single mark with "6" beside
+   * it is both smaller and more honest.
+   *
+   * Cells are a grid in BOTH axes. Two entries a minute apart at prices forty
+   * points apart do not overlap and must not be merged - the vertical distance
+   * is the thing worth seeing. */
+  /* BY DISTANCE, NOT BY GRID CELL. The first version rounded each marker into a
+   * cell and merged matches, which looks equivalent and is not: two markers
+   * nine units apart - overlapping, at a marker radius of five - land either
+   * side of a cell edge and stay separate, while two on opposite corners of one
+   * cell get merged. On a 39-decision fixture it found nothing to tally.
+   *
+   * So each marker looks for an existing tally within a radius and joins it.
+   * Order-dependent, and that is fine here: the decisions arrive in time order,
+   * so a run of fills chains onto the first of the run, which is the one a
+   * reader would call the group. */
+  const OVERLAP = 11;
+  const cells = [];
+
   for (const d of ordered) {
     const entry = num(d.entry);
     const exit = num(d.exit_price);
@@ -329,6 +399,28 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
       (hasEntry ? ', in ' + entry : '') + (hasExit ? ', out ' + exit : '') +
       ' — ' + money(value(d)));
 
+    /* A marker close enough to be drawn on top of another takes a tally rather
+     * than being drawn at all. Longs and shorts never merge: the two triangles
+     * point different ways and the difference is the point. */
+    let twin = null;
+    if (hasEntry) {
+      for (const c of cells) {
+        if (c.long !== long) continue;
+        if (Math.hypot(c.x - xIn, c.y - yIn) <= OVERLAP) { twin = c; break; }
+      }
+    }
+    if (twin) {
+      twin.count++;
+      twin.numbers.push(n);
+      twin.wins += won ? 1 : 0;
+      twin.total += value(d);
+      continue;
+    }
+    if (hasEntry) {
+      cells.push({ count: 1, numbers: [n], wins: won ? 1 : 0,
+                   total: value(d), x: xIn, y: yIn, long });
+    }
+
     if (hasEntry) {
       // Point the way the trade was taken: up for a long, down for a short.
       const r = 5.4;
@@ -363,6 +455,28 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
                    text: n + '  ' + (long ? 'LONG' : 'SHORT') +
                          (d.contracts ? ' ' + d.contracts : '') + '  ' + fmtValue(value(d)) });
     }
+  }
+
+  /* The tallies, drawn over the markers they stand for. A cell holding one
+   * decision gets nothing: a "1" beside every marker on a quiet day is noise
+   * saying what the marker already said. */
+  for (const c of cells) {
+    if (c.count < 2) continue;
+    const cls = c.wins === c.count ? 'ch-win' : c.wins === 0 ? 'ch-loss' : 'ch-mixed';
+    out +=
+      '<g class="ch-tally ' + cls + '">' +
+        '<circle cx="' + (c.x + 9).toFixed(1) + '" cy="' + (c.y - 8).toFixed(1) +
+          '" r="7.5" fill="var(--page, #fff)" stroke="currentColor" stroke-width="1.2"/>' +
+        '<text x="' + (c.x + 9).toFixed(1) + '" y="' + (c.y - 5).toFixed(1) +
+          '" fill="currentColor" font-size="9.5" font-weight="700" text-anchor="middle">' +
+          c.count + '</text>' +
+        '<title>' + escapeHtml(c.count + ' decisions here: ' +
+          (c.numbers.length > 8
+            ? c.numbers.slice(0, 8).join(', ') + ' and ' + (c.numbers.length - 8) + ' more'
+            : c.numbers.join(', ')) +
+          ' \u2014 ' + (c.wins === c.count ? 'all won' : c.wins === 0 ? 'all lost'
+                        : c.wins + ' won, ' + (c.count - c.wins) + ' lost')) + '</title>' +
+      '</g>';
   }
 
   /* THE FLAGS ARE DRAWN LAST, ON TOP OF EVERYTHING, AND STACKED.
@@ -448,8 +562,13 @@ function legend(key, { money: fmtMoney = money } = {}) {
  * `decisions` de-duplicated trades - distinctDecisions(), never raw rows
  * `value`     what a trade was worth, so dollars and R can both be drawn
  */
-export function barChart(bars, decisions, { symbol, value, fmt, width = 1200, height = 470 } = {}) {
+export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
+                                            width = 1200, height = 470 } = {}) {
   if (!bars || !bars.length) return '';
+
+  const full = bars;
+  const crop = view === 'all' ? { bars: full, cropped: false } : cropToTrades(full, decisions);
+  bars = crop.bars;
 
   const s = scales(bars, decisions, width, height);
   const from = hhmm(bars[0].ts);
@@ -489,6 +608,17 @@ export function barChart(bars, decisions, { symbol, value, fmt, width = 1200, he
     '</svg>' +
     '<figcaption class="stat-note">' + escapeHtml(symbol) + ' 5-minute candles, ' +
       escapeHtml(from) + ' to ' + escapeHtml(to) + '. ' +
+      /* A cropped axis must never pass as the whole day. It says what it is
+       * showing, out of what, and offers the rest. */
+      (crop.cropped
+        ? 'Fitted to your trading, out of a session running ' +
+          escapeHtml(hhmm(full[0].ts)) + ' to ' + escapeHtml(hhmm(full[full.length - 1].ts)) +
+          '. <button type="button" class="link-button" data-chart-view="all">' +
+          'Show the whole session</button>. '
+        : view === 'all' && cropToTrades(full, decisions).cropped
+          ? '<button type="button" class="link-button" data-chart-view="fit">' +
+            'Fit to your trading</button>. '
+          : '') +
       /* WHAT IS AND IS NOT ON THE PICTURE.
        *
        * A decision with neither an entry nor an exit price cannot be placed

@@ -250,9 +250,11 @@ function candles(bars, s) {
  * So each decision gets a numeral on the chart and a line under it. The picture
  * answers "when, and where in the range"; the list answers "what was it and
  * what did it cost". Neither has to do both. */
-function markers(decisions, s, value, { number = true } = {}) {
+function markers(decisions, s, value, { number = true, flag = false, fmtValue = money,
+                                        height = 0 } = {}) {
   let out = '';
   let drawn = 0;
+  const flags = [];
   const key = [];
 
   /* undefined AND null ARE DIFFERENT FACTS, and reading them as one cost an
@@ -355,6 +357,54 @@ function markers(decisions, s, value, { number = true } = {}) {
         '" fill="currentColor" font-size="12" font-weight="700" text-anchor="middle" ' +
         'stroke="var(--page, #fff)" stroke-width="2.6" paint-order="stroke">' + n + '</text>';
     }
+
+    if (flag && hasEntry) {
+      flags.push({ n, x: xIn, y: yIn, long, won, cls,
+                   text: n + '  ' + (long ? 'LONG' : 'SHORT') +
+                         (d.contracts ? ' ' + d.contracts : '') + '  ' + fmtValue(value(d)) });
+    }
+  }
+
+  /* THE FLAGS ARE DRAWN LAST, ON TOP OF EVERYTHING, AND STACKED.
+   *
+   * A numeral beside a five-pixel triangle is findable only by somebody already
+   * looking for it. A flag says what the trade was without being hunted for: a
+   * hairline down the whole chart at the moment of entry, and a chip at the top
+   * carrying the side and the result.
+   *
+   * Chips are stacked rather than placed, because two entries minutes apart
+   * would otherwise print one label over another and read as neither. Each one
+   * takes the first row where it does not touch the chip already there. */
+  if (flags.length) {
+    const rows = [];
+    const CHIP_H = 19;
+
+    for (const f of flags) {
+      const w = 8 + f.text.length * 6.1;      // monospace, near enough to measure
+      const left = Math.min(Math.max(f.x - w / 2, PAD.left), PAD.left + s.plotW - w);
+
+      let row = 0;
+      while (rows[row] !== undefined && left < rows[row] + 6) row++;
+      rows[row] = left + w;
+
+      const top = PAD.top + 2 + row * CHIP_H;
+
+      out +=
+        // The guide runs from the chip to the fill, so the eye is led to the
+        // candle rather than left to work out which one the chip means.
+        '<line class="ch-guide ' + f.cls + '" x1="' + f.x.toFixed(1) + '" y1="' + (top + CHIP_H - 4) +
+          '" x2="' + f.x.toFixed(1) + '" y2="' + f.y.toFixed(1) +
+          '" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3" opacity="0.55"/>' +
+        '<g class="ch-flag ' + f.cls + '">' +
+          '<rect x="' + left.toFixed(1) + '" y="' + top + '" width="' + w.toFixed(1) +
+            '" height="' + (CHIP_H - 4) + '" rx="3" fill="currentColor" opacity="0.14"/>' +
+          '<rect x="' + left.toFixed(1) + '" y="' + top + '" width="2.5" height="' + (CHIP_H - 4) +
+            '" rx="1" fill="currentColor"/>' +
+          '<text x="' + (left + 7).toFixed(1) + '" y="' + (top + CHIP_H - 9) +
+            '" fill="currentColor" font-size="11" font-weight="600">' +
+            escapeHtml(f.text) + '</text>' +
+        '</g>';
+    }
   }
 
   if (unasked) {
@@ -405,10 +455,17 @@ export function barChart(bars, decisions, { symbol, value, fmt, width = 1200, he
   const from = hhmm(bars[0].ts);
   const to = hhmm(bars[bars.length - 1].ts);
 
-  /* Numerals up to a point. Past a couple of dozen decisions they stop being
-   * labels and become a second layer of noise over the candles - the list below
-   * still numbers every one, and the hover still names it. */
-  const marks = markers(decisions, s, value, { number: decisions.length <= 24 });
+  /* Flags on a quiet day, numerals on a busy one, the list always.
+   *
+   * A flag is readable and expensive in space: eight of them stacked is most of
+   * the top of the chart. Past that the numerals do the job of saying WHICH
+   * candle, and the key underneath does the job of saying what it was. */
+  const fmtValue = fmt || money;
+  const marks = markers(decisions, s, value, {
+    flag: decisions.length <= 8,
+    number: decisions.length > 8 && decisions.length <= 24,
+    fmtValue, height
+  });
 
   /* SCALED PROPORTIONALLY, not stretched.
    *
@@ -476,7 +533,11 @@ export function tradeMap(decisions, { value, fmt, width = 1200, height = 340 } =
                   low: Math.min(...prices) - pad, high: Math.max(...prices) + pad }];
 
   const s = scales(fake, usable, width, height);
-  const marks = markers(usable, s, value);
+  const marks = markers(usable, s, value, {
+    flag: usable.length <= 8,
+    number: usable.length > 8 && usable.length <= 24,
+    fmtValue: fmt || money
+  });
 
   const first = Math.min(...times);
   const last = Math.max(...times);

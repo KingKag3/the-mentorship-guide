@@ -4101,6 +4101,14 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
    candle. */
 .ch-num { font-family: var(--mono); }
 
+/* The flag: a chip at the top of the plot and a hairline down to the fill.
+   Monospace so the figure in it lines up with the same figure in the key. */
+.ch-flag { font-family: var(--mono); }
+.ch-flag.ch-win  { color: var(--bull); }
+.ch-flag.ch-loss { color: var(--bear); }
+.ch-guide.ch-win  { color: var(--bull); }
+.ch-guide.ch-loss { color: var(--bear); }
+
 @media (max-width: 560px) {
   .ch-key li {
     grid-template-columns: 1.4rem 4.6rem 1fr auto;

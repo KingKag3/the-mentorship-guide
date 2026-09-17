@@ -7,13 +7,15 @@ Last updated: 17 September 2026.
 
 ## 17 September 2026 — candles, and a member's fills drawn on them
 
-**Three things to run, in order, and nothing breaks until they are.** Without them the calendar
-draws fills with no candles, which is what an untracked symbol gets anyway. See
-`supabase/RUN-THESE.md`.
+**All three were run on 17 September 2026**, and a real call returned 16 sessions with 0 failures.
+The schedule is registered; its first unattended run is the morning of 18 September, and
+`bar_fetch_log` is what says whether it worked — `cron.job_run_details` only says the
+call was made, because pg_net returns as soon as the request is accepted.
 
-1. `supabase/market-bars.sql`
-2. Deploy the Edge Function — `supabase/functions/fetch-bars/README.md`
-3. `supabase/market-bars-schedule.sql` (contains a vault step; the key is not in the repo)
+**If the nightly run turns out not to fire,** the three things that each broke it once are: the
+calling secret (`FETCH_BARS_SECRET` on the function must equal the vault's `fetch_bars_key`, and it
+is NOT the service-role key), *Verify JWT* being left on (the gateway then refuses the secret and the
+function never boots, so the logs stay empty), and trailing whitespace on a pasted secret.
 
 ### Read DECISIONS 2026-09-17 before extending any of it
 

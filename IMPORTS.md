@@ -25,6 +25,12 @@ is the entire reason per-account data is worth carrying, and it is invisible in 
 The most complete export, and the one to build against first: it covers a **whole date range in one
 file**, per account.
 
+> **Best export, not most common.** Corrected 17 September 2026: most members of this mentorship
+> trade through **WealthCharts**, whose section is below and is the other one verified against a real
+> file. Tradovate remains the cleanest shape and the one the importer was built and tested against.
+> Read "best target" as "best to build against", which is what it meant, and not as "where the
+> trades are".
+
 ### Use the Performance export — corrected 6 August 2026
 
 The research below originally said *"export from Orders, not Performance"*, taken from a third-party
@@ -111,7 +117,17 @@ The Apex dashboard shows account metrics — P&L, trading days completed, traili
 target progress — and refreshes **nightly at midnight ET**. There is no trade-level CSV export.
 
 So Apex is the wrong place to look. Trade data has to come from whichever platform the account is
-traded through: Tradovate, Rithmic, or NinjaTrader.
+traded through.
+
+**Corrected 17 September 2026, by Kag3.** That list used to read *"Tradovate, Rithmic, or
+NinjaTrader"* and it was wrong twice over. **WealthCharts is missing from it**, and Apex accounts run
+through WealthCharts directly — not through Tradovate or Rithmic behind it, which is what the
+sentence quietly assumed. So there is no second place to look for those members' fills: what
+WealthCharts exports is all there is.
+
+That matters beyond tidiness. Anything this site builds on top of a platform's export — bar data for
+a chart overlay, for instance — has exactly one source for the majority of members here, and if
+WealthCharts does not export it then no fallback platform exists to get it from.
 
 ---
 
@@ -125,14 +141,6 @@ not the same file** — picking it is the usual mistake.
 
 Paper trading data lives in browser local storage, so the export panel is the only supported way out
 of it.
-
----
-
-## WealthCharts
-
-Paper Trading dashboard → *Trades* → *Export to CSV*.
-
-Columns reported to include `symbol`, `price_done`, `qty_done`, `last_time`.
 
 ---
 
@@ -203,6 +211,10 @@ in the page is specific to it. Columns are matched against a synonym list and ev
 settable by hand, so a platform nobody here has seen imports without a code change. See the entry in
 `DECISIONS.md`. The research below still stands and is still what the per-platform instructions on
 the page are drawn from.
+
+**Most members here are on WealthCharts** (17 September 2026). The importer is format-agnostic so
+this changes no code, but it changes what to test first and whose export a new feature has to work
+with. WealthCharts and Tradovate are the two verified against real files.
 
 **The schema is already the right shape.** `account`, `fees`, `net_pnl` and `trade_exits` map onto
 what a broker export carries. `net_pnl` matters most: an import does not need entry and stop prices

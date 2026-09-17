@@ -3990,6 +3990,60 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   .day-group.is-target { animation: none; box-shadow: var(--ring); }
 }
 
+/* -------------------------------- the chart ---------------------------------
+
+   Candles, and the member's own fills on them. Inline SVG from chart.js.
+
+   EVERY SHAPE CARRIES A PRESENTATION ATTRIBUTE AS WELL AS A CLASS, in chart.js
+   itself: fill="currentColor", an explicit stroke. An SVG with no stylesheet
+   reaching it defaults to black fill and no stroke, which this project has
+   already shipped once - a page of black blobs that looked like a colour choice
+   rather than a stylesheet that had not loaded. The classes below set `color`,
+   so the presentation attributes resolve to the theme's own ink when the CSS is
+   there, and to something legible when it is not.
+
+   Up and down use --bull and --bear rather than the calendar's swatch colours.
+   These are strokes and small shapes on the page background, not blocks of
+   colour: --cal-up-line is tuned to sit against its own swatch and measures
+   about 2:1 against white, which is fine for a filled cell and invisible as a
+   one-pixel wick. */
+
+.ch-figure { margin: var(--s-3) 0; }
+
+.ch-svg {
+  width: 100%;
+  /* The viewBox is 880 wide; letting it scale freely keeps the session filling
+     the panel at any width. Height is fixed in CSS rather than by aspect ratio
+     so a phone gets a readable chart instead of a 60px strip. */
+  height: 300px;
+  display: block;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--border-lo);
+  border-radius: var(--radius);
+}
+
+.ch-up    { color: var(--bull); }
+.ch-down  { color: var(--bear); }
+.ch-grid  { color: var(--fg); }
+.ch-axis  { color: var(--muted); font-family: var(--mono); }
+
+/* The markers, which are the point of the chart. Deliberately NOT the same
+   green and red as the candles: a winning trade drawn in the candle's green
+   disappears into a green session. These are the brand ink and the muted ink,
+   so a fill reads as "mine" first and "won or lost" second. */
+.ch-win   { color: var(--bull); }
+.ch-loss  { color: var(--bear); }
+.ch-band  { color: var(--accent); }
+
+.ch-svg polygon,
+.ch-svg rect.ch-win,
+.ch-svg rect.ch-loss { pointer-events: all; }
+
+@media (max-width: 560px) {
+  .ch-svg { height: 220px; }
+}
+
 /* ----------------------------- notes on the day -----------------------------
 
    Written in the calendar's day panel and in a card at the top of the journal;

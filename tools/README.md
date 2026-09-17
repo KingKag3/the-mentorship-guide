@@ -359,3 +359,34 @@ it reports all six reads; on the fixed tree it reports none:
 python tools/check-own-trades.py
 python tools/check-own-trades.py path/to/old/copy
 ```
+
+## probe-session-window.mjs
+
+The session window out of the Edge Function, run under node.
+
+A CME session is not a calendar day: it runs 18:00 New York the evening before to 17:00 on its own
+day. New York is UTC−5 in winter and UTC−4 in summer, so a fixed offset is right for half the year
+and an hour out for the other half — and an hour out does not throw. It draws every fill one candle
+away from where it happened, twice a year, on days nobody thinks to check.
+
+The function is Deno and cannot run here, so the probe cuts the three date functions out of the
+TypeScript by brace-matching, strips the type annotations and runs the real code. **It found a bug
+the moment it existed:** `sessionWindow` took the session close and subtracted 23 hours, which is
+right for 363 days a year and wrong on the two that matter — across a DST change a session is 22 or
+24 real hours long.
+
+Two details of the harness are load-bearing and were both wrong first:
+
+- **Types come off before any brace is counted.** `sessionWindow` declares its return as
+  `{ from: Date; to: Date }`, so a brace-matcher run over the original source takes the first brace
+  of the *type* for the start of the body.
+- **The parameter-annotation rule uses an allowlist of type names.** The general version ate
+  `to: newYorkToUtc(...)` out of the returned object literal, because a key after a comma looks
+  exactly like an annotated parameter. It still parsed, and returned a broken window.
+
+The expected instants are the ones the real endpoint answered for: asking 2026-09-15T22:00Z to
+2026-09-16T21:00Z returned 277 five-minute bars sitting exactly on those boundaries.
+
+```
+node tools/probe-session-window.mjs
+```

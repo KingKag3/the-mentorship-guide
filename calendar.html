@@ -161,6 +161,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager, barTrack,
          loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty } from './app.js';
+import { barChart, tradeMap, sessionRun, barSymbol } from './chart.js';
 import { longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
@@ -545,13 +546,22 @@ function renderDayPanel() {
    * how somebody felt - and the toggle exists for the moment a page is about
    * to be shown to other people. */
   if (hidden) {
+    /* The chart stays. It carries prices and times, which are the market's and
+     * not the member's, and the account name is nowhere on it - that is the
+     * thing the toggle hides. The note does not, because it is prose and can
+     * say anything. */
     mount.innerHTML = '<section class="day-panel">' + head +
+      '<div id="day-chart"></div>' +
       '<p class="stat-note">' + (notes.has(selected) ? 'There is a note on this day. ' : '') +
       'Notes are not shown while the screenshot toggle is on.</p></section>';
+    drawDayChart(selected);
     return;
   }
 
-  mount.innerHTML = '<section class="day-panel">' + head + '<div id="day-note"></div></section>';
+  mount.innerHTML = '<section class="day-panel">' + head +
+    '<div id="day-chart"></div><div id="day-note"></div></section>';
+
+  drawDayChart(selected);
 
   dayNoteEditor($('day-note'), {
     userId: profile.id,
@@ -566,6 +576,158 @@ function renderDayPanel() {
       redrawAround();
     }
   });
+}
+
+/* ------------------------------- the chart --------------------------------
+
+   Candles for the session, with the day's own fills on them - chart.js draws
+   it, this decides what to hand it.
+
+   ASYNCHRONOUS, INTO A HOLE LEFT FOR IT. `render` is synchronous and is called
+   for every month turn, unit toggle and account filter; making it await a query
+   would put a network round trip in front of all of them. So the panel draws
+   immediately with an empty div, and the bars arrive when they arrive.
+
+   `drawToken` is what stops a slow answer for Tuesday landing in Wednesday's
+   panel. Clicking along a week issues several of these, and they can come back
+   in any order.
+-------------------------------------------------------------------------- */
+
+const barCache = new Map();          // 'NQ|2026-09-16' -> bars
+let drawToken = 0;
+
+async function drawDayChart(day) {
+  const mine = drawToken = drawToken + 1;
+  const mount = $('day-chart');
+  if (!mount) return;
+
+  const rows = byDay.get(day) || [];
+  if (!rows.length) { mount.innerHTML = ''; return; }
+
+  const decisions = distinctDecisions(rows);
+
+  /* One chart per symbol. Trading NQ and ES on the same morning is two
+   * different sessions of candles, and drawing both sets against one price axis
+   * would put 29,000 and 6,400 on the same scale - a flat line and a flat line,
+   * eight thousand points apart. */
+  const bySymbol = new Map();
+  for (const d of decisions) {
+    const sym = barSymbol(d.symbol);
+    if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+    bySymbol.get(sym).push(d);
+  }
+
+  const value = (t) => {
+    if (metric === 'r') return Number(t.r_multiple) || 0;
+    const v = tradeValue({ symbol: t.symbol, points: t.points, contracts: t.contracts,
+                           fees: t.fees, netPnl: t.net_pnl });
+    return v.dollars ?? 0;
+  };
+
+  const parts = [];
+  for (const [sym, list] of bySymbol) {
+    const bars = await barsFor(sym, list);
+    if (mine !== drawToken) return;           // a later day is being drawn
+
+    if (bars && bars.length) {
+      parts.push(barChart(bars, list, { symbol: sym, value }));
+    } else {
+      parts.push(tradeMap(list, { value }) + await whyNoBars(sym, day));
+    }
+  }
+
+  mount.innerHTML = parts.join('');
+}
+
+/* Bars around the trades, rather than a session window worked out here.
+ *
+ * The session is 18:00 New York to 17:00, which moves with daylight saving.
+ * That rule lives in the fetch job, in one place, and is tested there. Asking
+ * for a wide window and keeping the contiguous run that comes back gets the
+ * same answer without a second copy of it: bars exist only for sessions, so a
+ * run of them IS a session.
+ */
+async function barsFor(symbol, decisions) {
+  const stamps = decisions.map((d) => new Date(d.opened_at).getTime());
+  const first = Math.min(...stamps);
+  const last = Math.max(...stamps);
+
+  const key = symbol + '|' + localDay(new Date(first).toISOString());
+  if (barCache.has(key)) return barCache.get(key);
+
+  const { data, error } = await fetchPaged(() => supabase
+    .from('market_bars')
+    .select('ts, open, high, low, close')
+    .eq('symbol', symbol)
+    .eq('timeframe', '5m')
+    /* A DAY EITHER SIDE, and the number is not padding.
+     *
+     * A session runs from 18:00 New York to 17:00 the next day, so a trade
+     * taken minutes after the open sits 23 hours before its own session's
+     * close, and a trade at the close sits 23 hours after its open. Anchoring
+     * the window on the trades therefore has to reach a full session in both
+     * directions or it clips the end it is furthest from.
+     *
+     * The first version asked for 14 hours back. A 09:45 entry then started the
+     * window at 23:45 the previous evening - after the 18:00 open - and the
+     * chart quietly began an hour and three quarters into the session, with
+     * nothing to say it had. Twenty-one missing candles at the left edge look
+     * exactly like a session that opened late.
+     *
+     * The cost is asking for about three sessions of bars and keeping one. At
+     * roughly 280 rows each that is well inside one paged read. */
+    .gte('ts', new Date(first - 24 * 3600 * 1000).toISOString())
+    .lte('ts', new Date(last + 24 * 3600 * 1000).toISOString())
+    .order('ts', { ascending: true }), 4000);
+
+  // A missing table is not an error here: the migration may not have been run,
+  // and the chart falls back to the trade map like any other day without bars.
+  const run = error ? [] : sessionRun(data || [], new Date(first).toISOString());
+  barCache.set(key, run);
+  return run;
+}
+
+/* Four reasons a day has no candles, and they are not the same reason.
+ *
+ * Without this the member sees an empty space and cannot tell whether to wait,
+ * to tell somebody, or to stop expecting candles on this symbol for ever. */
+async function whyNoBars(symbol, day) {
+  const note = (text) => '<p class="stat-note">' + text + '</p>';
+
+  if (!['NQ', 'ES'].includes(symbol)) {
+    return note('Candles are only kept for NQ and ES. ' + escapeHtml(symbol) +
+      ' is drawn from your fills alone.');
+  }
+
+  const { data, error } = await supabase
+    .from('bar_fetch_log')
+    .select('status, trading_day, last_error')
+    .eq('symbol', symbol)
+    .gte('trading_day', shiftDay(day, -1))
+    .lte('trading_day', shiftDay(day, 1));
+
+  if (error) {
+    return note('Candles are not set up on this project yet. ' +
+      'Run <code>supabase/market-bars.sql</code>, then deploy the bar fetch.');
+  }
+
+  const rows = data || [];
+  if (rows.some((r) => r.status === 'failed')) {
+    return note('The overnight fetch could not get candles for this session. It will try again ' +
+      'tonight; an admin can retry it sooner.');
+  }
+  if (rows.some((r) => r.status === 'empty')) {
+    return note('No candles exist for this session &mdash; a holiday, or a day older than the ' +
+      'roughly two months of history the source keeps.');
+  }
+  return note('Candles for this session have not been fetched yet. The job runs overnight.');
+}
+
+/** A day key shifted by whole days, without going near a timezone. */
+function shiftDay(day, by) {
+  const [y, m, d] = day.split('-').map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d + by));
+  return at.toISOString().slice(0, 10);
 }
 
 /* Redraw everything except the panel. Re-rendering the panel after a save

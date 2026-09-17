@@ -961,3 +961,65 @@ untouched; they simply stop appearing on the admin's personal pages.
 anything was removed. With the filter in place it can no longer be offered an account that is not
 the admin's, so the case that exposed this cannot recur — but a delete that matches nothing should
 still say so, and it does not.
+
+---
+
+## 2026-09-17 — Bars come from a scraped endpoint, and that is a decision rather than an oversight
+
+**Decided:** `market_bars` holds 5-minute NQ and ES candles fetched nightly from Yahoo Finance's
+undocumented chart endpoint by a Supabase Edge Function, and the calendar draws a member's own fills
+on them.
+
+**The objection, raised before building and recorded so it is not re-litigated by accident.**
+`CLAUDE.md` says no live market data, because CME data is licensed and largely not redistributable.
+The reasoning was never about *live* — historical bars are licensed too. Storing them and serving
+them to every signed-in member is redistribution, and Yahoo's terms prohibit it. The endpoint is
+also unofficial: it can change shape, rate-limit or block without notice.
+
+**Three alternatives were offered and declined:** a bar file the member exports themselves, kept
+private to them; a paid vendor whose terms permit caching and display; or no candles at all, with
+fills drawn on their own scatter. The owner chose the scraped endpoint with the risk stated.
+
+**So the rule is now narrower than it reads.** "No live market data" has become "no live feeds, and
+historical bars from a source we are tolerated rather than licensed by". Anybody reading the hard
+rules should read this entry beside them.
+
+**What the code does about it, since the risk cannot be argued away:**
+
+- **Failure is ordinary, not exceptional.** Every attempt is recorded in `bar_fetch_log` with its
+  error. A failed session is retried by the next nightly run; an `empty` one is settled and never
+  asked for again. The page distinguishes *not fetched yet*, *fetch failed*, *no bars exist* and
+  *symbol not tracked*, because only one of those is worth waiting for.
+- **The fetch is one function.** `fetchBars` in the Edge Function is the only code that knows what
+  Yahoo is. Moving to a licensed vendor should be that function and two comments.
+- **No page calls the source.** The browser only ever reads rows already in `market_bars`.
+
+**Shared, not per-member.** The first table here with no `user_id`. A 5-minute candle is the same
+candle for everyone who traded that morning, and one member's eighteen copied prop accounts would
+otherwise want eighteen identical copies of it.
+
+**The session, not the calendar day.** A CME session runs 18:00 New York to 17:00 the next day, so
+the trading day is `((opened_at at time zone 'America/New_York') + interval '6 hours')::date`. That
+expression lives in Postgres and the job asks Postgres, rather than a second copy in TypeScript.
+
+**The browser does not compute the session window at all.** It asks for bars a day either side of
+the trades and keeps the contiguous run that comes back — bars exist only for sessions, so a run of
+them *is* a session. One timezone rule, in one language, tested once.
+
+**Markers sit at the member's fill price, never snapped to the candle.** A fill outside the bar is a
+real thing — a bad print, the wrong contract, a typo — and moving the marker to tidy the picture
+would be the chart lying about the only number on it that belongs to the member. The price axis
+stretches to include such a fill rather than clipping it off an edge.
+
+**One marker per decision.** Eighteen copied accounts produce eighteen identical rows;
+`distinctDecisions()` collapses them, as everywhere else on the site.
+
+**Known limits, none of them fixed here:**
+
+- `NQ=F` is the continuous front month and is **not** back-adjusted, so across a contract roll the
+  old contract's fills sit against the new contract's candles. Four days a year, and nothing in the
+  page says so yet.
+- Only NQ and ES. Micros map onto them; everything else gets the fills-only view.
+- Roughly sixty days of intraday history exist at the source. Older sessions will never have bars.
+- The first server-side code in this project: a Deno function, a deploy step, and a scheduled job to
+  keep an eye on. That is a real maintenance cost for a site that had none.

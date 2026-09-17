@@ -11,7 +11,23 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+### `market-bars.sql`, then the Edge Function, then `market-bars-schedule.sql` (17 September 2026)
+
+Price bars for the chart overlay, in that order. Nothing breaks if none of it is run: the calendar
+draws fills with no candles, which is what an untracked symbol gets anyway.
+
+1. **`market-bars.sql`** — two tables and a function. The check at the bottom
+   (`bar_sessions_wanted`) answers before any bars exist, and answering with rows proves the session
+   maths reads your trades correctly.
+2. **The function** — `supabase/functions/fetch-bars/README.md`. Needs the Supabase CLI, which is a
+   deploy tool rather than a dependency; nothing in the site knows it exists.
+3. **`market-bars-schedule.sql`** — pg_cron plus pg_net. Contains a vault step whose value is a
+   secret: paste the service-role key into the editor, and do not commit it.
+
+**Where the data comes from is a decision, not a detail.** It is scraped from Yahoo's unofficial
+chart endpoint, whose terms do not permit redistribution — accepted knowingly on 17 September 2026
+with the alternatives on the table. DECISIONS 2026-09-17 and the header of `market-bars.sql` both
+carry it.
 
 `prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
 `prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.

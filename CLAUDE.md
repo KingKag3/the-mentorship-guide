@@ -35,7 +35,7 @@ So the split is by **repo, not by feature**:
 | Machine | Repo | Current piece |
 | --- | --- | --- |
 | `NERV-NEKO` | free to pick either up | Idle since 13 Aug. **Pull both before starting** — the guide moved a long way on 17–18 Aug |
-| `DESKTOP-6S0E97B` | the guide | Owner filter on personal trade reads, 14 Sep 2026 — pushed. Idle again once this row is committed |
+| `DESKTOP-6S0E97B` | the guide | Price bars and the session chart, 17 Sep 2026 — pushed. Three migrations waiting in RUN-THESE |
 
 **Rows name machines, they do not say "this one".** They used to, and it was wrong in the only
 situation the table exists for: this file loads automatically on both PCs, so a row reading *"This
@@ -81,7 +81,9 @@ believed.
   what the UI *shows*, not what a user can *reach*. New tables need RLS policies in the style of
   `supabase/schema.sql`: idempotent, commented, safe to re-run.
 - **No live market data.** Real-time CME data is licensed and mostly not redistributable. Every tool
-  either needs no price data or takes numbers the member pastes in.
+  either needs no price data or takes numbers the member pastes in. **Narrowed on 17 September
+  2026** - `market_bars` holds historical candles scraped from an unofficial endpoint, knowingly.
+  Read DECISIONS 2026-09-17 beside this rule; nothing calls a live feed, and nothing should.
 - **Record and analyse, never signal.** A calculator that sizes a position the member already chose
   is a utility. Anything that says "long NQ here" is a different product with a different liability.
 - **Concept pages stay public.** They are files in a public repo; a gate on them would be

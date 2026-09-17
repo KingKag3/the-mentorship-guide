@@ -3,7 +3,53 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 14 September 2026.
+Last updated: 17 September 2026.
+
+## 17 September 2026 — candles, and a member's fills drawn on them
+
+**Three things to run, in order, and nothing breaks until they are.** Without them the calendar
+draws fills with no candles, which is what an untracked symbol gets anyway. See
+`supabase/RUN-THESE.md`.
+
+1. `supabase/market-bars.sql`
+2. Deploy the Edge Function — `supabase/functions/fetch-bars/README.md`
+3. `supabase/market-bars-schedule.sql` (contains a vault step; the key is not in the repo)
+
+### Read DECISIONS 2026-09-17 before extending any of it
+
+The bars are scraped from Yahoo's unofficial chart endpoint. Its terms do not permit
+redistribution, which is what storing them and serving them to members is. That was raised before
+building, three alternatives were offered, and the owner chose this knowingly. It narrows the "no
+live market data" hard rule into "no live feeds, and historical bars from a source we are tolerated
+rather than licensed by" — so read that entry next to `CLAUDE.md`, not instead of it.
+
+### What was verified, and how
+
+- **The endpoint, for real.** One request for the 16 September session returned **277 five-minute
+  bars** sitting exactly on the window the code computes, no gaps, timestamps as absolute epoch
+  seconds, two null candles (handled). The response shape matches what `fetchBars` expects.
+- **The session and DST maths:** `node tools/probe-session-window.mjs`, 13 of 13, including both
+  2026 DST changes. It found a real bug while being written — the window was computed as "close
+  minus 23 hours", which is wrong on the two days a year a session is 22 or 24 hours long.
+- **The chart end to end**, in a browser, with those 275 real bars and fixture trades: 12 of 12.
+  275 candles drawn, 18 copied accounts collapsed to **one** marker, winners and losers coloured
+  apart, markers carrying the member's own fill prices, the three no-bars reasons each stating
+  themselves, no horizontal overflow. That run also found a second real bug: the bar query was
+  anchored 14 hours before the first trade, so a 09:45 entry clipped the first 21 candles of its own
+  session — it now reaches a full day either side.
+- All six Python checkers green.
+
+### Not verified
+
+- **Nothing has run against the live database.** The migration, the function and the schedule have
+  never been executed. The first real proof is a deployed function returning
+  `{"status":"ok","bars":276}` for a day you traded.
+- **No screenshot of the finished chart.** The browser pane would not paint while hidden, so the
+  layout was checked structurally and by computed style. The rendered SVG was exported to a file and
+  sent instead. Worth one look on a real screen.
+- **A contract roll has not been seen.** `NQ=F` is the front month and is not back-adjusted, so
+  across a roll the old contract's fills sit against the new contract's candles. Nothing in the page
+  warns about it yet.
 
 ## 14 September 2026 — the admin's own pages were showing other members' shared trades
 

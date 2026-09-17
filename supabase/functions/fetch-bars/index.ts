@@ -294,9 +294,15 @@ async function callerKind(req: Request): Promise<string> {
   const token = auth.replace(/^Bearer\s+/i, '').trim();
   if (!token) return '';
 
-  // 1. A shared secret the owner set on this function. Independent of key
-  //    generations, and what the nightly schedule sends.
-  const shared = Deno.env.get('FETCH_BARS_SECRET');
+  /* 1. A shared secret the owner set on this function. Independent of key
+   *    generations, and what the nightly schedule sends.
+   *
+   * TRIMMED ON BOTH SIDES. A secret pasted into a dashboard field arrives with
+   * a trailing newline often enough that comparing raw strings is a trap: the
+   * value is right, looks right, reads right in the box, and is not equal. That
+   * cost a round trip on 17 September 2026. Nothing legitimate here ends in
+   * whitespace. */
+  const shared = (Deno.env.get('FETCH_BARS_SECRET') || '').trim();
   if (shared && token === shared) return 'secret';
 
   // 2. The platform's own service key, whichever generation it is. Kept so a
@@ -348,9 +354,18 @@ Deno.serve(async (req) => {
      * "you sent a key of the wrong generation", and is not enough to reconstruct
      * anything. */
     const auth = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
-    const shape = auth ? auth.slice(0, 3) + '...(' + auth.length + ' chars)' : 'no token';
-    console.log('refused a call; token shape: ' + shape +
-      '; FETCH_BARS_SECRET is ' + (Deno.env.get('FETCH_BARS_SECRET') ? 'set' : 'NOT set'));
+    const shape = (v: string) => v ? v.slice(0, 3) + '...(' + v.length + ' chars)' : 'none';
+    const raw = Deno.env.get('FETCH_BARS_SECRET') || '';
+
+    /* BOTH SHAPES, because "is set" was not enough to act on. The first version
+     * of this line said only whether the secret existed, which left "set but
+     * not equal" looking like a mystery. Printing the length of each says
+     * immediately whether they differ by a stray newline or are different
+     * strings entirely - and three characters plus a length reconstructs
+     * nothing. */
+    console.log('refused a call; token ' + shape(auth) +
+      '; FETCH_BARS_SECRET ' + (raw ? shape(raw.trim()) +
+        (raw !== raw.trim() ? ' [had surrounding whitespace, trimmed]' : '') : 'NOT set'));
 
     return json({
       error: 'not allowed',

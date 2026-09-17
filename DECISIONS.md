@@ -1023,3 +1023,39 @@ stretches to include such a fill rather than clipping it off an edge.
 - Roughly sixty days of intraday history exist at the source. Older sessions will never have bars.
 - The first server-side code in this project: a Deno function, a deploy step, and a scheduled job to
   keep an eye on. That is a real maintenance cost for a site that had none.
+
+---
+
+## 2026-09-17 — A copied fill is one decision even when the clock disagrees by a second
+
+**Decided:** `decisionKey` buckets `opened_at` to the minute, and normalises numbers, rather than
+comparing the raw timestamp string.
+
+**What was wrong, found in real data rather than reasoned about.** Nineteen rows on 17 September,
+one trade copied across eighteen Apex accounts plus one: identical symbol, direction, size, entry
+and exit. Five stamped `13:31:20`, fourteen stamped `13:31:21`. The copier does not fill every
+account in the same second, and the key included the second, so one decision was two.
+
+Everything on this site that counts, sequences or weighs evidence goes through that key. The
+calendar said *2 decisions*; the chart drew two flags for one trade; the statistics page had one
+more independent observation than existed. The eighteen-copies problem was solved a month ago and
+this was the same problem wearing a different hat — the fix assumed the copier was instantaneous.
+
+**Why the minute, and not a tolerance.** A tolerance needs the whole list: "within five seconds of
+its neighbour" is a property of a pair, not of a row. `sequenceOfDecisions` takes this as `keyOf`
+and calls it one row at a time, so it has to stay a pure function of a single row. Bucketing is the
+version of the idea that fits that shape.
+
+**What it still gets wrong, deliberately.** A copier straddling a *minute* boundary — 13:31:59 and
+13:32:00 — splits again. That is one minute in sixty rather than one second in sixty, and it fails
+the way the old code failed rather than in a new way. `tools/probe-decisions.mjs` asserts it, so it
+is a decision rather than a surprise.
+
+**What it might over-merge.** Two genuinely separate trades in the same minute, same instrument,
+same direction, same size, the same entry *and* the same exit. If those are two decisions, nothing
+in this schema can tell. Erring this way under-counts evidence, which is the direction the original
+entry chose too.
+
+**Counts will change.** Days already imported will report fewer decisions than they did yesterday —
+the old numbers were the inflated ones. Nothing about money changes: eighteen accounts really did
+make eighteen lots of it, and the totals were never deduplicated.

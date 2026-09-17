@@ -758,9 +758,48 @@ export function sessionAt(when) {
  * happened to keep - has to agree with the collapse exactly, and the only way
  * to guarantee that is to use the same key rather than a matching one.
  */
+/* THE COPIER DOES NOT FILL EVERY ACCOUNT IN THE SAME SECOND, and keying on the
+ * exact timestamp assumed it did.
+ *
+ * Seen in real data on 17 September 2026: nineteen rows, identical in symbol,
+ * direction, size, entry and exit - five stamped 13:31:20 and fourteen stamped
+ * 13:31:21. One decision, one trade, counted as two everywhere on the site,
+ * because a string comparison of the timestamp put them in different buckets.
+ * The calendar said "2 decisions", the chart drew two flags, and every panel
+ * that weighs evidence had one more piece of it than really existed.
+ *
+ * So the timestamp is bucketed to the minute. Everything else still has to
+ * match exactly - same instrument, same direction, same size, same entry AND
+ * the same exit - and two genuinely separate trades agreeing on all five inside
+ * one minute are not distinguishable from one trade anyway.
+ *
+ * WHAT THIS STILL GETS WRONG, and it is left deliberately: a copier straddling
+ * a minute boundary - 13:31:59 and 13:32:00 - splits again. That is one minute
+ * in sixty rather than one second in sixty, it fails the way today's code fails
+ * rather than a new way, and removing it entirely needs the whole list rather
+ * than one row. This has to stay a function of a single row, because
+ * `sequenceOfDecisions` takes it as `keyOf` and asks it per row.
+ *
+ * Numbers are normalised as well. A price arriving as the string "29704.25"
+ * from one path and the number 29704.25 from another is the same fill, and
+ * joining them raw made it two.
+ */
+const DECISION_WINDOW_MS = 60 * 1000;
+
+const sameNumber = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : String(v ?? '');
+};
+
 export function decisionKey(row) {
-  return [row.opened_at, row.symbol, row.direction, row.entry, row.exit_price,
-          row.contracts].join('|');
+  const at = Date.parse(row.opened_at);
+  const when = Number.isFinite(at)
+    ? Math.floor(at / DECISION_WINDOW_MS)
+    : String(row.opened_at ?? '');
+
+  return [when, row.symbol, row.direction,
+          sameNumber(row.entry), sameNumber(row.exit_price),
+          sameNumber(row.contracts)].join('|');
 }
 
 export function distinctDecisions(list) {

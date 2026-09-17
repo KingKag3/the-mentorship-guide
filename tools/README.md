@@ -390,3 +390,27 @@ The expected instants are the ones the real endpoint answered for: asking 2026-0
 ```
 node tools/probe-session-window.mjs
 ```
+
+## probe-decisions.mjs
+
+One trade in eighteen copied prop accounts is **one** decision. Money stays pooled; anything that
+counts, sequences or weighs evidence has to collapse the copies, or every panel claims eighteen
+times the evidence it has.
+
+The rule keyed on the exact `opened_at` string until 17 September 2026, and a copier does not fill
+every account in the same second. Real data: nineteen identical rows, five stamped `13:31:20` and
+fourteen `13:31:21` — one trade, counted as two everywhere on the site. That fixture is the first
+test in this file.
+
+It runs the real `decisionKey` and `distinctDecisions`, cut out of `app.js`, and pins both
+directions: jitter inside a minute collapses, while a different direction, size, entry, exit, symbol
+or minute still separates. Two further cases are asserted on purpose —
+
+- **a string price and a numeric price are the same fill**, because two paths into the table return
+  numerics differently;
+- **a straddle of a minute boundary still splits**, which is a known limit rather than a bug to be
+  found later.
+
+```
+node tools/probe-decisions.mjs
+```

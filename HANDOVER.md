@@ -5,6 +5,49 @@ with no memory of how any of it got here.
 
 Last updated: 17 September 2026.
 
+## Picking this up again — written 17 Sep, for Monday 21 Sep
+
+**Working tree clean, everything pushed.** Nothing is half-finished.
+
+### One migration waiting
+
+`supabase/chart-marks-shapes.sql` — three columns so a mark can be a box rather than
+only a pin. Until it runs, pins work and the **Draw a box** button hides itself with a line naming
+the file.
+
+### What was agreed next, and not started
+
+**A crosshair and a hover card on the session chart.** Agreed as the first two of four polish jobs,
+after weighing a charting library and deciding against one for now:
+
+1. **Crosshair** — hairlines following the pointer with the price on the right edge and
+   the time underneath. The single biggest "this feels like a real chart" change. It has to live in
+   `calendar.html` and move real elements inside the live SVG, not redraw: `chart.js` renders a
+   string, and rebuilding three hundred candles per mousemove stutters.
+2. **A hover card** — replacing the native `<title>` tooltips, which are an OS box in the
+   wrong font after a one-second delay. `chart.js` has eight of them; they should become
+   `aria-label` on the same elements, so screen readers keep the text and the browser stops drawing
+   its own. The card shows the bar under the pointer (time, open, high, low, close) and, when over a
+   marker or a mark, that thing's description.
+
+Then, unstarted and in order: an inline editor to replace `prompt()` for mark notes, and a pass over
+candle spacing and the up/down colours in dark mode.
+
+**The library question is settled for now, not closed.** Only TradingView Lightweight Charts is a
+serious candidate — free, ~45KB, CDN. The cost is rebuilding everything distinctive
+(per-decision flags, tallies, the fit-to-trading crop, click-a-number-to-zoom, marks and boxes)
+inside its plugin system, plus a CDN dependency in front of a members-only page. See DECISIONS
+2026-08-13, where Editor.js was adopted and then removed for the same shape of reason. Marks and
+boxes are stored in a form any renderer can draw, so nothing here forecloses it.
+
+### Also open, from before all this
+
+The eight Pine scripts have never been compiled. Custom SMTP is still a launch blocker. Test 5 in
+`RLS-ATTACK-TESTS.md` covers `day_notes` and now `chart_marks` too, and needs two signed-in
+accounts. The overnight bar fetch has still never been seen running unattended —
+`bar_fetch_log` answers that.
+
+
 ## 17 September 2026 — candles, and a member's fills drawn on them
 
 **All three were run on 17 September 2026**, and a real call returned 16 sessions with 0 failures.

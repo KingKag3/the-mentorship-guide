@@ -244,12 +244,25 @@ function markers(decisions, s, value) {
   let out = '';
   let drawn = 0;
 
+  /* undefined AND null ARE DIFFERENT FACTS, and reading them as one cost an
+   * evening. `null` is a price nobody recorded - ordinary, and the caption says
+   * so. `undefined` is the column never having been SELECTED, which is a bug in
+   * the page doing the asking: the data is there and was not requested.
+   *
+   * The calendar shipped exactly that, listing its columns explicitly and
+   * omitting entry and exit_price, so the chart announced "no entry or exit
+   * price recorded" over a journal where every row had both. Specific,
+   * confident, wrong. */
+  let unasked = 0;
+
   for (const d of decisions) {
     const entry = num(d.entry);
     const exit = num(d.exit_price);
     const won = value(d) > 0;
     const cls = won ? 'ch-win' : 'ch-loss';
     const long = d.direction === 'long';
+
+    if (d.entry === undefined && d.exit_price === undefined) unasked++;
 
     const hasEntry = Number.isFinite(entry);
     const hasExit = Number.isFinite(exit);
@@ -309,7 +322,13 @@ function markers(decisions, s, value) {
     }
   }
 
-  return { html: out, drawn };
+  if (unasked) {
+    console.warn('chart.js: ' + unasked + ' of ' + decisions.length +
+      ' trades arrived without entry/exit_price FIELDS - the query did not ask for them. ' +
+      'This is a bug in the page, not missing data.');
+  }
+
+  return { html: out, drawn, unasked };
 }
 
 /* --------------------------------- charts -------------------------------- */
@@ -359,8 +378,14 @@ export function barChart(bars, decisions, { symbol, value, width = 1200, height 
       (marks.drawn === decisions.length
         ? marks.drawn + (marks.drawn === 1 ? ' decision marked' : ' decisions marked') +
           ' at your own fill prices, not at the candle.'
-        : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have no ' +
-          'entry or exit price recorded, so there is nowhere on the chart to put them.') +
+        : marks.unasked
+          /* Say which of the two it is. "No price recorded" sends somebody to
+           * re-import a file that was always fine. */
+          ? marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; this page did ' +
+            'not ask the database for fill prices, which is a fault here rather than anything ' +
+            'missing from your journal.'
+          : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have ' +
+            'no entry or exit price recorded, so there is nowhere on the chart to put them.') +
     '</figcaption>' +
   '</figure>';
 }

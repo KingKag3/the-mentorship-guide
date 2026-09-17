@@ -197,11 +197,39 @@ const CAP = 5000;
  * every member's SHARED trades - that is what the Review tab is for - so
  * without this filter an admin's own page silently mixes other members'
  * trades into theirs. See DECISIONS 2026-09-14. */
-const { data, error, capped } = await fetchPaged(() => supabase
+/* THE CHART CAN ONLY DRAW COLUMNS THAT WERE ASKED FOR.
+ *
+ * This list predates the chart and did not carry `entry`, `exit_price` or
+ * `closed_at`, so every trade arrived with those fields simply absent - and the
+ * chart, reading absent as "no price recorded", said so in its caption over a
+ * journal where all 412 rows had both. A confident, specific, wrong sentence.
+ *
+ * `stop` and `target` are asked for as well, and are the ones genuinely absent
+ * most of the time: no broker export carries them, so they are drawn only where
+ * somebody typed them.
+ *
+ * The retry exists because `closed_at`, `stop` and `target` arrived in later
+ * migrations. Naming an absent column does not degrade the answer, it 400s the
+ * whole request - which on this page means a month of trades replaced by a
+ * schema error, twice the cost of the thing being fixed. */
+const TRADE_COLUMNS =
+  'id, opened_at, symbol, direction, contracts, points, r_multiple, model, ' +
+  'session_kz, account, fees, net_pnl, entry, exit_price';
+const TRADE_OPTIONAL = 'closed_at, stop, target';
+
+let { data, error, capped } = await fetchPaged(() => supabase
   .from('trades')
-  .select('id, opened_at, symbol, direction, contracts, points, r_multiple, model, session_kz, account, fees, net_pnl')
+  .select(TRADE_COLUMNS + ', ' + TRADE_OPTIONAL)
   .eq('user_id', profile.id)
   .order('opened_at', { ascending: false }), CAP);
+
+if (error) {
+  ({ data, error, capped } = await fetchPaged(() => supabase
+    .from('trades')
+    .select(TRADE_COLUMNS)
+    .eq('user_id', profile.id)
+    .order('opened_at', { ascending: false }), CAP));
+}
 
 if (error) {
   $('summary').innerHTML = dbError(error);

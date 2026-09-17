@@ -240,9 +240,20 @@ function candles(bars, s) {
  * price cannot be placed and silently vanishes otherwise. An empty-looking
  * chart over a day with trades on it is the page disagreeing with the journal
  * and not saying so - the caption reports the difference. */
-function markers(decisions, s, value) {
+/* NUMBERED, BECAUSE A TRIANGLE IS NOT A SENTENCE.
+ *
+ * A marker can say where and roughly which way. It cannot say "short two,
+ * out at 29,672, minus a hundred and twenty" at five pixels across a
+ * twenty-three hour session, and a tooltip only says it to somebody who already
+ * knows to hover.
+ *
+ * So each decision gets a numeral on the chart and a line under it. The picture
+ * answers "when, and where in the range"; the list answers "what was it and
+ * what did it cost". Neither has to do both. */
+function markers(decisions, s, value, { number = true } = {}) {
   let out = '';
   let drawn = 0;
+  const key = [];
 
   /* undefined AND null ARE DIFFERENT FACTS, and reading them as one cost an
    * evening. `null` is a price nobody recorded - ordinary, and the caption says
@@ -255,7 +266,11 @@ function markers(decisions, s, value) {
    * confident, wrong. */
   let unasked = 0;
 
-  for (const d of decisions) {
+  // Chronological, so the numbers read left to right along the session.
+  const ordered = decisions.slice()
+    .sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+
+  for (const d of ordered) {
     const entry = num(d.entry);
     const exit = num(d.exit_price);
     const won = value(d) > 0;
@@ -268,6 +283,15 @@ function markers(decisions, s, value) {
     const hasExit = Number.isFinite(exit);
     if (!hasEntry && !hasExit) continue;      // nothing to place it at
     drawn++;
+
+    const n = drawn;
+    key.push({
+      n, long, won, at: hhmm(d.opened_at),
+      contracts: d.contracts, symbol: d.symbol,
+      entry: hasEntry ? entry : null,
+      exit: hasExit ? exit : null,
+      value: value(d)
+    });
 
     const xIn = s.x(d.opened_at);
     const xOut = s.x(d.closed_at || d.opened_at);
@@ -320,6 +344,17 @@ function markers(decisions, s, value) {
         '" width="6.8" height="6.8" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1">' +
         '<title>' + label + '</title></rect>';
     }
+
+    /* The numeral sits ABOVE a long and BELOW a short, which is the same
+     * direction the triangle points. On a chart it means the label is on the
+     * side the trade was looking, and practically it keeps the numeral off the
+     * line running to the exit. */
+    if (number && hasEntry) {
+      const ny = long ? yIn - 11 : yIn + 17;
+      out += '<text class="ch-num ' + cls + '" x="' + xIn.toFixed(1) + '" y="' + ny.toFixed(1) +
+        '" fill="currentColor" font-size="12" font-weight="700" text-anchor="middle" ' +
+        'stroke="var(--page, #fff)" stroke-width="2.6" paint-order="stroke">' + n + '</text>';
+    }
   }
 
   if (unasked) {
@@ -328,7 +363,30 @@ function markers(decisions, s, value) {
       'This is a bug in the page, not missing data.');
   }
 
-  return { html: out, drawn, unasked };
+  return { html: out, drawn, unasked, key };
+}
+
+/* One line per decision, under the chart, in the order the numbers run.
+ *
+ * Monospace and fixed order: time, side, size, in, out, result. A member
+ * scanning for "which one was the loser" is comparing the last column down a
+ * list, and proportional type with the figures in different places each row
+ * defeats that. */
+function legend(key, { money: fmtMoney = money } = {}) {
+  if (!key.length) return '';
+
+  return '<ol class="ch-key">' + key.map((k) =>
+    '<li class="' + (k.won ? 'is-win' : 'is-loss') + '">' +
+      '<span class="ch-key-n">' + k.n + '</span>' +
+      '<span class="ch-key-side">' + (k.long ? 'long' : 'short') +
+        (k.contracts ? ' ' + escapeHtml(String(k.contracts)) : '') + '</span>' +
+      '<span class="ch-key-at">' + escapeHtml(k.at) + '</span>' +
+      '<span class="ch-key-px">' +
+        (k.entry === null ? '&mdash;' : escapeHtml(String(k.entry))) +
+        (k.exit === null ? '' : ' &rarr; ' + escapeHtml(String(k.exit))) +
+      '</span>' +
+      '<span class="ch-key-val">' + escapeHtml(fmtMoney(k.value)) + '</span>' +
+    '</li>').join('') + '</ol>';
 }
 
 /* --------------------------------- charts -------------------------------- */
@@ -340,13 +398,17 @@ function markers(decisions, s, value) {
  * `decisions` de-duplicated trades - distinctDecisions(), never raw rows
  * `value`     what a trade was worth, so dollars and R can both be drawn
  */
-export function barChart(bars, decisions, { symbol, value, width = 1200, height = 470 } = {}) {
+export function barChart(bars, decisions, { symbol, value, fmt, width = 1200, height = 470 } = {}) {
   if (!bars || !bars.length) return '';
 
   const s = scales(bars, decisions, width, height);
   const from = hhmm(bars[0].ts);
   const to = hhmm(bars[bars.length - 1].ts);
-  const marks = markers(decisions, s, value);
+
+  /* Numerals up to a point. Past a couple of dozen decisions they stop being
+   * labels and become a second layer of noise over the candles - the list below
+   * still numbers every one, and the hover still names it. */
+  const marks = markers(decisions, s, value, { number: decisions.length <= 24 });
 
   /* SCALED PROPORTIONALLY, not stretched.
    *
@@ -387,6 +449,7 @@ export function barChart(bars, decisions, { symbol, value, width = 1200, height 
           : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have ' +
             'no entry or exit price recorded, so there is nowhere on the chart to put them.') +
     '</figcaption>' +
+    legend(marks.key, { money: fmt || money }) +
   '</figure>';
 }
 
@@ -397,7 +460,7 @@ export function barChart(bars, decisions, { symbol, value, width = 1200, height 
  * only chart there will ever be, and it still answers where the entries sat
  * against each other and how the day ran.
  */
-export function tradeMap(decisions, { value, width = 1200, height = 340 } = {}) {
+export function tradeMap(decisions, { value, fmt, width = 1200, height = 340 } = {}) {
   const usable = decisions.filter((d) => Number.isFinite(num(d.entry)));
   if (!usable.length) return '';
 
@@ -437,5 +500,6 @@ export function tradeMap(decisions, { value, width = 1200, height = 340 } = {}) 
     '</svg>' +
     '<figcaption class="stat-note">Your fills by time and price. No candles &mdash; see the note ' +
       'under the chart for why.</figcaption>' +
+    legend(marks.key, { money: fmt || money }) +
   '</figure>';
 }

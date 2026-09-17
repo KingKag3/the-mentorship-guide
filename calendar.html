@@ -657,10 +657,13 @@ async function drawDayChart(day) {
     const bars = await barsFor(sym, list);
     if (mine !== drawToken) return;           // a later day is being drawn
 
+    /* `fmt` as well as `value`: the page has a dollars/R toggle, and a key that
+     * says $125 while the cards above it say 0.83R is the same day described
+     * two ways on one screen. */
     if (bars && bars.length) {
-      parts.push(barChart(bars, list, { symbol: sym, value }));
+      parts.push(barChart(bars, list, { symbol: sym, value, fmt }));
     } else {
-      parts.push(tradeMap(list, { value }) + await whyNoBars(sym, day));
+      parts.push(tradeMap(list, { value, fmt }) + await whyNoBars(sym, day));
     }
   }
 

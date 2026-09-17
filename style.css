@@ -4053,6 +4053,64 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   .ch-svg { min-height: 220px; }
 }
 
+/* The key under the chart: one line per numbered decision.
+   Monospace and a fixed column order, because the question it answers is
+   "which one was the loser", and that is read by comparing the last figure
+   down a list - proportional type with the numbers in a different place on
+   every row defeats exactly that. */
+.ch-key {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ch-key li {
+  display: grid;
+  grid-template-columns: 1.6rem 5.5rem 4rem 1fr auto;
+  gap: var(--s-2);
+  align-items: baseline;
+  padding: 3px var(--s-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.ch-key li:nth-child(odd) { background: var(--surface-2); }
+
+/* The numeral matches the one drawn on the chart, so the eye can go from a
+   line here to a triangle up there without counting. */
+.ch-key-n {
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+}
+
+.ch-key-side { text-transform: uppercase; letter-spacing: 0.04em; }
+.ch-key-at { color: var(--muted); }
+.ch-key-px { color: var(--muted); }
+.ch-key-val { font-weight: 600; text-align: right; }
+
+.ch-key li.is-win  .ch-key-side, .ch-key li.is-win  .ch-key-val { color: var(--bull); }
+.ch-key li.is-loss .ch-key-side, .ch-key li.is-loss .ch-key-val { color: var(--bear); }
+
+/* The numeral drawn on the chart itself. Painted with the page colour behind
+   its own strokes - paint-order in chart.js - so it stays legible sitting on a
+   candle. */
+.ch-num { font-family: var(--mono); }
+
+@media (max-width: 560px) {
+  .ch-key li {
+    grid-template-columns: 1.4rem 4.6rem 1fr auto;
+    font-size: 0.72rem;
+  }
+  /* The prices are the first thing to go on a phone: the time, the side and
+     what it made are what the list is scanned for. */
+  .ch-key-px { display: none; }
+}
+
 /* ----------------------------- notes on the day -----------------------------
 
    Written in the calendar's day panel and in a card at the top of the journal;

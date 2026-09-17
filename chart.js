@@ -646,7 +646,68 @@ function markLayer(marks, s, height) {
     const price = num(m.price);
     const hasPrice = Number.isFinite(price);
     const label = escapeHtml(letter + ' - ' + hhmm(m.at) +
-      (hasPrice ? ' at ' + price : '') + ' - ' + m.body + ' (click to edit)');
+      (hasPrice ? ' at ' + price : '') +
+      (m.body ? ' - ' + m.body : '') + ' (click to edit)');
+
+    /* A SHAPE: two corners rather than a point.
+     *
+     * What somebody actually draws on a chart is a region - the move, the
+     * range, the bit where it went wrong. "I did this here" is an area, and a
+     * pin at the corner of what they meant with the words carrying the rest is
+     * the page deciding a shape was not worth storing.
+     *
+     * The rectangle is clamped to the plot rather than clipped away: a box
+     * drawn round a move that runs off the left of a cropped view still has a
+     * right-hand edge worth seeing, and a shape half outside the window should
+     * say "it continues" rather than vanish. */
+    if (m.kind === 'box' || m.kind === 'line') {
+      const x2 = s.x(m.at_end);
+      const y1 = s.y(price);
+      const y2 = s.y(num(m.price_end));
+
+      const left = Math.max(Math.min(x, x2), PAD.left);
+      const right = Math.min(Math.max(x, x2), PAD.left + s.plotW);
+      const top = Math.max(Math.min(y1, y2), PAD.top);
+      const bottom = Math.min(Math.max(y1, y2), PAD.top + s.plotH);
+
+      if (m.kind === 'line') {
+        out +=
+          '<g class="ch-mark ch-shape ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+            '<line x1="' + x.toFixed(1) + '" y1="' + y1.toFixed(1) +
+              '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+              '" stroke="currentColor" stroke-width="2" opacity="0.9"/>' +
+            '<title>' + label + '</title>' +
+          '</g>';
+      } else {
+        out +=
+          '<g class="ch-mark ch-shape ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+            '<rect x="' + left.toFixed(1) + '" y="' + top.toFixed(1) +
+              '" width="' + Math.max(1, right - left).toFixed(1) +
+              '" height="' + Math.max(1, bottom - top).toFixed(1) +
+              '" rx="2" fill="currentColor" fill-opacity="0.10" ' +
+              'stroke="currentColor" stroke-width="1.4"/>' +
+            '<title>' + label + '</title>' +
+          '</g>';
+      }
+
+      /* The letter sits on the top-left corner, outside the shape where there
+       * is usually a candle underneath rather than on top of it. */
+      out +=
+        '<g class="ch-mark ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+          '<rect x="' + (left - 1).toFixed(1) + '" y="' + (top - 15).toFixed(1) +
+            '" width="16" height="14" rx="3" fill="currentColor"/>' +
+          '<text x="' + (left + 7).toFixed(1) + '" y="' + (top - 4.5).toFixed(1) +
+            '" fill="var(--page, #fff)" font-size="10" font-weight="700" ' +
+            'text-anchor="middle">' + letter + '</text>' +
+          (m.body
+            ? '<text class="ch-shape-label" x="' + (left + 19).toFixed(1) + '" y="' +
+              (top - 4.5).toFixed(1) + '" fill="currentColor" font-size="10.5">' +
+              escapeHtml(m.body.slice(0, 40)) + '</text>'
+            : '') +
+          '<title>' + label + '</title>' +
+        '</g>';
+      return;
+    }
 
     const chip = (cx, cy) =>
       '<rect x="' + (cx - 8).toFixed(1) + '" y="' + cy.toFixed(1) +
@@ -696,9 +757,18 @@ function markList(marks, s) {
       'title="Click to edit or delete">' +
       '<span class="ch-mark-n">' + letter + '</span>' +
       '<span class="ch-mark-at">' + escapeHtml(hhmm(m.at)) +
+        (m.at_end ? ' to ' + escapeHtml(hhmm(m.at_end)) : '') +
         (Number.isFinite(num(m.price)) ? ' at ' + escapeHtml(String(m.price)) : '') +
       '</span>' +
-      '<span class="ch-mark-body">' + escapeHtml(m.body) + '</span>' +
+      /* A shape with no words is still a row here, named by what it is. Without
+       * this it would be a blank line in the list and unreachable by anybody
+       * who cannot hit a rectangle with a mouse. */
+      '<span class="ch-mark-body">' +
+        (m.body ? escapeHtml(m.body)
+                : '<span class="acct-muted">' +
+                  (m.kind === 'box' ? 'box' : m.kind === 'line' ? 'line' : 'mark') +
+                  ' with no note</span>') +
+      '</span>' +
     '</li>').join('') + '</ul>';
 }
 

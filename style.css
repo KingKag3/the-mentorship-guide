@@ -4170,6 +4170,13 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .ch-tools { margin-top: var(--s-2); }
 body.is-marking .ch-svg { cursor: crosshair; }
 
+/* A shape while it is being dragged, and once it is stored. Both take the
+   accent, so a box reads as the member's own mark rather than as anything the
+   market or the journal put there. */
+.ch-drawing { color: var(--accent); }
+.ch-shape { color: var(--accent); }
+.ch-shape-label { font-family: var(--mono); }
+
 .ch-key li.is-picked {
   box-shadow: inset 0 0 0 2px var(--accent);
   background: var(--paper);

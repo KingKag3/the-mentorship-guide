@@ -1100,3 +1100,38 @@ trades in.
 **Known limit:** the text is collected with `prompt()`. It is ugly, it cannot be styled, and on a
 phone it is a system dialog. It is also three lines instead of an editor, and this is the first
 version — if marks get used, an inline editor like the day note's is the obvious next step.
+
+---
+
+## 2026-09-17 (later) — A mark is a shape, because "I did this here" is an area
+
+**Decided:** `chart_marks` gains `kind`, `at_end` and `price_end`. A mark is a `pin` (one point,
+words required), a `box` or a `line` (two corners, words optional). Boxes are drawn by arming the
+tool and dragging on the chart.
+
+**Why the pin was not enough.** The first version stored one instant and one price, and the thing
+actually wanted is what a trader draws: a box round the move, the range, the part where it went
+wrong. Putting a pin at the corner of what somebody meant and letting the words carry the rest is
+the page deciding a shape is not worth storing — which is the decision the member
+disagreed with.
+
+**Words are optional on a shape and required on a pin.** A box round the reversal says something by
+existing. A pin is a dot until it has words. Forcing a label on a box means somebody types "box" to
+get past the prompt, and the chart then carries a word that means nothing.
+
+**The database refuses a half-made shape.** A box with one corner stores happily and draws as
+nothing — a mark the member made and the chart silently declines to show. The check
+constraint makes that a failure at the moment it happens, in front of the person who can fix it.
+
+**The preview is a real element, not a redraw.** Dragging rebuilds one `<rect>` in the live SVG
+rather than re-rendering three hundred candles per mousemove, which would stutter on exactly the
+machines this is for. It is removed on release whatever happens, so no half-shape is left behind.
+
+**A drag under six pixels is a click that wobbled.** Storing it makes an invisible shape findable
+only in the list underneath.
+
+**A drag that ends outside the plot is clamped, not refused.** Releasing an inch past the edge means
+"all the way to there", and throwing the box away is the page being pedantic about a gesture it
+understood. A *click* outside the plot is still nothing: the axis gutter is not a moment.
+
+**Known limit, unchanged from the pin:** the note is still collected with `prompt()`.

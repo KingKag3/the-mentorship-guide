@@ -1118,6 +1118,13 @@ rather than a level is a dashed line down the chart, because giving it a price w
 nobody made. Placing one is modal on purpose: a click already means "zoom to this trade", so the
 member arms it first and the cursor says the chart is armed.</p>
 
+<p><strong>A mark can be a shape.</strong> Arm <em>Draw a box</em> and drag: the rectangle follows
+the pointer as a real element inserted into the live SVG, rather than a redraw per mousemove that
+would stutter over three hundred candles. Words are optional on a box and required on a pin &mdash;
+a box round the reversal says something by existing, while a pin is a dot until it has words, and
+forcing a label means somebody types "box" to get past the prompt. A drag under six pixels is a
+click that wobbled; a drag ending outside the plot is clamped rather than thrown away.</p>
+
 <p>When no bars exist — an untracked symbol, or a session the nightly job has not fetched —
 <code>tradeMap()</code> draws the same markers with no candles behind them, and the page says which
 of the four reasons applies. That view is not a placeholder: for anything but NQ and ES it is the

@@ -11,7 +11,10 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-Nothing.
+### `chart-marks-shapes.sql` — boxes on the chart (17 September 2026)
+
+Three columns on `chart_marks`, so a mark can be a shape rather than only a point. Until it is run,
+pins keep working and the **Draw a box** tool hides itself with a line naming this file.
 
 `prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
 `prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.

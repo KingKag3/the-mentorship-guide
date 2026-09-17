@@ -4012,10 +4012,19 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .ch-svg {
   width: 100%;
-  /* The viewBox is 880 wide; letting it scale freely keeps the session filling
-     the panel at any width. Height is fixed in CSS rather than by aspect ratio
-     so a phone gets a readable chart instead of a 60px strip. */
-  height: 300px;
+
+  /* HEIGHT FOLLOWS THE WIDTH, rather than being fixed here.
+     The SVG used to be stretched to a fixed box with preserveAspectRatio
+     "none", which fits exactly and distorts everything inside it - the axis
+     labels came out wide, thin and unreadable. It scales proportionally now, so
+     the drawing keeps its own shape and the height is whatever the viewBox
+     ratio makes it: about 470px in a full-width panel.
+
+     min-height is for a phone, where that ratio would otherwise produce a
+     150px strip. There it letterboxes instead, which costs a band of background
+     above and below and keeps the candles a readable size. */
+  height: auto;
+  min-height: 260px;
   display: block;
   color: var(--fg);
   background: var(--surface-2);
@@ -4041,7 +4050,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .ch-svg rect.ch-loss { pointer-events: all; }
 
 @media (max-width: 560px) {
-  .ch-svg { height: 220px; }
+  .ch-svg { min-height: 220px; }
 }
 
 /* ----------------------------- notes on the day -----------------------------

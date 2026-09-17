@@ -43,6 +43,18 @@ const SESSION_GAP_MS = 30 * 60 * 1000;
 
 const PAD = { top: 14, right: 58, bottom: 26, left: 8 };
 
+/* `Number(null)` IS ZERO, AND THAT IS NOT A PRICE.
+ *
+ * Every price here arrives from Postgres, where an unrecorded one is null - and
+ * `Number(null)` is 0, which passes `Number.isFinite` cheerfully. A trade with
+ * no entry was therefore drawn at price zero: a marker at the bottom of the
+ * chart that looks like a fill, and, because the axis grows to include the
+ * fills, an axis stretched from 0 to 29,800 with every candle in the session
+ * squashed into a band a few pixels tall.
+ *
+ * `Number('')` is 0 too, for the same reason and with the same consequence. */
+const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+
 /** Bars arrive as one long list; return the contiguous run containing `at`. */
 export function sessionRun(bars, at) {
   if (!bars.length) return [];
@@ -71,8 +83,15 @@ export function barSymbol(symbol) {
   return s;
 }
 
+/* 24-HOUR, AND NOT THE LOCALE'S CHOICE.
+ *
+ * `toLocaleTimeString` with no options gives "07:00 PM" here - eight characters
+ * for a label that has about forty pixels, so an axis of them ran into each
+ * other and read as one long string. A trading session is also the one context
+ * where 18:00 is clearer than 6 PM: it says which side of the open it is on
+ * without the reader doing arithmetic. */
 const hhmm = (value) => new Date(value)
-  .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
 /* --------------------------------- scales -------------------------------- */
 
@@ -98,7 +117,7 @@ function scales(bars, decisions, width, height) {
    * clipped off an edge where the chart silently disagrees with the journal. */
   for (const d of decisions) {
     for (const p of [d.entry, d.exit_price]) {
-      const v = Number(p);
+      const v = num(p);
       if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
     }
   }
@@ -137,16 +156,56 @@ function priceAxis(s, width) {
   return out;
 }
 
+/* AS MANY LABELS AS FIT, NOT ONE AN HOUR.
+ *
+ * A Globex session is 23 hours. One label an hour is 23 of them across 814
+ * drawing units - 35 units each, for text that needs about 34 - so they touched,
+ * and at the left edge the first ran off the plot and rendered as ":00" with no
+ * hour in front of it.
+ *
+ * The spacing is derived from the space available instead: how many labels fit
+ * at a readable width, rounded UP to a whole number of hours so the axis still
+ * reads 18:00, 21:00, 00:00 rather than 18:00, 20:37, 23:14. */
 function timeAxis(s, bars, height) {
-  // Roughly one label an hour, whatever the session length, and always on a
-  // real bar so a label never points at a gap.
+  const LABEL_UNITS = 46;                 // room for "18:00" plus air
+  const fits = Math.max(2, Math.floor(s.plotW / LABEL_UNITS));
   const perHour = Math.max(1, Math.round(3600000 / s.step));
+  const hoursApart = Math.max(1, Math.ceil(bars.length / perHour / fits));
+
+  /* LABELLED BY THE CLOCK, NOT BY COUNTING BARS.
+   *
+   * Stepping twelve bars at a time assumes twelve bars an hour, and a session
+   * with a candle missing - a minute that did not trade, which the source
+   * returns as a null and this drops - puts every later label five minutes out.
+   * The axis read 18:00, 19:00 ... 23:00, 00:05, 01:05, which is worse than an
+   * unlabelled axis: it looks precise and is wrong.
+   *
+   * So a bar is labelled when its own clock says it should be. Gaps cost a
+   * label rather than shifting every one after them. */
+  const chosen = [];
+  let lastHour = null;
+  for (const b of bars) {
+    const at = new Date(b.ts);
+    if (at.getMinutes() !== 0) continue;
+    const hour = at.getHours();
+    if (lastHour !== null && ((hour - lastHour + 24) % 24) < hoursApart) continue;
+    lastHour = hour;
+    chosen.push(b);
+  }
+
+  // The open is the one time a reader looks for first, and it is rarely on the
+  // hour after a holiday shortens a session.
+  if (!chosen.length || chosen[0].ts !== bars[0].ts) chosen.unshift(bars[0]);
+
   let out = '';
-  for (let i = 0; i < bars.length; i += perHour) {
-    const x = s.x(bars[i].ts);
+  for (const bar of chosen) {
+    const x = s.x(bar.ts);
+    // Never let the first or last label hang off its own plot.
+    const anchor = x < PAD.left + LABEL_UNITS / 2 ? 'start'
+                 : x > PAD.left + s.plotW - LABEL_UNITS / 2 ? 'end' : 'middle';
     out += '<text class="ch-axis" x="' + x.toFixed(1) + '" y="' + (height - 8) +
-      '" fill="currentColor" font-size="9" opacity="0.65" text-anchor="middle">' +
-      escapeHtml(hhmm(bars[i].ts)) + '</text>';
+      '" fill="currentColor" font-size="10" opacity="0.7" text-anchor="' + anchor + '">' +
+      escapeHtml(hhmm(bar.ts)) + '</text>';
   }
   return out;
 }
@@ -175,13 +234,19 @@ function candles(bars, s) {
   return out;
 }
 
-/* The fills. Everything above this is scenery. */
+/* The fills. Everything above this is scenery.
+ *
+ * Returns the markup AND a count, because a decision with no entry and no exit
+ * price cannot be placed and silently vanishes otherwise. An empty-looking
+ * chart over a day with trades on it is the page disagreeing with the journal
+ * and not saying so - the caption reports the difference. */
 function markers(decisions, s, value) {
   let out = '';
+  let drawn = 0;
 
   for (const d of decisions) {
-    const entry = Number(d.entry);
-    const exit = Number(d.exit_price);
+    const entry = num(d.entry);
+    const exit = num(d.exit_price);
     const won = value(d) > 0;
     const cls = won ? 'ch-win' : 'ch-loss';
     const long = d.direction === 'long';
@@ -189,6 +254,7 @@ function markers(decisions, s, value) {
     const hasEntry = Number.isFinite(entry);
     const hasExit = Number.isFinite(exit);
     if (!hasEntry && !hasExit) continue;      // nothing to place it at
+    drawn++;
 
     const xIn = s.x(d.opened_at);
     const xOut = s.x(d.closed_at || d.opened_at);
@@ -200,7 +266,7 @@ function markers(decisions, s, value) {
      * Most imported trades have neither - no broker export carries them - and
      * their absence is ordinary rather than an error. Drawn first so the
      * markers sit on top of it. */
-    const stop = Number(d.stop), target = Number(d.target);
+    const stop = num(d.stop), target = num(d.target);
     if (hasEntry && (Number.isFinite(stop) || Number.isFinite(target))) {
       const yStop = Number.isFinite(stop) ? s.y(stop) : yIn;
       const yTarget = Number.isFinite(target) ? s.y(target) : yIn;
@@ -226,24 +292,24 @@ function markers(decisions, s, value) {
 
     if (hasEntry) {
       // Point the way the trade was taken: up for a long, down for a short.
-      const r = 4.2;
+      const r = 5.4;
       const tri = long
         ? [[xIn, yIn - r], [xIn - r, yIn + r], [xIn + r, yIn + r]]
         : [[xIn, yIn + r], [xIn - r, yIn - r], [xIn + r, yIn - r]];
       out += '<polygon class="' + cls + '" points="' +
         tri.map(([x, y]) => x.toFixed(1) + ',' + y.toFixed(1)).join(' ') +
-        '" fill="currentColor" stroke="var(--page, #fff)" stroke-width="0.8">' +
+        '" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1">' +
         '<title>' + label + '</title></polygon>';
     }
 
     if (hasExit) {
-      out += '<rect class="' + cls + '" x="' + (xOut - 3).toFixed(1) + '" y="' + (yOut - 3).toFixed(1) +
-        '" width="6" height="6" fill="currentColor" stroke="var(--page, #fff)" stroke-width="0.8">' +
+      out += '<rect class="' + cls + '" x="' + (xOut - 3.4).toFixed(1) + '" y="' + (yOut - 3.4).toFixed(1) +
+        '" width="6.8" height="6.8" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1">' +
         '<title>' + label + '</title></rect>';
     }
   }
 
-  return out;
+  return { html: out, drawn };
 }
 
 /* --------------------------------- charts -------------------------------- */
@@ -255,27 +321,47 @@ function markers(decisions, s, value) {
  * `decisions` de-duplicated trades - distinctDecisions(), never raw rows
  * `value`     what a trade was worth, so dollars and R can both be drawn
  */
-export function barChart(bars, decisions, { symbol, value, width = 880, height = 300 } = {}) {
+export function barChart(bars, decisions, { symbol, value, width = 1200, height = 470 } = {}) {
   if (!bars || !bars.length) return '';
 
   const s = scales(bars, decisions, width, height);
   const from = hhmm(bars[0].ts);
   const to = hhmm(bars[bars.length - 1].ts);
+  const marks = markers(decisions, s, value);
 
+  /* SCALED PROPORTIONALLY, not stretched.
+   *
+   * This drew with preserveAspectRatio="none", which fits the box exactly and
+   * stretches everything in it - including the letters, which came out wide and
+   * thin and, on the axis, unreadable. `meet` keeps the drawing's own shape; the
+   * CSS gives the width and lets the height follow.
+   *
+   * The viewBox is wider than it was for the same reason the labels were
+   * colliding: a 23-hour session needs the room. */
   return '<figure class="ch-figure">' +
     '<svg class="ch-svg" viewBox="0 0 ' + width + ' ' + height + '" ' +
-      'preserveAspectRatio="none" role="img" ' +
+      'preserveAspectRatio="xMidYMid meet" role="img" ' +
       'aria-label="' + escapeHtml(symbol + ' five-minute candles from ' + from + ' to ' + to +
-        ', with ' + decisions.length + ' of your ' +
+        ', with ' + marks.drawn + ' of your ' +
         (decisions.length === 1 ? 'decision' : 'decisions') + ' marked') + '">' +
       priceAxis(s, width) +
       candles(bars, s) +
-      markers(decisions, s, value) +
+      marks.html +
       timeAxis(s, bars, height) +
     '</svg>' +
     '<figcaption class="stat-note">' + escapeHtml(symbol) + ' 5-minute candles, ' +
-      escapeHtml(from) + ' to ' + escapeHtml(to) + '. Markers sit at your own fill prices, ' +
-      'not at the candle.</figcaption>' +
+      escapeHtml(from) + ' to ' + escapeHtml(to) + '. ' +
+      /* WHAT IS AND IS NOT ON THE PICTURE.
+       *
+       * A decision with neither an entry nor an exit price cannot be placed
+       * anywhere, and saying nothing about it leaves a chart that looks like a
+       * quiet day over a journal that says otherwise. */
+      (marks.drawn === decisions.length
+        ? marks.drawn + (marks.drawn === 1 ? ' decision marked' : ' decisions marked') +
+          ' at your own fill prices, not at the candle.'
+        : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have no ' +
+          'entry or exit price recorded, so there is nowhere on the chart to put them.') +
+    '</figcaption>' +
   '</figure>';
 }
 
@@ -286,13 +372,13 @@ export function barChart(bars, decisions, { symbol, value, width = 880, height =
  * only chart there will ever be, and it still answers where the entries sat
  * against each other and how the day ran.
  */
-export function tradeMap(decisions, { value, width = 880, height = 220 } = {}) {
-  const usable = decisions.filter((d) => Number.isFinite(Number(d.entry)));
+export function tradeMap(decisions, { value, width = 1200, height = 340 } = {}) {
+  const usable = decisions.filter((d) => Number.isFinite(num(d.entry)));
   if (!usable.length) return '';
 
   const times = usable.flatMap((d) => [new Date(d.opened_at).getTime(),
                                        new Date(d.closed_at || d.opened_at).getTime()]);
-  const prices = usable.flatMap((d) => [Number(d.entry), Number(d.exit_price)])
+  const prices = usable.flatMap((d) => [num(d.entry), num(d.exit_price)])
     .filter((v) => Number.isFinite(v));
 
   const pad = (Math.max(...prices) - Math.min(...prices)) * 0.12 || 1;
@@ -302,18 +388,19 @@ export function tradeMap(decisions, { value, width = 880, height = 220 } = {}) {
                   low: Math.min(...prices) - pad, high: Math.max(...prices) + pad }];
 
   const s = scales(fake, usable, width, height);
+  const marks = markers(usable, s, value);
 
   const first = Math.min(...times);
   const last = Math.max(...times);
 
   return '<figure class="ch-figure">' +
     '<svg class="ch-svg" viewBox="0 0 ' + width + ' ' + height + '" ' +
-      'preserveAspectRatio="none" role="img" ' +
+      'preserveAspectRatio="xMidYMid meet" role="img" ' +
       'aria-label="' + escapeHtml(usable.length + ' ' +
         (usable.length === 1 ? 'decision' : 'decisions') +
         ' by time and price, ' + hhmm(first) + ' to ' + hhmm(last)) + '">' +
       priceAxis(s, width) +
-      markers(usable, s, value) +
+      marks.html +
       // Two labels rather than an hourly axis: with no bars behind them there
       // is nothing for hourly ticks to line up with, and a grid of times over
       // empty space suggests a precision this view does not have.

@@ -1,0 +1,30 @@
+# Supabase CLI configuration.
+#
+# The whole file exists for four lines at the bottom, and they are the ones that
+# stop the gateway refusing the nightly fetch.
+#
+# WHY verify_jwt = false IS CORRECT HERE, AND NOT A LOOSENING
+#
+# With it on, Supabase validates the Authorization header itself before the
+# function runs, and it accepts only a JWT for this project. The scheduled job
+# sends FETCH_BARS_SECRET, which is a random string and not a JWT, so the
+# gateway answers:
+#
+#     401  sb-error-code: UNAUTHORIZED_INVALID_JWT_FORMAT
+#
+# and the function never boots. That is what happened on 17 September 2026, and
+# the logs showed nothing at all, because nothing ran.
+#
+# What the gateway would have been protecting is already protected: the function
+# checks every caller itself - the shared secret, the platform's service key, or
+# a signed-in admin's JWT read against `profiles.role` - and answers 401 to
+# anything else. Turning the gateway off removes a lock that only turned away
+# the right key.
+#
+# This file matters only for a CLI deploy. The same setting exists as a toggle
+# in the dashboard for a function deployed by pasting.
+
+project_id = "djqpgdchknwgmjmkagnr"
+
+[functions.fetch-bars]
+verify_jwt = false

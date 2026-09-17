@@ -52,12 +52,34 @@ all the comparison was asking. A secret you set is the same string on both sides
 The old path still works where it works: the injected service key is accepted too, as is a
 signed-in admin's JWT.
 
-## Turn off "Verify JWT" for this function
+## Turn off "Verify JWT" for this function — it will not work until you do
 
-In the function's settings. Supabase's gate rejects tokens that are not JWTs for this project, which
-includes the shared secret above. The function does its own check — secret, service key, or an admin
-JWT, and a plain `401` for anything else — so the gate is a second lock that only turns the right
-key away.
+Supabase's gateway validates the Authorization header before your code runs, and accepts only a JWT
+for this project. `FETCH_BARS_SECRET` is a random string, so the gateway answers:
+
+```
+HTTP/1.1 401 Unauthorized
+sb-error-code: UNAUTHORIZED_INVALID_JWT_FORMAT
+{"code":"UNAUTHORIZED_INVALID_JWT_FORMAT","message":"Invalid JWT"}
+```
+
+and the function never boots — the logs stay empty, because nothing ran. **That header is how you
+tell this apart from the function refusing you.** A refusal from the function says
+`{"error":"not allowed"}` and names the shape of the token it got; a refusal from the gateway
+carries `sb-error-code` and never reaches the log.
+
+Two ways to turn it off:
+
+- **Dashboard:** open the function, find its settings, and turn off *Verify JWT* (it may be worded
+  "Verify JWT with legacy secret"). Redeploy afterwards if the dashboard asks.
+- **CLI:** it is already set in `supabase/config.toml` in this repo, so
+  `supabase functions deploy fetch-bars` carries it. This is the reliable route when the toggle
+  cannot be found in the dashboard.
+
+**This is not a loosening.** What the gateway would protect is already protected: the function
+checks every caller itself — the shared secret, the platform's service key, or a signed-in admin's
+JWT read against `profiles.role` — and answers 401 to anything else. The gateway was a second lock
+that only turned away the right key.
 
 ## Try it before scheduling it
 

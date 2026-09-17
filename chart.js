@@ -95,6 +95,28 @@ export function sessionRun(bars, at) {
 
 const CROP_PAD_MS = 60 * 60 * 1000;
 
+/* Zooming in on one trade, or one tally of them.
+ *
+ * Fifteen minutes either side, and a floor of twenty bars. A single trade
+ * lasting four minutes zoomed to exactly itself is three candles on a chart
+ * built for two hundred: technically closer and useless. The room around it is
+ * what makes the entry mean anything. */
+const ZOOM_PAD_MS = 15 * 60 * 1000;
+const ZOOM_MIN_BARS = 20;
+
+export function zoomToWindow(bars, from, to) {
+  let pad = ZOOM_PAD_MS;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const kept = bars.filter((b) => {
+      const t = new Date(b.ts).getTime();
+      return t >= from - pad && t <= to + pad;
+    });
+    if (kept.length >= ZOOM_MIN_BARS || kept.length === bars.length) return kept;
+    pad *= 2;
+  }
+  return bars;
+}
+
 /** The bars worth drawing for these decisions, and whether anything was cut. */
 export function cropToTrades(bars, decisions) {
   const stamps = [];
@@ -298,7 +320,8 @@ function candles(bars, s) {
  * answers "when, and where in the range"; the list answers "what was it and
  * what did it cost". Neither has to do both. */
 function markers(decisions, s, value, { number = true, flag = false, fmtValue = money,
-                                        height = 0 } = {}) {
+                                        picked = null, numbers = null, height = 0 } = {}) {
+  const isPicked = (n) => !!picked && picked.includes(n);
   let out = '';
   let drawn = 0;
   const flags = [];
@@ -356,13 +379,20 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
     if (!hasEntry && !hasExit) continue;      // nothing to place it at
     drawn++;
 
-    const n = drawn;
+    /* THE NUMBER IS THE DAY'S, NOT THIS VIEW'S.
+     *
+     * Zooming draws a subset, and numbering the subset would make trade 21
+     * become trade 2 on the way in and 21 again on the way out. The caller
+     * decides the numbers once for the whole day and hands them down. */
+    const n = numbers ? numbers.get(d) : drawn;
     key.push({
       n, long, won, at: hhmm(d.opened_at),
       contracts: d.contracts, symbol: d.symbol,
       entry: hasEntry ? entry : null,
       exit: hasExit ? exit : null,
-      value: value(d)
+      value: value(d),
+      from: Date.parse(d.opened_at),
+      to: Date.parse(d.closed_at || d.opened_at)
     });
 
     const xIn = s.x(d.opened_at);
@@ -409,16 +439,22 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
         if (Math.hypot(c.x - xIn, c.y - yIn) <= OVERLAP) { twin = c; break; }
       }
     }
+    const opened = Date.parse(d.opened_at);
+    const closed = Date.parse(d.closed_at || d.opened_at);
+
     if (twin) {
       twin.count++;
       twin.numbers.push(n);
       twin.wins += won ? 1 : 0;
       twin.total += value(d);
+      twin.from = Math.min(twin.from, opened);
+      twin.to = Math.max(twin.to, closed);
       continue;
     }
     if (hasEntry) {
       cells.push({ count: 1, numbers: [n], wins: won ? 1 : 0,
-                   total: value(d), x: xIn, y: yIn, long });
+                   total: value(d), x: xIn, y: yIn, long,
+                   from: opened, to: closed });
     }
 
     if (hasEntry) {
@@ -427,14 +463,18 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
       const tri = long
         ? [[xIn, yIn - r], [xIn - r, yIn + r], [xIn + r, yIn + r]]
         : [[xIn, yIn + r], [xIn - r, yIn - r], [xIn + r, yIn - r]];
-      out += '<polygon class="' + cls + '" points="' +
+      out += '<polygon class="' + cls + ' ch-pick' + (isPicked(n) ? ' is-picked' : '') + '" points="' +
         tri.map(([x, y]) => x.toFixed(1) + ',' + y.toFixed(1)).join(' ') +
-        '" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1">' +
-        '<title>' + label + '</title></polygon>';
+        '" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1" ' +
+        'tabindex="0" role="button" data-picks="' + n + '" ' +
+        'data-from="' + Date.parse(d.opened_at) + '" ' +
+        'data-to="' + Date.parse(d.closed_at || d.opened_at) + '">' +
+        '<title>' + label + ' \u2014 click to zoom in</title></polygon>';
     }
 
     if (hasExit) {
-      out += '<rect class="' + cls + '" x="' + (xOut - 3.4).toFixed(1) + '" y="' + (yOut - 3.4).toFixed(1) +
+      out += '<rect class="' + cls + (isPicked(n) ? ' is-picked' : '') +
+        '" x="' + (xOut - 3.4).toFixed(1) + '" y="' + (yOut - 3.4).toFixed(1) +
         '" width="6.8" height="6.8" fill="currentColor" stroke="var(--page, #fff)" stroke-width="1">' +
         '<title>' + label + '</title></rect>';
     }
@@ -464,7 +504,10 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
     if (c.count < 2) continue;
     const cls = c.wins === c.count ? 'ch-win' : c.wins === 0 ? 'ch-loss' : 'ch-mixed';
     out +=
-      '<g class="ch-tally ' + cls + '">' +
+      '<g class="ch-tally ch-pick ' + cls +
+        (c.numbers.some(isPicked) ? ' is-picked' : '') + '" tabindex="0" role="button" ' +
+        'data-picks="' + c.numbers.join(',') + '" ' +
+        'data-from="' + c.from + '" data-to="' + c.to + '">' +
         '<circle cx="' + (c.x + 9).toFixed(1) + '" cy="' + (c.y - 8).toFixed(1) +
           '" r="7.5" fill="var(--page, #fff)" stroke="currentColor" stroke-width="1.2"/>' +
         '<text x="' + (c.x + 9).toFixed(1) + '" y="' + (c.y - 5).toFixed(1) +
@@ -475,7 +518,8 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
             ? c.numbers.slice(0, 8).join(', ') + ' and ' + (c.numbers.length - 8) + ' more'
             : c.numbers.join(', ')) +
           ' \u2014 ' + (c.wins === c.count ? 'all won' : c.wins === 0 ? 'all lost'
-                        : c.wins + ' won, ' + (c.count - c.wins) + ' lost')) + '</title>' +
+                        : c.wins + ' won, ' + (c.count - c.wins) + ' lost') +
+          '. Click to zoom in.') + '</title>' +
       '</g>';
   }
 
@@ -536,11 +580,14 @@ function markers(decisions, s, value, { number = true, flag = false, fmtValue = 
  * scanning for "which one was the loser" is comparing the last column down a
  * list, and proportional type with the figures in different places each row
  * defeats that. */
-function legend(key, { money: fmtMoney = money } = {}) {
+function legend(key, { money: fmtMoney = money, picked = null } = {}) {
   if (!key.length) return '';
 
   return '<ol class="ch-key">' + key.map((k) =>
-    '<li class="' + (k.won ? 'is-win' : 'is-loss') + '">' +
+    '<li class="' + (k.won ? 'is-win' : 'is-loss') + ' ch-pick' +
+      (picked && picked.includes(k.n) ? ' is-picked' : '') + '" tabindex="0" role="button" ' +
+      'data-picks="' + k.n + '" data-from="' + k.from + '" data-to="' + k.to + '" ' +
+      'title="Click to zoom in on this trade">' +
       '<span class="ch-key-n">' + k.n + '</span>' +
       '<span class="ch-key-side">' + (k.long ? 'long' : 'short') +
         (k.contracts ? ' ' + escapeHtml(String(k.contracts)) : '') + '</span>' +
@@ -562,13 +609,41 @@ function legend(key, { money: fmtMoney = money } = {}) {
  * `decisions` de-duplicated trades - distinctDecisions(), never raw rows
  * `value`     what a trade was worth, so dollars and R can both be drawn
  */
-export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
-                                            width = 1200, height = 470 } = {}) {
+export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit', zoom = null,
+                                            picked = null, width = 1200, height = 470 } = {}) {
   if (!bars || !bars.length) return '';
 
+  const allDecisions = decisions;
   const full = bars;
-  const crop = view === 'all' ? { bars: full, cropped: false } : cropToTrades(full, decisions);
+  const crop = zoom
+    ? { bars: zoomToWindow(full, zoom.from, zoom.to), cropped: true, zoomed: true }
+    : view === 'all'
+      ? { bars: full, cropped: false }
+      : cropToTrades(full, decisions);
   bars = crop.bars;
+  if (!bars.length) bars = full;
+
+  /* ONLY WHAT IS IN VIEW GETS A SAY IN THE SCALE.
+   *
+   * The price axis grows to include the fills, which is right - a marker off the
+   * top would otherwise be clipped away in silence. Zoomed in, that rule turned
+   * against the view: a trade four hours later at a price two hundred points
+   * away still stretched the axis, and the ten candles being looked at were
+   * squashed into a band. A decision outside the window is not in the picture
+   * and must not shape it.
+   *
+   * The numbers are still the day's, so trade 21 is trade 21 at every zoom. */
+  const numbers = new Map();
+  allDecisions.slice()
+    .sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at))
+    .forEach((d, i) => numbers.set(d, i + 1));
+
+  const firstTs = new Date(bars[0].ts).getTime();
+  const lastTs = new Date(bars[bars.length - 1].ts).getTime() + 5 * 60 * 1000;
+  decisions = allDecisions.filter((d) => {
+    const t = Date.parse(d.opened_at);
+    return !Number.isFinite(t) || (t >= firstTs && t <= lastTs);
+  });
 
   const s = scales(bars, decisions, width, height);
   const from = hhmm(bars[0].ts);
@@ -583,7 +658,7 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
   const marks = markers(decisions, s, value, {
     flag: decisions.length <= 8,
     number: decisions.length > 8 && decisions.length <= 24,
-    fmtValue, height
+    fmtValue, height, picked, numbers
   });
 
   /* SCALED PROPORTIONALLY, not stretched.
@@ -610,7 +685,13 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
       escapeHtml(from) + ' to ' + escapeHtml(to) + '. ' +
       /* A cropped axis must never pass as the whole day. It says what it is
        * showing, out of what, and offers the rest. */
-      (crop.cropped
+      (crop.zoomed
+        ? 'Zoomed in' + (picked && picked.length
+            ? ' on ' + (picked.length === 1 ? 'trade ' + picked[0]
+                        : picked.length + ' trades') : '') +
+          '. <button type="button" class="link-button" data-chart-view="fit">' +
+          'Back to the day</button>. '
+        : crop.cropped
         ? 'Fitted to your trading, out of a session running ' +
           escapeHtml(hhmm(full[0].ts)) + ' to ' + escapeHtml(hhmm(full[full.length - 1].ts)) +
           '. <button type="button" class="link-button" data-chart-view="all">' +
@@ -624,7 +705,10 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
        * A decision with neither an entry nor an exit price cannot be placed
        * anywhere, and saying nothing about it leaves a chart that looks like a
        * quiet day over a journal that says otherwise. */
-      (marks.drawn === decisions.length
+      (decisions.length !== allDecisions.length
+        ? marks.drawn + ' of the day’s ' + allDecisions.length +
+          ' decisions are in this view, marked at your own fill prices.'
+        : marks.drawn === decisions.length
         ? marks.drawn + (marks.drawn === 1 ? ' decision marked' : ' decisions marked') +
           ' at your own fill prices, not at the candle.'
         : marks.unasked
@@ -636,7 +720,7 @@ export function barChart(bars, decisions, { symbol, value, fmt, view = 'fit',
           : marks.drawn + ' of ' + decisions.length + ' decisions marked &mdash; the rest have ' +
             'no entry or exit price recorded, so there is nowhere on the chart to put them.') +
     '</figcaption>' +
-    legend(marks.key, { money: fmt || money }) +
+    legend(marks.key, { money: fmt || money, picked }) +
   '</figure>';
 }
 

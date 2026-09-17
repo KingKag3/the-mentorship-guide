@@ -630,6 +630,13 @@ let drawToken = 0;
  * page arguing with them. */
 let chartView = 'fit';
 
+/* What was clicked, and the window it lives in. A marker, a tally and a row in
+ * the key are three ways into the same thing, so they all carry the same handle
+ * - the decision numbers and a time span - and all three do the same thing when
+ * pressed. */
+let chartZoom = null;     // { from, to } in milliseconds
+let chartPicked = null;   // the decision numbers that were picked
+
 async function drawDayChart(day) {
   const mine = drawToken = drawToken + 1;
   const mount = $('day-chart');
@@ -667,7 +674,10 @@ async function drawDayChart(day) {
      * says $125 while the cards above it say 0.83R is the same day described
      * two ways on one screen. */
     if (bars && bars.length) {
-      parts.push(barChart(bars, list, { symbol: sym, value, fmt, view: chartView }));
+      parts.push(barChart(bars, list, {
+        symbol: sym, value, fmt, view: chartView,
+        zoom: chartZoom, picked: chartPicked
+      }));
     } else {
       parts.push(tradeMap(list, { value, fmt }) + await whyNoBars(sym, day));
     }
@@ -1143,6 +1153,17 @@ $('grid').addEventListener('click', (e) => {
   if (cell) choose(cell.dataset.day);
 });
 
+/* The markers and key rows are focusable, so they have to answer the keyboard
+ * as well as the mouse. An SVG shape is not a button and gets none of that for
+ * free. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const pick = e.target.closest && e.target.closest('[data-picks]');
+  if (!pick) return;
+  e.preventDefault();
+  pick.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+
 document.addEventListener('click', (e) => {
   // The panel's "See them below" - what a cell used to do, one click away.
   const jump = e.target.closest('[data-jump]');
@@ -1163,6 +1184,20 @@ document.addEventListener('click', (e) => {
   if (view) {
     e.preventDefault();
     chartView = view.dataset.chartView;
+    chartZoom = null;
+    chartPicked = null;
+    drawDayChart(selected);
+    return;
+  }
+
+  /* A marker, a tally or a row in the key: zoom to what was clicked and mark it
+   * in both places, so the thing pressed and the thing highlighted are visibly
+   * the same thing. */
+  const pick = e.target.closest('[data-picks]');
+  if (pick) {
+    e.preventDefault();
+    chartPicked = pick.dataset.picks.split(',').map(Number);
+    chartZoom = { from: Number(pick.dataset.from), to: Number(pick.dataset.to) };
     drawDayChart(selected);
     return;
   }

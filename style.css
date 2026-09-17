@@ -4117,6 +4117,26 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .ch-tally.ch-loss  { color: var(--bear); }
 .ch-tally.ch-mixed { color: var(--muted); }
 
+/* Anything that can be pressed says so, and says which one is currently the
+   subject: the marker on the chart and the row in the key take the same ring,
+   because they are two views of one trade and a reader should not have to work
+   out that they correspond. */
+.ch-pick { cursor: pointer; }
+.ch-svg .ch-pick:hover { filter: brightness(1.15); }
+.ch-svg .ch-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ch-svg .is-picked {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  paint-order: stroke;
+}
+
+.ch-key li.ch-pick:hover { background: var(--inset); }
+.ch-key li.is-picked {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--paper);
+}
+
 @media (max-width: 560px) {
   .ch-key li {
     grid-template-columns: 1.4rem 4.6rem 1fr auto;

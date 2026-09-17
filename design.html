@@ -1097,6 +1097,19 @@ different ways and that is the thing worth seeing. Grouping is by distance rathe
 cells split neighbours that sit either side of an edge, which is how the first version found nothing
 to group on a day with 39 trades.</p>
 
+<p><strong>A marker, a tally and a row in the key are three ways into one trade</strong>, so all
+three carry the same handle and all three do the same thing when pressed: zoom to that trade and
+mark it in both places. Fifteen minutes either side, with a floor of twenty candles &mdash; a
+four-minute trade zoomed to exactly itself is three candles on a chart built for two hundred, which
+is closer and useless. They are focusable and answer Enter, because an SVG shape is not a button and
+gets none of that for free.</p>
+
+<p>Two rules hold across every zoom. <strong>Only what is in view shapes the view:</strong> the price
+axis grows to include the fills, and while zoomed a trade four hours later at a price two hundred
+points away was still stretching it, squashing the ten candles being looked at into a band. And
+<strong>the numbers are the day's, not the view's</strong> &mdash; numbering a subset would make
+trade 21 become trade 2 on the way in and 21 again on the way out.</p>
+
 <p>When no bars exist — an untracked symbol, or a session the nightly job has not fetched —
 <code>tradeMap()</code> draws the same markers with no candles behind them, and the page says which
 of the four reasons applies. That view is not a placeholder: for anything but NQ and ES it is the

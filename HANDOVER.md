@@ -26,8 +26,11 @@ saying `succeeded, 1 row` means the request was QUEUED - `pg_net` returns a requ
 Only `net._http_response` says what the function answered, and it keeps responses briefly, so look
 soon after a run.
 
-**To do on 21 Sep, in order:** redeploy the function, run section 4b, then trigger a sweep. The 17th
-should come back at about 275 bars.
+**Done the same day, and both fixes seen working on the live system in one response.** After the
+redeploy and section 4b, a sweep returned the 17th as `ok` with **275** bars - refetched in full -
+and the 21st, traded that morning and still open at 11:23 New York, as **`pending` with 206**. That
+second line is the fix doing its job: under the old code the 21st would have been frozen exactly as
+the 17th was. The next nightly run should finish it at about 275.
 
 ## Picking this up again — written 17 Sep, for Monday 21 Sep
 

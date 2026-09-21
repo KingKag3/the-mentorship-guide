@@ -3,7 +3,31 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 17 September 2026.
+Last updated: 21 September 2026.
+
+## 21 September 2026 — the nightly fetch is proven, and it had a bug nobody would have seen
+
+**Verified unattended.** `cron.job_run_details` shows `fetch-bars-nightly` firing at 04:30 UTC on
+the 18th, 19th, 20th and 21st, and `net._http_response` holds the function's actual answer:
+`200 {"ran": [], "ok": 0, "failed": 0}`. So the scheduler fires, reads the secret from the vault,
+the function accepts it, and the sweep runs. The whole chain, with nobody at the keyboard.
+
+`"ran": []` was correct: no trades were imported after the 17th, so there was no session to fetch.
+
+**The bug it exposed.** On the 17th the function was called by hand at 18:25 UTC, mid-session. It
+took the 244 bars that existed then, recorded the session `ok`, and `ok` is never fetched again - so
+the chart for the 17th ended at 14:15 and the nightly job was right to leave it. Fixed in
+`ab1494c`: a session whose close is still in the future is recorded `pending`. The twin case, a
+session asked for before it opens being recorded `empty`, is fixed by the same change. Section 4b
+of `market-bars.sql` reopens any row written before its session closed.
+
+**How to read these two tables, since they disagree by design:** a row in `cron.job_run_details`
+saying `succeeded, 1 row` means the request was QUEUED - `pg_net` returns a request id and moves on.
+Only `net._http_response` says what the function answered, and it keeps responses briefly, so look
+soon after a run.
+
+**To do on 21 Sep, in order:** redeploy the function, run section 4b, then trigger a sweep. The 17th
+should come back at about 275 bars.
 
 ## Picking this up again — written 17 Sep, for Monday 21 Sep
 
@@ -44,8 +68,7 @@ boxes are stored in a form any renderer can draw, so nothing here forecloses it.
 
 The eight Pine scripts have never been compiled. Custom SMTP is still a launch blocker. Test 5 in
 `RLS-ATTACK-TESTS.md` covers `day_notes` and now `chart_marks` too, and needs two signed-in
-accounts. The overnight bar fetch has still never been seen running unattended —
-`bar_fetch_log` answers that.
+accounts. The overnight bar fetch **has now been seen running unattended** — see below.
 
 
 ## 17 September 2026 — candles, and a member's fills drawn on them

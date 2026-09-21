@@ -229,7 +229,30 @@ async function doSession(symbol: string, day: string, force = false) {
     try {
       const bars = await fetchBars(symbol, day);
 
+      /* A SESSION THAT HAS NOT CLOSED IS NEVER FINISHED.
+       *
+       * The first version recorded whatever it got as `ok`, and `ok` is never
+       * asked for again. On 17 September the function was called by hand at
+       * 18:25 UTC - the middle of that day's session - so it took the 244 bars
+       * that existed at that moment, marked the session done, and the chart for
+       * the 17th stopped at 14:15 for good. Nothing would ever have fetched the
+       * rest.
+       *
+       * The twin of that bug was waiting on the other branch: a session asked
+       * for before it OPENS returns no bars and would be recorded `empty`, which
+       * is also permanent.
+       *
+       * So a session whose close is still in the future is recorded `pending`
+       * whatever came back. `bar_sessions_wanted` excludes only `ok` and
+       * `empty`, so the next sweep after the close picks it up and finishes it -
+       * the partial bars already stored are simply overwritten by the upsert. */
+      const stillOpen = sessionWindow(day).to.getTime() > Date.now();
+
       if (!bars.length) {
+        if (stillOpen) {
+          await logRun(symbol, day, 'pending', attempts, 0, 'session not open yet');
+          return { symbol, day, status: 'pending', bars: 0 };
+        }
         // Settled, not failed: a holiday, or a day older than the source keeps.
         // Recorded so it is not asked for again every night forever.
         await logRun(symbol, day, 'empty', attempts, 0, 'source returned no bars');
@@ -243,6 +266,12 @@ async function doSession(symbol: string, day: string, force = false) {
           .from('market_bars')
           .upsert(bars.slice(i, i + 500), { onConflict: 'symbol,timeframe,ts' });
         if (error) throw new Error('write failed: ' + error.message);
+      }
+
+      if (stillOpen) {
+        await logRun(symbol, day, 'pending', attempts, bars.length,
+          'session still open - ' + bars.length + ' bars so far; the next sweep finishes it');
+        return { symbol, day, status: 'pending', bars: bars.length };
       }
 
       await logRun(symbol, day, 'ok', attempts, bars.length, null);

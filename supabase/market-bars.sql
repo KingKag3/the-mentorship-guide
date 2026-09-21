@@ -195,6 +195,33 @@ create policy "members read bar log"
 
 
 -- ---------------------------------------------------------------------------
+-- 4b. Reopen any session that was recorded before it had closed
+--
+-- The function used to record whatever it fetched as `ok`, and `ok` is never
+-- fetched again. Called by hand in the middle of a session - which is exactly
+-- what happened on 17 September, at 18:25 UTC - it stored the bars that existed
+-- at that moment and froze the session half-finished. The function no longer
+-- does that; this repairs what it already did.
+--
+-- It needs no list of dates. A session closes at 17:00 New York on its own
+-- day, so any `ok` or `empty` row written BEFORE that moment is by definition
+-- a partial answer. Built in New York time with `at time zone`, not a fixed
+-- offset, for the same reason as everything else in this file.
+--
+-- Setting `pending` is enough: `bar_sessions_wanted` excludes only `ok` and
+-- `empty`, so the next sweep refetches these, and the upsert overwrites the
+-- partial bars rather than duplicating them. Safe to re-run; it touches nothing
+-- that was recorded after its session closed.
+-- ---------------------------------------------------------------------------
+
+update public.bar_fetch_log
+   set status = 'pending',
+       last_error = 'reopened: recorded before the session closed'
+ where status in ('ok', 'empty')
+   and updated_at < ((trading_day + time '17:00') at time zone 'America/New_York');
+
+
+-- ---------------------------------------------------------------------------
 -- 5. Check
 -- ---------------------------------------------------------------------------
 --

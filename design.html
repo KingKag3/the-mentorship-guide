@@ -1125,6 +1125,8 @@ a box round the reversal says something by existing, while a pin is a dot until 
 forcing a label means somebody types "box" to get past the prompt. A drag under six pixels is a
 click that wobbled; a drag ending outside the plot is clamped rather than thrown away.</p>
 
+<p><strong>Callouts and arrows are drawn with an editor, and shown without one.</strong> Pressing <em>Draw on the chart</em> loads Konva &mdash; pinned by integrity hash, because the page holds the member's session &mdash; and lays a stage exactly over the plot. The static SVG copies hide while it is open. Every point is stored as an instant and a price, never pixels, so a callout still points at its candle after a crop or a zoom. A callout's bubble is laid out by <code>bubbleLines</code> and <code>bubbleSize</code> from <code>chart.js</code> in both places, so it does not change shape when the editor closes. Colours are theme token names &mdash; <code>accent</code>, <code>bull</code>, <code>bear</code>, <code>fg</code> &mdash; so a drawing follows light and dark.</p>
+
 <p>When no bars exist — an untracked symbol, or a session the nightly job has not fetched —
 <code>tradeMap()</code> draws the same markers with no candles behind them, and the page says which
 of the four reasons applies. That view is not a placeholder: for anything but NQ and ES it is the

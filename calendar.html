@@ -163,6 +163,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty,
          contractFor, migrationHint } from './app.js';
 import { barChart, tradeMap, sessionRun, barSymbol } from './chart.js';
+import { openEditor, COLOURS } from './chart-draw.js';
 import { longestRun, streakOdds } from './analytics.js';
 
 renderAccountStrip();
@@ -649,9 +650,20 @@ let chartPicked = null;   // the decision numbers that were picked
 let marksBySymbol = new Map();   // 'NQ' -> rows
 let marking = false;             // 'pin' or 'box', or false
 let marksMissing = null;         // the migration to run, when the table is absent
-let shapesReady = true;          // false until chart-marks-shapes.sql has been run
+let drawingsReady = true;        // false until chart-marks-drawings.sql has been run
+
+/* The drawing editor, while it is open. One at a time, on one chart.
+ *
+ * Anything that redraws the chart destroys the stage the editor lives on, so
+ * every such path closes the editor first rather than leaving a Konva stage
+ * orphaned on a node that no longer exists - with its keyboard listener still
+ * attached, deleting drawings the member cannot see. */
+let editor = null;
+let editorSymbol = null;
+let editorColour = 'accent';
 
 async function drawDayChart(day) {
+  if (editor) { editor.close(); editor = null; editorSymbol = null; }
   const mine = drawToken = drawToken + 1;
   const mount = $('day-chart');
   if (!mount) return;
@@ -733,13 +745,14 @@ async function loadMarks(symbols, decisions) {
     .gte('at', from).lte('at', to)
     .order('at', { ascending: true });
 
-  let { data, error } = await ask('id, symbol, at, price, body, kind, at_end, price_end');
-  if (error) {
-    ({ data, error } = await ask('id, symbol, at, price, body'));
-    shapesReady = false;
-  } else {
-    shapesReady = true;
-  }
+  /* Three shapes of table, newest first. Each migration added columns, and
+   * naming one that does not exist 400s the request, so the page asks for the
+   * most it can use and steps back - a project a migration behind keeps its
+   * pins rather than losing every mark. */
+  let { data, error } = await ask('id, symbol, at, price, body, kind, at_end, price_end, style');
+  drawingsReady = !error;
+  if (error) ({ data, error } = await ask('id, symbol, at, price, body, kind, at_end, price_end'));
+  if (error) ({ data, error } = await ask('id, symbol, at, price, body'));
 
   if (error) { marksMissing = migrationHint(error) || 'supabase/chart-marks.sql'; return; }
 
@@ -756,18 +769,115 @@ function markControls(symbol) {
     return '<p class="stat-note">Marking the chart needs <code>' + escapeHtml(marksMissing) +
       '</code> run in the Supabase SQL editor.</p>';
   }
-  const tool = (kind, idle, armed) =>
-    '<button type="button" class="' + (marking === kind ? 'btn-primary' : 'link-button') +
-      '" data-mark-add="' + kind + '">' + (marking === kind ? armed : idle) + '</button>';
+  return '<div class="row-actions ch-tools" data-tools="' + escapeHtml(symbol) + '">' +
+    toolsHtml(symbol) + '</div>';
+}
 
-  return '<div class="row-actions ch-tools">' +
-    tool('pin', 'Mark a moment', 'Now click the chart') +
-    (shapesReady ? tool('box', 'Draw a box', 'Now drag on the chart') : '') +
+/* What the tool row says. Separate from markControls so the editor can
+ * re-render just this row - redrawing the chart would destroy the stage the
+ * editor is drawing on. */
+function toolsHtml(symbol) {
+  if (editor && editorSymbol === symbol) {
+    const add = (kind, label) =>
+      '<button type="button" class="link-button" data-draw-add="' + kind + '">' + label + '</button>';
+    const swatch = (c) =>
+      '<button type="button" class="ch-swatch' + (c === editorColour ? ' is-on' : '') +
+        '" data-draw-colour="' + c + '" aria-label="Colour: ' + c + '" ' +
+        'aria-pressed="' + (c === editorColour) + '" style="color: var(--' + c + ')"></button>';
+
+    return '<span class="ch-tools-label">Add</span>' +
+      add('callout', 'Callout') + add('arrow', 'Arrow') + add('box', 'Box') +
+      '<span class="ch-swatches" role="group" aria-label="Colour">' +
+        COLOURS.map(swatch).join('') + '</span>' +
+      '<button type="button" class="link-button" data-draw-delete>Delete selected</button>' +
+      '<button type="button" class="btn-primary" data-draw-done>Done</button>' +
+      '<span class="form-status ch-draw-status" data-draw-status></span>' +
+      '<span class="acct-muted ch-tools-hint">Drag to move. Double-click a callout to write in it. ' +
+        'Changes save as you make them.</span>';
+  }
+
+  return '<button type="button" class="' + (marking === 'pin' ? 'btn-primary' : 'link-button') +
+      '" data-mark-add="pin">' + (marking === 'pin' ? 'Now click the chart' : 'Mark a moment') +
+    '</button>' +
     (marking ? '<button type="button" class="link-button" data-mark-cancel>Cancel</button>' : '') +
-    (!shapesReady
-      ? '<span class="acct-muted">Boxes need <code>supabase/chart-marks-shapes.sql</code></span>'
-      : '') +
-    '</div>';
+    (drawingsReady
+      ? '<button type="button" class="link-button" data-draw-open="' + escapeHtml(symbol) + '">' +
+        'Draw on the chart</button>'
+      : '<span class="acct-muted">Callouts and arrows need ' +
+        '<code>supabase/chart-marks-drawings.sql</code></span>');
+}
+
+function refreshTools(symbol) {
+  const row = document.querySelector('[data-tools="' + CSS.escape(symbol) + '"]');
+  if (row) row.innerHTML = toolsHtml(symbol);
+}
+
+async function openDrawing(symbol) {
+  const svg = document.querySelector('#day-chart .ch-svg[data-symbol="' + CSS.escape(symbol) + '"]');
+  if (!svg) return;
+
+  marking = false;
+  document.body.classList.remove('is-marking');
+
+  try {
+    editor = await openEditor({
+      figure: svg.closest('figure'),
+      svg,
+      symbol,
+      marks: marksBySymbol.get(symbol) || [],
+      snap: (price) => snapPrice(price, symbol),
+      save: saveDrawing,
+      remove: async (id) => {
+        const { error } = await supabase.from('chart_marks').delete()
+          .eq('id', id).eq('user_id', profile.id);
+        if (error) throw error;
+      },
+      // Said in the tool row, beside the controls that caused it - not in a
+      // status line somewhere else on the page that the member is not looking at.
+      onStatus: (msg, kind) => {
+        const out = document.querySelector('[data-tools="' + CSS.escape(symbol) + '"] [data-draw-status]');
+        if (!out) return;
+        out.className = 'form-status form-status-' + kind + ' ch-draw-status';
+        out.textContent = msg;
+      }
+    });
+    editorSymbol = symbol;
+    refreshTools(symbol);
+  } catch (err) {
+    editor = null;
+    alert(err.message || String(err));
+  }
+}
+
+function closeDrawing() {
+  if (!editor) return;
+  editor.close();
+  const symbol = editorSymbol;
+  editor = null;
+  editorSymbol = null;
+  refreshTools(symbol);
+}
+
+/* One drawing, written. Returns its id, so a new drawing can be updated on the
+ * next drag rather than inserted again. Scoped to the member on both paths:
+ * the policy would refuse anything else, but the filter is written rather than
+ * relied upon. */
+async function saveDrawing(row) {
+  const fields = {
+    symbol: row.symbol, kind: row.kind,
+    at: row.at, price: row.price, at_end: row.at_end, price_end: row.price_end,
+    body: row.body, style: row.style
+  };
+  if (row.id) {
+    const { error } = await supabase.from('chart_marks').update(fields)
+      .eq('id', row.id).eq('user_id', profile.id);
+    if (error) throw error;
+    return row.id;
+  }
+  const { data, error } = await supabase.from('chart_marks')
+    .insert({ ...fields, user_id: profile.id }).select('id').single();
+  if (error) throw error;
+  return data.id;
 }
 
 /* Bars around the trades, rather than a session window worked out here.
@@ -946,6 +1056,12 @@ async function editMark(id) {
   const mark = all.find((m) => m.id === id);
   if (!mark) return;
 
+  // A drawing is edited by drawing, not by a text box.
+  if (mark.kind && mark.kind !== 'pin' && drawingsReady) {
+    openDrawing(mark.symbol);
+    return;
+  }
+
   const body = prompt('Edit this mark, or clear it to delete:', mark.body);
   if (body === null) return;
 
@@ -960,96 +1076,12 @@ async function editMark(id) {
   drawDayChart(selected);
 }
 
-/* ----------------------------- dragging a box -----------------------------
-
-   Press, drag, release. The rectangle follows the pointer as a real element
-   inserted into the live SVG rather than a redraw per mousemove - the chart is
-   three hundred candles and rebuilding it sixty times a second to move one
-   outline would make the drag stutter on exactly the machines this is for.
-
-   The preview is removed on release whatever happens, including a drag that
-   turned out to be a stray click, so no half-shape is ever left behind.
--------------------------------------------------------------------------- */
-
-let dragging = null;   // { svg, start, rect }
-
-document.addEventListener('mousedown', (e) => {
-  if (marking !== 'box') return;
-  const svg = e.target.closest('.ch-svg');
-  if (!svg) return;
-
-  const start = pointAt(svg, e);
-  if (!start) return;                       // the axis gutter, not the plot
-
-  e.preventDefault();
-  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  rect.setAttribute('class', 'ch-drawing');
-  rect.setAttribute('fill', 'currentColor');
-  rect.setAttribute('fill-opacity', '0.12');
-  rect.setAttribute('stroke', 'currentColor');
-  rect.setAttribute('stroke-width', '1.4');
-  svg.appendChild(rect);
-
-  dragging = { svg, start, rect, from: svgPoint(svg, e) };
-});
-
-document.addEventListener('mousemove', (e) => {
-  if (!dragging) return;
-  const now = svgPoint(dragging.svg, e);
-  dragging.rect.setAttribute('x', Math.min(dragging.from.x, now.x).toFixed(1));
-  dragging.rect.setAttribute('y', Math.min(dragging.from.y, now.y).toFixed(1));
-  dragging.rect.setAttribute('width', Math.abs(now.x - dragging.from.x).toFixed(1));
-  dragging.rect.setAttribute('height', Math.abs(now.y - dragging.from.y).toFixed(1));
-});
-
-document.addEventListener('mouseup', async (e) => {
-  if (!dragging) return;
-  const { svg, start, rect } = dragging;
-  const from = dragging.from;
-  dragging = null;
-  rect.remove();
-
-  const now = svgPoint(svg, e);
-  /* A drag of a few pixels is a click that wobbled, not a box. Storing it makes
-   * an invisible shape that can only be found in the list underneath. */
-  if (Math.abs(now.x - from.x) < 6 && Math.abs(now.y - from.y) < 6) return;
-
-  const end = pointAt(svg, e, true);
-  if (!end) return;
-  await saveBox(start, end);
-});
-
 /** Where a pointer is, in the drawing's own coordinates. */
 function svgPoint(svg, event) {
   const pt = svg.createSVGPoint();
   pt.x = event.clientX;
   pt.y = event.clientY;
   return pt.matrixTransform(svg.getScreenCTM().inverse());
-}
-
-async function saveBox(start, end) {
-  const body = prompt('A note on this box, or leave it empty:');
-  if (body === null) { marking = false; drawDayChart(selected); return; }
-
-  const { error } = await supabase.from('chart_marks').insert({
-    user_id: profile.id,
-    symbol: start.symbol,
-    kind: 'box',
-    at: new Date(Math.min(start.at, end.at)).toISOString(),
-    at_end: new Date(Math.max(start.at, end.at)).toISOString(),
-    price: snapPrice(Math.max(start.price, end.price), start.symbol),
-    price_end: snapPrice(Math.min(start.price, end.price), start.symbol),
-    body: body.trim() || null
-  });
-
-  marking = false;
-  if (error) {
-    alert(migrationHint(error)
-      ? 'Boxes need ' + migrationHint(error) + ' run first.'
-      : 'Could not save that box: ' + error.message);
-    return;
-  }
-  drawDayChart(selected);
 }
 
 /** A day key shifted by whole days, without going near a timezone. */
@@ -1472,6 +1504,33 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  // The drawing editor's own controls.
+  const drawOpen = e.target.closest('[data-draw-open]');
+  if (drawOpen) { e.preventDefault(); openDrawing(drawOpen.dataset.drawOpen); return; }
+
+  if (editor) {
+    const add = e.target.closest('[data-draw-add]');
+    if (add) { e.preventDefault(); editor.add(add.dataset.drawAdd, editorColour); return; }
+
+    const colour = e.target.closest('[data-draw-colour]');
+    if (colour) {
+      e.preventDefault();
+      editorColour = colour.dataset.drawColour;
+      // A colour chosen with something selected recolours it; otherwise it is
+      // the colour the next drawing will be.
+      editor.recolourSelected(editorColour);
+      refreshTools(editorSymbol);
+      return;
+    }
+    if (e.target.closest('[data-draw-delete]')) { e.preventDefault(); editor.deleteSelected(); return; }
+    if (e.target.closest('[data-draw-done]')) {
+      e.preventDefault();
+      closeDrawing();
+      drawDayChart(selected);
+      return;
+    }
+  }
+
   // Arming and disarming. Pressing the armed tool again puts it away.
   const addMark = e.target.closest('[data-mark-add]');
   if (addMark) {
@@ -1508,12 +1567,6 @@ document.addEventListener('click', (e) => {
       placeMark(svg, e);
       return;
     }
-  }
-  // A box is drawn by dragging, handled below; the click that ends the drag
-  // must not fall through to the zoom.
-  if (marking === 'box' && e.target.closest('.ch-svg')) {
-    e.preventDefault();
-    return;
   }
 
   /* A marker, a tally or a row in the key: zoom to what was clicked and mark it

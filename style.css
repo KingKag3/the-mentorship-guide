@@ -4170,6 +4170,54 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .ch-tools { margin-top: var(--s-2); }
 body.is-marking .ch-svg { cursor: crosshair; }
 
+/* ---------------------------- drawing editor ----------------------------
+   A Konva stage laid exactly over the chart while drawing. The figure is the
+   positioning context; the stage is absolutely placed over the SVG by
+   chart-draw.js, which measures it. */
+.ch-figure { position: relative; }
+.ch-stage { position: absolute; z-index: 2; }
+
+/* While editing, the static copies of the drawings are hidden: the editor is
+   showing its own live ones in the same place, and both at once would be two
+   of everything, one of which does not move when dragged. */
+.ch-figure.is-editing .ch-draw { visibility: hidden; }
+
+/* Writing inside a callout: a real textarea over the bubble, styled like every
+   other place a member writes. */
+.ch-draw-text {
+  position: absolute;
+  z-index: 3;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  padding: 6px 8px;
+  color: var(--fg);
+  background: var(--paper);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  resize: none;
+  box-shadow: var(--ring);
+}
+
+.ch-tools { flex-wrap: wrap; align-items: center; }
+.ch-tools-label { font-weight: 600; color: var(--muted); }
+.ch-tools-hint { flex-basis: 100%; font-size: 0.78rem; }
+.ch-draw-status { margin: 0; min-height: 0; }
+
+/* Colour swatches: a dot in the colour, ringed when it is the one in use. */
+.ch-swatches { display: inline-flex; gap: 6px; margin: 0 var(--s-2); }
+.ch-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  background: currentColor;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+.ch-swatch.is-on { box-shadow: 0 0 0 2px var(--fg); }
+
 /* A shape while it is being dragged, and once it is stored. Both take the
    accent, so a box reads as the member's own mark rather than as anything the
    market or the journal put there. */

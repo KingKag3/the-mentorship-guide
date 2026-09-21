@@ -133,8 +133,11 @@ export function cropToTrades(bars, decisions, marks) {
     if (Number.isFinite(close)) stamps.push(close);
   }
   for (const m of marks || []) {
-    const at = Date.parse(m.at);
-    if (Number.isFinite(at)) stamps.push(at);
+    // Both points of a drawing, or an arrow whose head reaches into the
+    // afternoon is cut off by a fit made from its tail.
+    for (const t of [Date.parse(m.at), Date.parse(m.at_end)]) {
+      if (Number.isFinite(t)) stamps.push(t);
+    }
   }
   if (!stamps.length) return { bars, cropped: false };
 
@@ -629,10 +632,56 @@ const markLetter = (i) => {
   return out;
 };
 
+/* ONE DEFINITION OF A CALLOUT'S BUBBLE, used by the view here and by the
+ * Konva editor. The two draw the same thing in different technologies, and if
+ * they disagreed about wrapping or size a callout would visibly jump the moment
+ * the member pressed Done. */
+export const BUBBLE = { font: 11.5, line: 15, pad: 7, perLine: 30, charW: 6.6, maxLines: 6 };
+
+/** Wrap a callout's words into lines the bubble can hold. */
+export function bubbleLines(text) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > BUBBLE.perLine && cur) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = (cur + ' ' + w).trim();
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > BUBBLE.maxLines) {
+    lines.length = BUBBLE.maxLines;
+    lines[BUBBLE.maxLines - 1] = lines[BUBBLE.maxLines - 1].replace(/.{0,2}$/, '') + '\u2026';
+  }
+  return lines.length ? lines : [''];
+}
+
+/** A bubble's size for these lines, in drawing units. */
+export function bubbleSize(lines) {
+  const longest = Math.max(1, ...lines.map((l) => l.length));
+  return {
+    w: Math.max(40, Math.round(longest * BUBBLE.charW + BUBBLE.pad * 2)),
+    h: lines.length * BUBBLE.line + BUBBLE.pad * 2 - 3
+  };
+}
+
 const inView = (m, s) => {
   const at = Date.parse(m.at);
   return Number.isFinite(at) && at >= s.t0 && at <= s.t1;
 };
+
+/* A drawing's own colour, if it has one. Validated against a short list rather
+ * than written through, because this lands in an attribute on a page other
+ * people's markup is never on - but a stored value is still data, and data is
+ * not trusted to be a colour just because the editor only ever writes colours. */
+const DRAW_COLOURS = ['accent', 'bull', 'bear', 'fg'];
+function colourOf(m) {
+  const c = m.style && m.style.color;
+  return DRAW_COLOURS.includes(c) ? ' style="color: var(--' + c + ')"' : '';
+}
 
 function markLayer(marks, s, height) {
   if (!marks || !marks.length) return '';
@@ -660,6 +709,71 @@ function markLayer(marks, s, height) {
      * drawn round a move that runs off the left of a cropped view still has a
      * right-hand edge worth seeing, and a shape half outside the window should
      * say "it continues" rather than vanish. */
+    /* An ARROW: tail at (at, price), head at (at_end, price_end). */
+    if (m.kind === 'arrow') {
+      const x2 = s.x(m.at_end);
+      const y1 = s.y(price);
+      const y2 = s.y(num(m.price_end));
+      const ang = Math.atan2(y2 - y1, x2 - x);
+      const head = 9;
+      const h1 = [x2 - head * Math.cos(ang - 0.45), y2 - head * Math.sin(ang - 0.45)];
+      const h2 = [x2 - head * Math.cos(ang + 0.45), y2 - head * Math.sin(ang + 0.45)];
+      out +=
+        '<g class="ch-mark ch-draw ch-pick" tabindex="0" role="button" data-mark="' + m.id + '"' +
+          colourOf(m) + '>' +
+          '<line x1="' + x.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) +
+            '" y2="' + y2.toFixed(1) + '" stroke="currentColor" stroke-width="2.2" ' +
+            'stroke-linecap="round"/>' +
+          '<polygon points="' + x2.toFixed(1) + ',' + y2.toFixed(1) + ' ' +
+            h1.map((v) => v.toFixed(1)).join(',') + ' ' + h2.map((v) => v.toFixed(1)).join(',') +
+            '" fill="currentColor"/>' +
+          (m.body
+            ? '<text x="' + (x + 4).toFixed(1) + '" y="' + (y1 - 6).toFixed(1) +
+              '" fill="currentColor" font-size="11" font-weight="600">' +
+              escapeHtml(m.body.slice(0, 40)) + '</text>'
+            : '') +
+          '<title>' + label + '</title>' +
+        '</g>';
+      return;
+    }
+
+    /* A CALLOUT: a bubble of words with a leader to the point it is about.
+     * The point is (at, price) - that is what the member is talking about -
+     * and the bubble's CENTRE is (at_end, price_end), placed wherever there
+     * is room, which is usually not on top of the candles it describes. */
+    if (m.kind === 'callout') {
+      const bx = s.x(m.at_end);
+      const by = s.y(num(m.price_end));
+      const ay = s.y(price);
+      const lines = bubbleLines(m.body || '');
+      const size = bubbleSize(lines);
+      const left = bx - size.w / 2;
+      const top = by - size.h / 2;
+
+      // The leader leaves the bubble from the edge nearest the point, so it
+      // never crosses the words.
+      const ex = Math.min(Math.max(x, left), left + size.w);
+      const ey = Math.min(Math.max(ay, top), top + size.h);
+
+      out +=
+        '<g class="ch-mark ch-draw ch-pick" tabindex="0" role="button" data-mark="' + m.id + '"' +
+          colourOf(m) + '>' +
+          '<line x1="' + x.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + ex.toFixed(1) +
+            '" y2="' + ey.toFixed(1) + '" stroke="currentColor" stroke-width="1.4"/>' +
+          '<circle cx="' + x.toFixed(1) + '" cy="' + ay.toFixed(1) + '" r="3" fill="currentColor"/>' +
+          '<rect x="' + left.toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + size.w +
+            '" height="' + size.h + '" rx="5" fill="var(--paper, #fff)" stroke="currentColor" ' +
+            'stroke-width="1.4"/>' +
+          lines.map((l, i) =>
+            '<text x="' + (left + BUBBLE.pad).toFixed(1) + '" y="' +
+              (top + BUBBLE.pad + 9 + i * BUBBLE.line).toFixed(1) +
+              '" fill="var(--fg, #111)" font-size="' + BUBBLE.font + '">' + escapeHtml(l) + '</text>'
+          ).join('') +
+          '<title>' + label + '</title>' +
+        '</g>';
+      return;
+    }
+
     if (m.kind === 'box' || m.kind === 'line') {
       const x2 = s.x(m.at_end);
       const y1 = s.y(price);
@@ -680,7 +794,8 @@ function markLayer(marks, s, height) {
           '</g>';
       } else {
         out +=
-          '<g class="ch-mark ch-shape ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+          '<g class="ch-mark ch-shape ch-draw ch-pick" tabindex="0" role="button" data-mark="' + m.id + '"' +
+            colourOf(m) + '>' +
             '<rect x="' + left.toFixed(1) + '" y="' + top.toFixed(1) +
               '" width="' + Math.max(1, right - left).toFixed(1) +
               '" height="' + Math.max(1, bottom - top).toFixed(1) +
@@ -693,7 +808,7 @@ function markLayer(marks, s, height) {
       /* The letter sits on the top-left corner, outside the shape where there
        * is usually a candle underneath rather than on top of it. */
       out +=
-        '<g class="ch-mark ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
+        '<g class="ch-mark ch-draw ch-pick" tabindex="0" role="button" data-mark="' + m.id + '">' +
           '<rect x="' + (left - 1).toFixed(1) + '" y="' + (top - 15).toFixed(1) +
             '" width="16" height="14" rx="3" fill="currentColor"/>' +
           '<text x="' + (left + 7).toFixed(1) + '" y="' + (top - 4.5).toFixed(1) +

@@ -11,13 +11,11 @@ see `CLAUDE.md`.
 
 ## Waiting
 
-### `chart-marks-shapes.sql` — boxes on the chart (17 September 2026)
+### `chart-marks-drawings.sql` — callouts, arrows and boxes (21 September 2026)
 
-Three columns on `chart_marks`, so a mark can be a shape rather than only a point. Until it is run,
-pins keep working and the **Draw a box** tool hides itself with a line naming this file.
+Supersedes `chart-marks-shapes.sql`, which was never run — this repeats all of it, so run only this one.
 
-`prop-presets-by-product.sql` went in on 18 August 2026 and supersedes
-`prop-preset-drawdown.sql` entirely. Both are recorded under **Done**.
+Until it runs, pins keep working and the tool row names this file where **Draw on the chart** would be.
 
 ## Held back on purpose
 

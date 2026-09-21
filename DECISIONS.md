@@ -1135,3 +1135,57 @@ only in the list underneath.
 understood. A *click* outside the plot is still nothing: the axis gutter is not a moment.
 
 **Known limit, unchanged from the pin:** the note is still collected with `prompt()`.
+
+---
+
+## 2026-09-21 — A dependency for the drawing tools, after refusing one for the chart
+
+**Decided:** callouts, arrows and boxes on the session chart are edited with **Konva 10.6.0**,
+loaded from jsDelivr only when the member presses *Draw on the chart*, and pinned with a
+subresource-integrity hash.
+
+**Why this is not a reversal of 17 September.** A charting library was weighed then and set aside,
+because the chart is arithmetic this project already owns and everything distinctive about it would
+have to be rebuilt inside someone else's plugin system. That still holds, and the chart is still
+ours. What is different is the part being bought: grab-handles that move and resize a shape, drag an
+arrow's ends, drag a callout's pointer, and a text box laid over a bubble. That is a UI toolkit, not
+arithmetic, and it is what DECISIONS 2026-08-13 found a library has to earn its place by doing:
+Editor.js was removed because it saved no code. Konva is the reverse case.
+
+**Konva is the editor only.** Viewing a chart never loads it — drawings render as plain SVG from
+`chart.js`, and the 187 KB arrives only when somebody starts drawing. While the editor is open the
+static copies are hidden, because two of everything, one of which does not move when dragged, is
+worse than either.
+
+**Nothing Konva draws is stored in pixels.** Every point in `chart_marks` is an instant and a price,
+converted to stage pixels on the way in and back on the way out through the scale the chart
+publishes on its own element. A drawing stored as pixels points at the right candle only until the
+chart is cropped, zoomed or opened on another screen, and it does all three. Checked by round trip:
+an untouched callout re-saved through the editor comes back to the same minute and tick.
+
+**Pinned by hash, because of where it runs.** The calendar holds the member's signed-in session. A
+third-party script there is a third party with the session, so the tag carries a `sha384` integrity
+hash: if jsDelivr ever serves anything but the file checked on 21 September, the browser refuses to
+run it and the editor reports that the tools could not load. Upgrading Konva is therefore deliberate
+— a new version needs a new hash, computed from the file itself.
+
+**One definition of a callout's bubble.** `BUBBLE`, `bubbleLines` and `bubbleSize` are exported from
+`chart.js` and used by the view and the editor both, so a callout does not change shape the moment
+the member presses Done.
+
+**Saving is continuous.** Every drag, resize, colour and edit writes immediately, so there is no
+unsaved state and closing the editor cannot lose work. Anything that redraws the chart closes the
+editor first, rather than leaving a stage attached to a node that no longer exists with its keyboard
+listener still deleting drawings nobody can see.
+
+**A text box replaces `prompt()`** for callouts: a real textarea over the bubble, styled like the
+rest of the site, which on a phone brings up the keyboard instead of a system dialog. Pins still use
+the prompt; they were not part of this.
+
+**Colours are token names, not values.** A row says `bear`, and bear is whatever the theme says in
+light or dark. The view checks the name against a short list before writing it into an attribute,
+because a stored value is data even when only the editor ever writes it.
+
+**Known limits:** three shapes plus the old pin, not the draw.io palette that prompted this. Touch
+works as far as Konva's own handling goes and has not been tried on a phone. Resizing the window
+with the editor open does not re-fit the stage; close and reopen.

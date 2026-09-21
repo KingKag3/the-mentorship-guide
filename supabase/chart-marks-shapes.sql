@@ -1,4 +1,9 @@
 -- ===========================================================================
+-- SUPERSEDED on 21 September 2026 by chart-marks-drawings.sql, which repeats
+-- everything here and adds arrows, callouts and a style column. Run THAT one.
+-- Running this as well is harmless - both are idempotent - but unnecessary.
+-- ===========================================================================
+--
 -- A mark can be a shape, not only a point
 --
 -- Run in the Supabase SQL editor after chart-marks.sql. Idempotent, safe to

@@ -5,6 +5,23 @@ with no memory of how any of it got here.
 
 Last updated: 21 September 2026.
 
+## 21 September 2026 (later) — drawing on the chart
+
+**Run `supabase/chart-marks-drawings.sql`.** It supersedes the unrun `chart-marks-shapes.sql`.
+
+Callouts, arrows and boxes, edited with Konva and stored in time and price. **Draw on the chart**
+under any session chart opens the editor; drawings save as they are made; **Done** closes it and the
+chart draws them back as plain SVG. DECISIONS 2026-09-21 says why a dependency here after refusing
+one for the chart, and why it is pinned by hash.
+
+**Verified in a browser** against the real NQ session and the real Konva from the CDN with its hash
+enforced: 24 checks. Viewing does not load Konva; the stage lands exactly over the chart; an
+untouched callout round-trips to the same minute and tick; adding, writing in a callout,
+recolouring and deleting all issue the right writes; Done restores the static view.
+
+**Not verified:** against the live database (run the migration first), on a phone, or with the
+window resized mid-edit, which does not re-fit the stage.
+
 ## 21 September 2026 — the nightly fetch is proven, and it had a bug nobody would have seen
 
 **Verified unattended.** `cron.job_run_details` shows `fetch-bars-nightly` firing at 04:30 UTC on

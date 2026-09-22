@@ -1189,3 +1189,28 @@ because a stored value is data even when only the editor ever writes it.
 **Known limits:** three shapes plus the old pin, not the draw.io palette that prompted this. Touch
 works as far as Konva's own handling goes and has not been tried on a phone. Resizing the window
 with the editor open does not re-fit the stage; close and reopen.
+
+---
+
+## 2026-09-22 — No candles beats the wrong candles
+
+**Decided:** `sessionRun` returns nothing when no run of bars contains the trades it was asked
+about. It used to fall back to the longest run it had.
+
+**What that did.** On the morning of the 22nd the chart drew the 21st's candles under Tuesday's
+heading. The nightly fetch runs at 04:30 UTC and only collects sessions that already have trades, so
+a session traded at 09:30 is not collected until that night; the page asks for bars a day either
+side, found the tail of the 21st, and drew it because it was the longest run available.
+
+**Why this is the worst shape of bug this page can have.** Everything looked right. Real candles,
+sensible prices, the correct date in the heading. The only thing on screen that disagreed was the
+caption saying *0 of the day's 3 decisions are in this view* — which is the sentence added a week
+earlier for a different reason, and the only reason this was caught at all.
+
+**The rule it settles:** a view that cannot show what it was asked to show says so. It does not
+substitute something that looks similar. The page already had the machinery — the four reasons a
+day has no candles — and the fallback was quietly routing around it.
+
+**Not fixed here, and worth deciding separately:** the fetch collects a day only after somebody has
+traded it, so today's session arrives tomorrow morning. A second scheduled run after the close would
+make the chart complete the same evening. That is a scheduling change, not a code one.

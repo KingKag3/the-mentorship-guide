@@ -65,14 +65,26 @@ export function sessionRun(bars, at) {
     runs[runs.length - 1].push(bars[i]);
   }
 
-  // The run holding the moment asked about; failing that, the longest, which is
-  // the whole session rather than the tail of the one before it.
+  /* THE RUN HOLDING THE MOMENT ASKED ABOUT, OR NOTHING.
+   *
+   * This used to fall back to the longest run when none contained the moment,
+   * and on 22 September that drew Monday's candles under Tuesday's heading.
+   * The 22nd had not been fetched - the nightly job runs at 04:30 UTC and only
+   * fetches sessions that already have trades, so a session traded at 09:30 is
+   * not collected until that night - and the query, which looks a day either
+   * side, found the tail of the 21st and drew it.
+   *
+   * The only thing on screen that hinted at it was the caption saying none of
+   * the day's decisions were in view. A chart showing the wrong day's prices
+   * under the right day's date is the worst failure this page has: everything
+   * about it looks normal.
+   *
+   * So: no candles rather than the wrong candles. The caller falls back to
+   * drawing the fills alone and says which of the four reasons applies. */
   const target = new Date(at).getTime();
-  const holding = runs.find((run) =>
+  return runs.find((run) =>
     new Date(run[0].ts).getTime() <= target &&
-    target <= new Date(run[run.length - 1].ts).getTime() + SESSION_GAP_MS);
-
-  return holding || runs.sort((a, b) => b.length - a.length)[0];
+    target <= new Date(run[run.length - 1].ts).getTime() + SESSION_GAP_MS) || [];
 }
 
 /* ------------------------------ cropping ---------------------------------

@@ -414,3 +414,25 @@ or minute still separates. Two further cases are asserted on purpose —
 ```
 node tools/probe-decisions.mjs
 ```
+
+## probe-session-run.mjs
+
+The chart must never draw one day's candles under another day's heading.
+
+`sessionRun` gets every bar within a day either side of the trades being drawn and picks the
+contiguous run — the session — those trades belong to. Bars exist only for sessions, so a run
+*is* a session, which is how the page avoids keeping a second copy of the CME's timezone rules.
+
+**What it exists to prevent, seen on 22 September 2026.** It used to fall back to the LONGEST run
+when none contained the trades. That morning the nightly fetch had not yet collected the day — it
+runs at 04:30 UTC and only fetches sessions that already have trades, so a session traded at 09:30
+is collected that night — and the query found the tail of the previous session and drew it.
+Tuesday's heading, Monday's prices. The only hint on screen was a caption saying none of the day's
+decisions were in view.
+
+No candles is a fine answer; the wrong candles is not. The probe pins both directions, including a
+trade minutes after its own session's last bar (still that session) and hours after (nothing).
+
+```
+node tools/probe-session-run.mjs
+```

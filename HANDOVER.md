@@ -3,7 +3,28 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 21 September 2026.
+Last updated: 22 September 2026.
+
+## 22 September 2026 — a second fetch, and the worst kind of chart bug
+
+**A second schedule is registered.** `fetch-bars-evening` at 22:15 UTC on weekdays, alongside
+`fetch-bars-nightly` at 04:30 UTC. 22:15 is after the 17:00 New York close in both summer and
+winter, so a day traded is complete that evening rather than the next morning. Both read the same
+vault secret. **Its first run is the evening of 22 September** and has not been seen yet; the check
+is `bar_fetch_log` showing the 22nd as `ok` with around 275 bars rather than `pending`.
+
+**Why it was wanted.** The fetch collects a session only once somebody has traded it, so a morning's
+trading was not collected until 04:30 the following day. That is also what exposed the bug below.
+
+**The bug: the chart drew the wrong day.** With no bars for the 22nd, `sessionRun` fell back to the
+longest run of bars it had and drew the 21st's session under Tuesday's heading - real candles,
+sensible prices, correct date. The only thing that disagreed was the caption saying none of the
+day's decisions were in view. It returns nothing now, and the page falls back to drawing the fills
+alone with the reason. DECISIONS 2026-09-22; `tools/probe-session-run.mjs` pins it.
+
+**Also seen working on real data:** the decision key. The 22nd's 57 rows are 3 decisions, and one
+trade's copies are stamped 13:30:52 and 13:30:53 - straddling a second, which before 17 September
+would have been counted as two separate trades.
 
 ## 21 September 2026 (later) — drawing on the chart
 

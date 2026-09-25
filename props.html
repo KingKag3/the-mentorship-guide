@@ -709,6 +709,22 @@ function productsFor(firm) {
   return seen;
 }
 
+/* "LEGACY" MEANS TWO DIFFERENT THINGS AND ONLY ONE OF THEM IS THIS.
+ *
+ * Here it is the name of an Apex PRODUCT - the one that trails intraday, sold
+ * alongside Intraday and EOD. It says nothing about which rules an account is
+ * under.
+ *
+ * Apex also uses "legacy" for its pre-2026 RULE SET: accounts bought before
+ * 1 March 2026 keep the older payout and drawdown rules, and ones bought after
+ * are on the newer set the firm calls 4.0. An account can be a Legacy product
+ * on the new rules, or an EOD product on the old ones.
+ *
+ * Nothing in this schema records which rule set an account is on. Kag3's are
+ * all April 2025, so all of them are on the older rules - which is why the
+ * payout figures seeded in August came from Apex's Legacy pages. A member who
+ * bought after March 2026 would need different numbers, and there is currently
+ * no column that would tell them apart. */
 const PRODUCT_LABEL = {
   legacy: 'Legacy — trails intraday',
   intraday: 'Intraday PA — trails intraday',

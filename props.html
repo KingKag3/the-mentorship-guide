@@ -107,6 +107,7 @@
        page somebody has scrolled away from is an error nobody reads. -->
   <p class="form-status props-status" id="status"></p>
 
+  <div id="prop-tabs" class="seg" role="tablist" aria-label="Which accounts to show"></div>
   <div id="pager-top"></div>
   <div id="accounts"></div>
   <div id="pager-bottom"></div>
@@ -1387,7 +1388,50 @@ const KINDS = [
   ['demo', 'Demo - practice, kept out of real totals']
 ];
 
-function card(name) {
+/* ------------------------- which pile an account is in --------------------
+
+   A member running sixteen evaluations and two funded accounts has one page
+   with eighteen tall cards on it, and the two that matter are wherever the
+   alphabet put them. Worse, an evaluation that has already been PASSED stays
+   in the list for ever - it still has trades, so it still has a card - and
+   looks exactly like one that is still being traded.
+
+   So the accounts are dealt into four piles, and a passed evaluation is greyed
+   rather than deleted: its trades are real, its attempt history is the record
+   of how the funded account was earned, and hiding it would lose both.
+-------------------------------------------------------------------------- */
+
+const TABS = [
+  ['funded', 'Funded'],
+  ['prop', 'Evaluations'],
+  ['passed', 'Passed'],
+  ['other', 'Live and demo']
+];
+
+const TAB_KEY = 'tk_props_tab';
+let propTab = (() => {
+  try { return localStorage.getItem(TAB_KEY) || ''; } catch { return ''; }
+})();
+
+/* An evaluation is PASSED when a funded account names it as where it came
+ * from. That link is already stored - `from_account`, written when the member
+ * presses "start the funded account" - so nothing new has to be recorded and
+ * an account set up months ago falls into the right pile by itself. */
+function passedMap() {
+  const out = new Map();
+  for (const [name, cfg] of saved) {
+    if ((cfg.kind || 'prop') === 'funded' && cfg.from_account) out.set(cfg.from_account, name);
+  }
+  return out;
+}
+
+function groupOf(name, passed) {
+  if (passed.has(name)) return 'passed';
+  const kind = (saved.get(name) || {}).kind || 'prop';
+  return kind === 'funded' ? 'funded' : kind === 'prop' ? 'prop' : 'other';
+}
+
+function card(name, passedTo) {
   const cfg = saved.get(name) || {};
   const kind = cfg.kind || 'prop';
   const isProp = kind === 'prop';
@@ -1452,11 +1496,20 @@ function card(name) {
       '<b>' + money(value) + (of ? ' / ' + money(of) : '') + '</b>' +
     '</div>';
 
-  return '<section class="prop-card' + (cheer ? ' is-celebrating' : '') + '" data-account="' +
+  return '<section class="prop-card' + (cheer ? ' is-celebrating' : '') +
+      (passedTo ? ' is-passed' : '') + '" data-account="' +
       escapeHtml(name) + '">' +
     '<h3>' + escapeHtml(label(name)) + ' ' +
       kindTag(kind) +
-      (isProp ? ' ' + statusTag(outcome) : '') +
+      /* What became of it, on the card itself rather than only in the pile it
+       * was sorted into: somebody who arrives by scrolling should not have to
+       * work out why this one is grey. */
+      (passedTo
+        ? ' <span class="tag bull">passed &rarr; ' + escapeHtml(label(passedTo)) + '</span>'
+        : '') +
+      // The status tag would say "passed" beside a tag already saying passed
+      // AND what it became. One of the two is furniture.
+      (isProp && !passedTo ? ' ' + statusTag(outcome) : '') +
       (live && live.attempt > 1
         ? ' <span class="tag">attempt ' + live.attempt + '</span>' : '') +
       (cfg.firm ? ' <span class="acct-muted">' + escapeHtml(cfg.firm) +
@@ -1556,7 +1609,10 @@ function card(name) {
     // Where a passed evaluation turns into the thing it earned. Only on a
     // passed prop account, because that is the only state in which the
     // question has an answer.
-    (isProp && outcome === 'passed'
+    // Not offered twice. Once the funded account exists, this evaluation's
+    // question has been answered, and a second one would make a second funded
+    // account from the same pass.
+    (isProp && outcome === 'passed' && !passedTo
       ? '<div class="callout"><span class="callout-label">It passed</span>' +
         '<p>The funded account the firm gives you has a different number and different rules ' +
         '&mdash; no target, a payout threshold instead. Set it up here and the firm and size ' +
@@ -2032,6 +2088,17 @@ async function splitAttempt(name, on, btn) {
   render();
 }
 
+$('prop-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-prop-tab]');
+  if (!tab) return;
+  propTab = tab.dataset.propTab;
+  // Page one of the new pile. Arriving at page 3 of Funded because Evaluations
+  // had three pages is not what anybody meant by changing tab.
+  propPage = 1;
+  try { localStorage.setItem(TAB_KEY, propTab); } catch { /* private window */ }
+  render();
+});
+
 function render() {
   if (!names.length) {
     mount.innerHTML = migrationNote +
@@ -2040,7 +2107,30 @@ function render() {
       '<a href="import.html">Import</a> · <a href="journal.html">Journal</a></p></div>';
     return;
   }
-  const state = { ...pageSlice(names, propPage, propPer), per: propPer };
+  /* Dealt into piles first, and the pager applies to the pile on screen -
+   * paging through everything and then filtering would give a page of three
+   * cards and a pager claiming eighteen. */
+  const passed = passedMap();
+  const piles = new Map(TABS.map(([key]) => [key, []]));
+  for (const name of names) piles.get(groupOf(name, passed)).push(name);
+
+  /* The tab remembered from last time, unless it is now empty - a member whose
+   * only funded account was deleted should not land on a blank page and think
+   * the site has lost their accounts. */
+  if (!piles.get(propTab) || !piles.get(propTab).length) {
+    const firstFull = TABS.find(([key]) => piles.get(key).length);
+    propTab = firstFull ? firstFull[0] : 'prop';
+  }
+
+  $('prop-tabs').innerHTML = TABS.filter(([key]) => piles.get(key).length || key === propTab)
+    .map(([key, name]) =>
+      '<button type="button" class="seg-btn' + (key === propTab ? ' is-on' : '') +
+        '" role="tab" aria-selected="' + (key === propTab) + '" data-prop-tab="' + key + '">' +
+        escapeHtml(name) + ' <span class="acct-muted">' + piles.get(key).length + '</span>' +
+      '</button>').join('');
+
+  const shown = piles.get(propTab);
+  const state = { ...pageSlice(shown, propPage, propPer), per: propPer };
   propPage = state.page;
 
   const onPage = (next) => {
@@ -2061,7 +2151,7 @@ function render() {
       [...new Set(presets.map((p) => p.firm))].map((f) =>
         '<option>' + escapeHtml(f) + '</option>').join('') +
     '</datalist>' +
-    state.rows.map(card).join('');
+    state.rows.map((name) => card(name, passed.get(name))).join('');
 
   for (const b of mount.querySelectorAll('[data-end]')) {
     b.addEventListener('click', () => endAttempt(b.getAttribute('data-end'), b));

@@ -1214,3 +1214,36 @@ day has no candles — and the fallback was quietly routing around it.
 **Not fixed here, and worth deciding separately:** the fetch collects a day only after somebody has
 traded it, so today's session arrives tomorrow morning. A second scheduled run after the close would
 make the chart complete the same evening. That is a scheduling change, not a code one.
+
+---
+
+## 2026-09-25 — A passed evaluation is greyed, not hidden, and the piles are separated
+
+**Decided:** the accounts page deals its cards into four piles behind a segmented control —
+**Funded**, **Evaluations**, **Passed**, **Live and demo** — and an evaluation that has already
+been passed is drawn at reduced strength with a tag naming the funded account it became.
+
+**The problem.** Sixteen copied evaluations and one funded account is seventeen tall cards in
+alphabetical order, and the one that matters most is wherever the alphabet put it. Worse, a passed
+evaluation stays in that list for ever — it still has trades, so it still has a card — and
+looks exactly like one still being traded.
+
+**Nothing new is recorded to work out which is which.** A funded account already stores
+`from_account`, written when the member pressed *start the funded account*. An evaluation is passed
+when some funded account names it. So accounts set up months ago fall into the right pile by
+themselves, and there is no second source of truth to keep in step.
+
+**Greyed rather than hidden or deleted.** Its trades are real and its attempts are the record of how
+the funded account was earned; removing it would lose both, and hiding it would leave somebody
+hunting for an account they know exists. It returns to full strength on hover or when anything in
+it takes focus, so it is dimmed rather than out of reach.
+
+**It opens on the pile with the funded accounts** when there are any, because that is the account
+with money in it. The choice is remembered — but a remembered pile that is now empty falls back
+to the first one that is not, so deleting a funded account cannot land somebody on a blank page and
+have them think the site lost their accounts.
+
+**Two things it stops.** The status tag is suppressed on a passed card, since a tag saying *passed*
+beside one saying *passed to PA-…* is furniture. And *start the funded account* is no longer offered
+on an evaluation that already produced one, which would otherwise make a second funded account from
+the same pass.

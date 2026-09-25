@@ -4170,6 +4170,16 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .ch-tools { margin-top: var(--s-2); }
 body.is-marking .ch-svg { cursor: crosshair; }
 
+/* An account that has already been passed. Greyed rather than hidden: its
+   trades are real and its attempts are the record of how the funded account was
+   earned. It comes back to full strength on hover or when anything inside it
+   takes focus, so it is dimmed rather than out of reach. */
+.prop-card.is-passed { opacity: 0.55; }
+.prop-card.is-passed:hover,
+.prop-card.is-passed:focus-within { opacity: 1; }
+
+#prop-tabs { margin-bottom: var(--s-3); }
+
 /* ---------------------------- drawing editor ----------------------------
    A Konva stage laid exactly over the chart while drawing. The figure is the
    positioning context; the stage is absolutely placed over the SVG by

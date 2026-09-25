@@ -2025,6 +2025,52 @@ export function setStatus(selector, message, kind = 'info') {
 }
 
 
+/* --------------------------- accounts that are done ------------------------
+
+   An evaluation that has passed is finished: the firm closes it and the trading
+   moves to the funded account it earned. Three pages need to know which those
+   are - the accounts page greys them, the importer stops offering them, and the
+   calendar leaves them out of the default view - and three copies of the rule
+   would not stay equal. The first page to learn about a new way of retiring an
+   account would be right and the other two would be quietly wrong.
+
+   WHAT COUNTS AS PASSED, in the order the evidence is trusted:
+
+     - a funded account names it in `from_account`. Written when the member
+       pressed "start the funded account", so this is the firmest evidence
+       there is: another account exists because this one passed.
+     - the account's own `status` says passed.
+     - its LATEST attempt passed. An account that passed once, was reset and is
+       being traded again is NOT retired: what it is doing now is what counts,
+       and its third attempt says active.
+
+   The attempts table may not exist on a project that has not run its migration.
+   That is not an error here - such a project simply has no attempts, and the
+   other two tests still apply.
+-------------------------------------------------------------------------- */
+
+/** The accounts that have passed and are no longer traded. */
+export function retiredAccounts(accounts, attempts) {
+  const out = new Set();
+
+  for (const row of accounts || []) {
+    if (row.from_account) out.add(row.from_account);
+    if (row.status === 'passed') out.add(row.account);
+  }
+
+  // The highest-numbered attempt per account, which is the one being traded.
+  const latest = new Map();
+  for (const a of attempts || []) {
+    const best = latest.get(a.account);
+    if (!best || (a.attempt || 0) >= (best.attempt || 0)) latest.set(a.account, a);
+  }
+  for (const [account, a] of latest) {
+    if (a.outcome === 'passed') out.add(account);
+  }
+
+  return out;
+}
+
 /* ============================ notes on the day ============================
 
    One private note per member per local day - `supabase/day-notes.sql` says

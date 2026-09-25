@@ -1284,3 +1284,42 @@ offered, because what it is doing now is what counts.
 
 **It says so.** The field carries a note when names have been left out, because an account visible
 on the accounts page and missing here would otherwise read as data loss.
+
+---
+
+## 2026-09-25 (later still) — The calendar counts the accounts still being traded
+
+**Decided:** the calendar has a scope control — **Still trading** / **Everything** / **Passed
+accounts** — and it opens on *Still trading*. The choice is remembered per browser.
+
+**Why.** Nineteen evaluations get retired as they pass, and their trades stay in the journal for
+ever. By the end of a year most of the names on this page are accounts nobody trades any more, the
+account filter is a list of history, and every month totals up work finished months ago. The default
+should be the accounts being traded.
+
+**What that could not be allowed to do.** This page is the record of what happened. A September that
+shrinks because an account passed in September is the page rewriting history to look tidy, and that
+is a worse failure than the clutter it fixes — it is the same failure as a partial session recorded
+as `ok`, or a chart drawing the wrong day under the right date. Something that looks healthy and is
+not.
+
+**So nothing disappears quietly.** Whenever the scope leaves anything out, the summary says so in a
+sentence: how many accounts, how many decisions, and what they were worth, with a **Count
+everything** link beside it. It is said on an empty month too, where a page reading *Nothing this
+month* over a month that had trades in it would be the worst place to leave it unsaid. Decisions are
+counted, not rows, so eighteen copies of one fill are one decision there as everywhere else.
+
+**Asking for an account by name beats the scope.** The filter still lists every account that has
+ever traded. Picking a retired one and being shown an empty month would be the page arguing with
+what was just asked for, so a name means that name, and the note goes quiet because nothing is being
+hidden.
+
+**The control only appears when it has something to do.** A member who has never retired an account
+is not asked a question they do not have.
+
+**One rule, in `app.js`.** `retiredAccounts()` is what the accounts page greys, the importer omits
+and the calendar scopes by — an account is retired when a funded account names it in `from_account`,
+or its own status says passed, or its LATEST attempt passed. Three copies would not stay equal: the
+first page to learn a new way of retiring an account would be right and the other two quietly wrong.
+`tools/probe-retired-accounts.mjs` pins the rule, the filter and the wording of the sentence, taking
+all three out of the shipped files rather than out of a copy that can drift.

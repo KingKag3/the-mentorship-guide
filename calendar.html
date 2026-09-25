@@ -86,6 +86,8 @@
             aria-label="Filter by account"></select>
   </div>
 
+  <div id="cal-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
+
   <div id="summary"></div>
   <div id="grid" class="cal-scroll"></div>
   <div id="day-panel"></div>
@@ -161,7 +163,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager, barTrack,
          loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty,
-         contractFor, migrationHint } from './app.js';
+         contractFor, migrationHint, retiredAccounts } from './app.js';
 import { barChart, tradeMap, sessionRun, barSymbol } from './chart.js';
 import { openEditor, COLOURS } from './chart-draw.js';
 import { longestRun, streakOdds } from './analytics.js';
@@ -247,10 +249,28 @@ if (error) {
  * not an error; it is a member who has not filled the form in.
  */
 const targets = new Map();
+
+/* Accounts that have passed, and whether any of them are actually on this
+ * calendar. A member with none should never see a control offering to hide
+ * something that does not exist. */
+let retired = new Set();
+let hasRetired = false;
+
 {
   const { data: accts } = await supabase
     .from('prop_accounts')
-    .select('account, kind, profit_target');
+    .select('account, kind, profit_target, status, from_account');
+  /* Which accounts are finished. The attempts table may not have been created
+   * on a project that has not run its migration, and that is not an error -
+   * there are simply no attempts, and the other tests still apply. */
+  const { data: tries } = await supabase
+    .from('prop_attempts')
+    .select('account, attempt, outcome')
+    .eq('user_id', profile.id);
+  retired = retiredAccounts(accts, tries);
+  const traded = new Set((data || []).map((r) => r.account || ''));
+  hasRetired = [...retired].some((name) => traded.has(name));
+
   for (const a of accts || []) {
     const t = toNumber(a.profit_target);
     // `funded` has no target by definition, and `live` is your own money.
@@ -306,13 +326,54 @@ $('account-filter').innerHTML =
 $('account-filter').hidden = accounts.length === 0;
 $('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
 
+/* ---------------------- what the calendar is counting ----------------------
+
+   A member with nineteen evaluations retires them as they pass, and their
+   trades stay in the journal for ever. By the end of a year most of the names
+   on this page are accounts nobody trades any more, and the account filter is a
+   list of history.
+
+   So the default view is the accounts still being traded. What that CANNOT be
+   allowed to do is quietly restate what a month was worth: this page is the
+   record of what happened, and a September that shrinks because an account
+   passed in September would be the page rewriting history to be tidy.
+
+   The summary therefore says what is being left out and what it made, every
+   time anything is hidden, and the whole picture is one click away.
+-------------------------------------------------------------------------- */
+
+const SCOPES = [
+  ['active', 'Still trading'],
+  ['all', 'Everything'],
+  ['retired', 'Passed accounts']
+];
+
+const SCOPE_KEY = 'tk_cal_scope';
+let scope = (() => {
+  try { return localStorage.getItem(SCOPE_KEY) || 'active'; } catch { return 'active'; }
+})();
+
 // Grouped by the LOCAL day. A trade at 20:00 New York belongs to that day, and
 // grouping on the UTC date would file it under tomorrow.
 let byDay = new Map();
 
+/* Is this account in the scope on screen?
+ *
+ * ASKING FOR ONE ACCOUNT BY NAME BEATS THE SCOPE. The filter still lists every
+ * account that has ever traded, retired ones included, and picking one of them
+ * and being shown an empty month would be the page arguing with the member
+ * about what they just asked for. The scope decides what "all accounts" means;
+ * a name means that name. */
+function inScope(name) {
+  if (scope === 'all' || account !== 'all') return true;
+  const done = retired.has(name || '');
+  return scope === 'retired' ? done : !done;
+}
+
 function regroup() {
   byDay = new Map();
   for (const row of closed) {
+    if (!inScope(row.account)) continue;
     if (account !== 'all' && (row.account || '') !== account) continue;
     const key = localDay(row.opened_at);
     if (!key) continue;
@@ -1099,13 +1160,60 @@ function redrawAround() {
   try { render(); } finally { panelFrozen = false; }
 }
 
+/* WHAT THE SCOPE IS KEEPING OFF THIS PAGE, AND WHAT IT MADE.
+ *
+ * Hiding a retired account's trades changes what a month appears to be worth.
+ * This page is the record of what happened, and a September that shrinks
+ * because an account passed in September is the page rewriting history to look
+ * tidy - the exact failure the "showing the most recent 5,000" note exists to
+ * prevent elsewhere.
+ *
+ * So whenever anything is hidden, it is named, counted, and its total is given.
+ * Nothing disappears quietly. */
+function hiddenByScope() {
+  // `inScope` lets a named account through whatever the scope says, so with one
+  // picked nothing is being hidden and there is nothing to report.
+  if (scope === 'all' || account !== 'all' || !hasRetired) return null;
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const rows = closed.filter((r) => {
+    const when = new Date(r.opened_at);
+    if (when.getFullYear() !== year || when.getMonth() !== month) return false;
+    return !inScope(r.account);
+  });
+  if (!rows.length) return null;
+
+  return {
+    accounts: new Set(rows.map((r) => r.account || '')).size,
+    decisions: distinctDecisions(rows).length,
+    value: dayValue(dayTotals(rows))
+  };
+}
+
+function scopeNote() {
+  const off = hiddenByScope();
+  if (!off) return '';
+
+  const what = scope === 'retired' ? 'still being traded' : 'passed and retired';
+  return '<p class="stat-note">' +
+    off.accounts + (off.accounts === 1 ? ' account ' : ' accounts ') + what +
+    ' ' + (off.accounts === 1 ? 'is' : 'are') + ' not counted above: ' +
+    off.decisions + (off.decisions === 1 ? ' decision' : ' decisions') +
+    (off.value === null ? '' : ' worth ' + fmt(off.value)) + ' this month. ' +
+    '<button type="button" class="link-button" data-scope="all">Count everything</button>.</p>';
+}
+
 function renderSummary(rows) {
   if (!rows.length) {
     $('summary').innerHTML =
       '<div class="callout"><span class="callout-label">Nothing this month</span>' +
       '<p>No closed trades in ' + escapeHtml($('month-label').textContent) +
       '. Use the arrows to look at another month, or ' +
-      '<a href="journal.html">log a trade</a>.</p></div>';
+      '<a href="journal.html">log a trade</a>.</p></div>' +
+      // A month that looks empty only because everything in it is hidden is the
+      // worst place to leave this unsaid.
+      scopeNote();
     return;
   }
 
@@ -1152,7 +1260,8 @@ function renderSummary(rows) {
     accountBreakdown(rows) +
     (t.dollarsKnown || metric === 'r' ? '' :
       '<p class="stat-note">No dollar figures this month. Either record the result in dollars on ' +
-      'the trade, or use a symbol with a known contract spec — ES, MES, NQ or MNQ.</p>');
+      'the trade, or use a symbol with a known contract spec — ES, MES, NQ or MNQ.</p>') +
+    scopeNote();
 }
 
 /* THE PATH, NOT THE DESTINATION.
@@ -1633,6 +1742,32 @@ for (const radio of document.querySelectorAll('input[name="metric"]')) {
       '<option value="all">All accounts</option>' +
       accounts.map((a) => '<option value="' + escapeHtml(a) + '"' +
         (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+  });
+}
+
+/* The scope control, and only when there is something to scope. A member who
+ * has never retired an account is not asked a question they do not have. */
+if (hasRetired) {
+  $('cal-scope').hidden = false;
+  $('cal-scope').innerHTML = SCOPES.map(([key, name]) =>
+    '<button type="button" class="seg-btn' + (key === scope ? ' is-on' : '') +
+      '" role="tab" aria-selected="' + (key === scope) + '" data-scope="' + key + '">' +
+      escapeHtml(name) + '</button>').join('');
+
+  /* Delegated at the document, not the control: the same [data-scope] appears
+   * in the summary's "count everything" link, which is rewritten on every
+   * render and would otherwise need its own listener each time. */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-scope]');
+    if (!btn) return;
+    scope = btn.dataset.scope;
+    try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* private window */ }
+    for (const b of $('cal-scope').querySelectorAll('[data-scope]')) {
+      const on = b.dataset.scope === scope;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+    regroup();
   });
 }
 

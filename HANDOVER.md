@@ -3,7 +3,31 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 22 September 2026.
+Last updated: 25 September 2026.
+
+## 25 September 2026 — passed accounts stop crowding three pages
+
+An evaluation that has passed is finished, and three pages now act like it. One rule,
+`retiredAccounts()` in [app.js](app.js): retired when a funded account names it in `from_account`,
+or its own status says passed, or its **latest** attempt passed. An account that passed, was reset
+and is being traded again is not retired.
+
+- **[props.html](props.html)** — four piles: Funded, Evaluations, Passed, Live and demo. A linked
+  evaluation is greyed and tagged *passed to PA-…*.
+- **[import.html](import.html)** — a retired account is not offered in the account suggestions. It
+  can still be typed, and the field says how many were left out.
+- **[calendar.html](calendar.html)** — a scope control, opening on **Still trading**, remembered in
+  `localStorage` under `tk_cal_scope`. Whenever it leaves anything out the summary says how many
+  accounts, how many decisions and what they were worth, with a **Count everything** link.
+
+**Verified:** `node tools/probe-retired-accounts.mjs` — 27 checks, covering the reset case, a
+missing `prop_attempts` table, and the exact sentence the summary builds. All six checkers clean.
+**Not yet seen in a browser against the live project** — the arithmetic and the wording are tested
+out of the shipped files, the rendering is not.
+
+**Still open from this piece:** nothing records which Apex rule set (pre or post March 2026) an
+account is on, so the accounts page cannot state a trailing-stop rule. The Apex Legacy PA pages were
+never read — their site is behind a Cloudflare challenge, which was left alone deliberately.
 
 ## 22 September 2026 — a second fetch, and the worst kind of chart bug
 

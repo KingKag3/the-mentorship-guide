@@ -208,7 +208,8 @@
 
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
-         money, migrationHint, contractFor, sessionAt, fetchPaged } from './app.js';
+         money, migrationHint, contractFor, sessionAt, fetchPaged,
+         retiredAccounts } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'import.html');
@@ -387,25 +388,9 @@ let lastFile = null;
       .eq('user_id', profile.id)
   ]);
 
-  /* THE SAME RULE THE ACCOUNTS PAGE USES, not a second one that will drift.
-   *
-   *   - a funded account names it as where it came from, or
-   *   - its own status says passed, or
-   *   - its latest attempt passed.
-   */
-  const retired = new Set();
-  for (const row of configured.data || []) {
-    if (row.from_account) retired.add(row.from_account);
-    if (row.status === 'passed') retired.add(row.account);
-  }
-  const latest = new Map();
-  for (const a of attempts.data || []) {
-    const best = latest.get(a.account);
-    if (!best || (a.attempt || 0) >= (best.attempt || 0)) latest.set(a.account, a);
-  }
-  for (const [account, a] of latest) {
-    if (a.outcome === 'passed') retired.add(account);
-  }
+  // One rule, in app.js, because the accounts page and the calendar ask the
+  // same question and three copies of it would not stay equal.
+  const retired = retiredAccounts(configured.data, attempts.data);
 
   const names = [...new Set([
     ...((tradeNames.data || []).map((r) => r.account)),

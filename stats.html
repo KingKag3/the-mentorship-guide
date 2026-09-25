@@ -83,6 +83,8 @@
     <select id="account-filter" class="role-select cal-account" aria-label="Filter by account"></select>
   </div>
 
+  <div id="stats-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
+
   <div class="cal-toggle" id="range-toggle">
     <label class="check-line">
       <input type="radio" name="range" value="30">
@@ -193,8 +195,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          decisionKey, fetchPaged, barTrack, checklistState,
-         wasWrittenUp } from './app.js';
-import { groupBy, summarise as summariseWith, drawdown as drawdownWith, median,
+         wasWrittenUp, retiredAccounts } from './app.js';
+import { groupBy, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequenceOfDecisions,
          permutationExtremes, permutationStatistic,
          holdSeconds, longestRun, streakOdds } from './analytics.js';
@@ -309,6 +311,50 @@ let stated = new Map();
   for (const row of rs || []) stated.set(row.account, Number(row.risk_per_trade));
 }
 
+/* WHAT THE FIRM SET, AND WHICH ACCOUNTS ARE FINISHED.
+ *
+ * Two things this page has never known and needed once the journal held real
+ * prop accounts:
+ *
+ *   - which accounts are done, so three months of passed evaluations stop
+ *     outvoting the account actually being traded. Same rule as the accounts
+ *     page and the calendar; it lives in app.js for exactly that reason.
+ *   - the drawdown each account is judged against. It is already recorded -
+ *     `prop_accounts.drawdown` and `drawdown_type` - and nothing read it, so
+ *     the only drawdown figure on the site was compared to nothing.
+ *
+ * Every failure here is silent. The table may not exist, the columns arrived in
+ * later migrations, and a member may simply not have filled the form in. None
+ * of that is an error: it is a page that says less, not a page that breaks.
+ */
+let retired = new Set();
+const firmLimit = new Map();   // account -> { drawdown, type, kind }
+{
+  const wanted = 'account, kind, status, from_account, drawdown, drawdown_type';
+  let { data: accts } = await supabase.from('prop_accounts').select(wanted);
+
+  // Naming a column that does not exist 400s the whole request rather than
+  // degrading it, so the older shape is asked for on its own.
+  if (!accts) {
+    ({ data: accts } = await supabase.from('prop_accounts')
+      .select('account, kind, status, from_account'));
+  }
+
+  const { data: tries } = await supabase.from('prop_attempts')
+    .select('account, attempt, outcome').eq('user_id', profile.id);
+
+  retired = retiredAccounts(accts, tries);
+
+  for (const a of accts || []) {
+    const dd = Number(a.drawdown);
+    firmLimit.set(a.account, {
+      drawdown: Number.isFinite(dd) && dd > 0 ? dd : null,
+      type: a.drawdown_type || null,
+      kind: a.kind || 'prop'
+    });
+  }
+}
+
 const realR   = (r) => Number.isFinite(Number(r.r_multiple)) && r.r_multiple !== null;
 const hasMoney = (r) => Number.isFinite(Number(r.net_pnl)) && r.net_pnl !== null;
 
@@ -332,10 +378,21 @@ const shownCount    = () => rows.filter(inRange).length;
 // reflect what the journal holds rather than what the current filter shows.
 let unit = rCount() >= moneyCount() && rCount() > 0 ? 'r' : 'money';
 
+/* MONEY POOLS ACROSS COPIES. R DOES NOT.
+ *
+ * One decision copied into eighteen accounts really did make eighteen lots of
+ * money - that is the entire point of running copiers, and a total that counted
+ * it once would be telling somebody they earned a eighteenth of what is in
+ * their accounts.
+ *
+ * R is not money. It measures the decision: how far it went against what was
+ * risked. Eighteen copies of a +2R trade is +2R of judgement, not +36R, and
+ * summing it across accounts produces a number that grows every time another
+ * copier is switched on while the trading stays identical. */
 const UNIT = {
-  r:     { has: hasR,     value: valueR,
+  r:     { has: hasR,     value: valueR,  pools: false,
            fmt: (v) => r2(v) + 'R', label: 'R' },
-  money: { has: hasMoney, value: (r) => Number(r.net_pnl),
+  money: { has: hasMoney, value: (r) => Number(r.net_pnl), pools: true,
            fmt: (v) => money(v),    label: 'dollars' }
 };
 
@@ -357,9 +414,63 @@ function inRange(r) {
 
 let account = 'all';
 
+/* ---------------------- which accounts are being counted -------------------
+
+   The same control as the calendar, for the same reason and with the same
+   refusal to be quiet about it: by the end of a year most of the names in this
+   journal are evaluations that passed months ago, and an all-time page that
+   averages them in is answering a question nobody asked.
+
+   Hiding them changes every number on the page, so whenever anything is left
+   out the summary says how much. Asking for one account by name beats the
+   scope, exactly as on the calendar - being shown an empty page after picking
+   an account would be the page arguing with the request.
+-------------------------------------------------------------------------- */
+
+const SCOPES = [
+  ['active', 'Still trading'],
+  ['all', 'Everything'],
+  ['retired', 'Passed accounts']
+];
+
+const SCOPE_KEY = 'tk_stats_scope';
+let scope = (() => {
+  try { return localStorage.getItem(SCOPE_KEY) || 'active'; } catch { return 'active'; }
+})();
+
+function inScope(name) {
+  if (scope === 'all' || account !== 'all') return true;
+  const done = retired.has(name || '');
+  return scope === 'retired' ? done : !done;
+}
+
 function closedNow() {
-  return rows.filter((r) => UNIT[unit].has(r) && inRange(r) &&
+  return rows.filter((r) => UNIT[unit].has(r) && inRange(r) && inScope(r.account) &&
     (account === 'all' || (r.account || '') === account));
+}
+
+/** What the scope is keeping off the page, or null when it is keeping nothing. */
+function hiddenByScope() {
+  if (scope === 'all' || account !== 'all') return null;
+
+  const off = rows.filter((r) => UNIT[unit].has(r) && inRange(r) && !inScope(r.account));
+  if (!off.length) return null;
+
+  const s = summariseIn(off, unit);
+  return { accounts: new Set(off.map((r) => r.account || '')).size, n: s.n, total: s.total };
+}
+
+function scopeNote() {
+  const off = hiddenByScope();
+  if (!off) return '';
+
+  const what = scope === 'retired' ? 'still being traded' : 'passed and retired';
+  return '<p class="stat-note">' +
+    off.accounts + (off.accounts === 1 ? ' account ' : ' accounts ') + what + ' ' +
+    (off.accounts === 1 ? 'is' : 'are') + ' not in any of this: ' +
+    off.n + (off.n === 1 ? ' decision' : ' decisions') +
+    ', ' + UNIT[unit].fmt(off.total) + '. ' +
+    '<button type="button" class="link-button" data-scope="all">Count everything</button>.</p>';
 }
 
 /* The collapse itself lives in app.js, so the calendar and this page cannot
@@ -376,9 +487,47 @@ function collapseNote(list) {
     'extra evidence. Money below is still the total across all of them.</p>';
 }
 
-// The unit is a runtime choice, so it is bound at the call rather than baked
-// into the module. Everything downstream just asks for a number.
-function summariseNow(list) { return summariseWith(list, UNIT[unit].value); }
+/* EVERY `n` ON THIS PAGE IS DECISIONS.
+ *
+ * This used to hand the shared `summarise` a list of rows, and the rows are
+ * copies: one fill held in eighteen accounts arrives as eighteen of them. The
+ * money was right and everything that reads a SAMPLE SIZE off it was wrong,
+ * which is the worse half - because those are the parts that exist to stop a
+ * member reading noise as a result:
+ *
+ *   - "A usable sample" appeared past fifty rows, which can be three decisions.
+ *   - The too-few warning could not fire on a journal that deserved it.
+ *   - The `thin` and `n=` tags on every slice, the page's one honest marker,
+ *     were silenced: a model tried once showed n=18 and no tag at all.
+ *
+ * A confident page over three decisions' worth of evidence. So `n` is decisions
+ * here, and wins and losses are counted per decision too - eighteen copies of
+ * one loss is one loss, and a win rate over rows is a win rate over copiers.
+ *
+ * Nothing needed to change in the slices: inside a single account there are no
+ * copies, so `By account` is unaffected, and `By model` collapses as it should.
+ *
+ * The unit is a runtime choice, so it is bound at the call rather than baked in.
+ */
+function summariseIn(list, u) {
+  const taken = decisions(list);
+  const value = UNIT[u].value;
+  const each = taken.map(value);
+
+  const wins = each.filter((v) => v > 0).length;
+  const losses = each.filter((v) => v < 0).length;
+  const n = taken.length;
+
+  // See UNIT above: dollars really did land in every account, R did not.
+  const total = UNIT[u].pools
+    ? list.reduce((sum, row) => sum + value(row), 0)
+    : each.reduce((sum, v) => sum + v, 0);
+
+  return { n, rows: list.length, wins, losses, total,
+           winRate: n ? wins / n * 100 : 0, avg: n ? total / n : 0 };
+}
+
+function summariseNow(list) { return summariseIn(list, unit); }
 
 /* Three states, and they used to share one message.
  *
@@ -387,6 +536,34 @@ function summariseNow(list) { return summariseWith(list, UNIT[unit].value); }
  * current unit is R. That last is not an empty journal, it is the wrong lens on
  * a full one, and telling someone to add an exit price they already entered
  * sends them to fix the wrong thing. */
+/* Only drawn when there is something to scope. A member who has never retired
+ * an account is not asked a question they do not have. */
+function renderScope() {
+  const traded = new Set(rows.map((r) => r.account || ''));
+  const useful = [...retired].some((name) => traded.has(name));
+
+  const host = document.getElementById('stats-scope');
+  host.hidden = !useful;
+  if (!useful) return;
+
+  host.innerHTML = SCOPES.map(([key, name]) =>
+    '<button type="button" class="seg-btn' + (key === scope ? ' is-on' : '') +
+      '" role="tab" aria-selected="' + (key === scope) + '" data-scope="' + key + '">' +
+      escapeHtml(name) + '</button>').join('');
+}
+
+/* Delegated at the document, because the same [data-scope] appears in the
+ * summary's "count everything" link, which is rewritten on every render. */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-scope]');
+  if (!btn) return;
+  scope = btn.dataset.scope;
+  try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* private window */ }
+  clearFindingsCache();
+  renderScope();
+  render();
+});
+
 function render() {
   const list = closedNow();
   const other = unit === 'r' ? 'money' : 'r';
@@ -2243,6 +2420,7 @@ document.querySelector('input[name="unit"][value="' + unit + '"]').checked = tru
   });
 }
 
+renderScope();
 render();
 
 // --- maths -----------------------------------------------------------------
@@ -2259,28 +2437,116 @@ render();
 // a const would still be in its temporal dead zone and throw on the first draw.
 function r2(n) { return (n > 0 ? '+' : '') + n.toFixed(2); }
 
+/* DRAWDOWN IS PER ACCOUNT, BECAUSE THE FIRM MEASURES IT PER ACCOUNT.
+ *
+ * This ran one curve over every row, and the rows are copies: eighteen accounts
+ * holding the same fills produce a peak-to-trough roughly eighteen times the
+ * one that any single account actually saw. Collapsing to decisions would not
+ * have fixed it either, because that gives the drawdown of an imaginary account
+ * trading one contract.
+ *
+ * Neither is the number that matters. A prop account is failed by ITS OWN
+ * peak-to-trough against ITS OWN threshold, so that is what is computed: one
+ * curve per account, in the order the trades were taken, and the worst of them
+ * reported. */
+function accountDrawdowns(list) {
+  const value = UNIT[unit].value;
+  const out = [];
+
+  for (const [name, rs] of groupBy(list, (r) => r.account || '')) {
+    const set = firmLimit.get(name) || {};
+    out.push({
+      name,
+      depth: drawdownWith(rs, value),
+      limit: set.drawdown || null,
+      type: set.type || null
+    });
+  }
+
+  return out.sort((a, b) => b.depth - a.depth);
+}
+
+/* What the firm allows, beside what was actually used.
+ *
+ * ONLY IN DOLLARS: a drawdown threshold is a dollar figure, and holding an R
+ * depth up against it would be comparing two different things and rounding the
+ * difference away.
+ *
+ * AND ONLY AS A FLOOR. The journal holds closed trades. A trailing threshold
+ * follows the high-water mark of the account, and at most firms it follows
+ * UNREALISED equity intraday - so the real low point was at least this deep and
+ * quite possibly deeper. The page says that rather than presenting a number
+ * that could get somebody comfortable. */
+function limitBlock(list) {
+  if (unit !== 'money') return '';
+
+  const withLimit = accountDrawdowns(list).filter((a) => a.limit !== null && a.depth > 0);
+  if (!withLimit.length) return '';
+
+  const trailing = withLimit.some((a) => a.type === 'trailing' || a.type === null);
+
+  return '<h3>Against what the firm allows</h3>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>Account</th><th>Worst peak to trough</th><th>Threshold</th><th>Left</th>' +
+    '</tr></thead><tbody>' +
+    withLimit.map((a) => {
+      const left = a.limit - a.depth;
+      const tight = left <= a.limit * 0.25;
+      return '<tr>' +
+        '<td>' + escapeHtml(label(a.name)) + '</td>' +
+        '<td>' + money(-a.depth) + '</td>' +
+        '<td>' + money(a.limit) + (a.type ? ' <span class="tag">' + escapeHtml(a.type) + '</span>' : '') + '</td>' +
+        '<td>' + money(left) + (tight ? ' <span class="tag">thin</span>' : '') + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    '<p class="stat-note">Closed trades only, so this is a <strong>floor</strong>. ' +
+    (trailing
+      ? 'A trailing threshold follows the account while a position is open, so the real low ' +
+        'point was at least this deep and probably deeper. '
+      : '') +
+    'Set the threshold on <a href="props.html">your accounts</a> for any account missing here.</p>';
+}
+
 function renderSummary(list) {
   const s = summariseNow(list);
-  const dd = drawdownWith(list, UNIT[unit].value);
+  const worst = accountDrawdowns(list)[0] || { depth: 0, name: null };
+
+  const copied = s.rows > s.n;
 
   document.getElementById('summary').innerHTML =
     '<h2>Overall</h2>' +
+    collapseNote(list) +
     '<div class="card-grid">' +
-      statCard('Closed trades', String(s.n),
-        s.n < 50 ? 'Fifty is roughly where this starts meaning something.' : 'A usable sample.') +
+      // Named for what it is. "Closed trades: 412" over 22 decisions is not a
+      // rounding difference, it is a different claim about how much evidence
+      // there is, and it is the claim the rest of this card is built on.
+      statCard(copied ? 'Decisions' : 'Closed trades', String(s.n),
+        s.n < 50
+          ? 'Fifty is roughly where this starts meaning something.'
+          : 'A usable sample.') +
       statCard('Win rate', s.winRate.toFixed(0) + '%',
         s.wins + ' won, ' + s.losses + ' lost') +
-      statCard('Total', UNIT[unit].fmt(s.total), 'Sum of every closed trade') +
+      statCard('Total', UNIT[unit].fmt(s.total),
+        unit === 'money'
+          ? (copied ? 'Across every account holding these trades' : 'Sum of every closed trade')
+          : 'Summed once per decision, not once per copy') +
       statCard('Expectancy', UNIT[unit].fmt(s.avg),
-        s.avg > 0 ? 'What an average trade is worth' : 'An average trade currently costs you') +
-      statCard('Worst drawdown', UNIT[unit].fmt(-Math.abs(dd)), 'Peak to trough, in order taken') +
+        (copied ? 'What an average decision is worth' : 'What an average trade is worth') +
+        (s.avg > 0 ? '' : ', and it is negative')) +
+      statCard('Worst drawdown', UNIT[unit].fmt(-Math.abs(worst.depth)),
+        worst.name
+          ? 'Deepest single account (' + label(worst.name) + '), peak to trough'
+          : 'Peak to trough, in order taken') +
     '</div>' +
+    limitBlock(list) +
     (s.n < MIN_SAMPLE
       ? '<div class="callout warn"><span class="callout-label">Too few</span><p>Under ' +
-        MIN_SAMPLE + ' trades, none of the breakdowns below are telling you anything about your ' +
-        'trading. They are telling you about your last ' + s.n + ' trades, which is a different ' +
-        'thing.</p></div>'
-      : '');
+        MIN_SAMPLE + ' decisions, none of the breakdowns below are telling you anything about ' +
+        'your trading. They are telling you about your last ' + s.n + ' decisions, which is a ' +
+        'different thing.</p></div>'
+      : '') +
+    scopeNote();
 }
 
 function statCard(label, value, note) {

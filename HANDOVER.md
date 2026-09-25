@@ -5,6 +5,32 @@ with no memory of how any of it got here.
 
 Last updated: 25 September 2026.
 
+## 25 September 2026 (statistics) — the page was counting copies as evidence
+
+Three months of imported trades and a funded PA account, and [stats.html](stats.html) needed three
+corrections.
+
+- **`n` is decisions.** Every sample-size judgement on the page ran off the row count, so nineteen
+  copies of one fill read as nineteen trades' worth of evidence. *"A usable sample"*, the too-few
+  warning and the `thin` tag on every slice were all answering with a number nineteen times too big.
+- **Dollars pool across copies, R does not.** Nineteen accounts really did make nineteen lots of
+  money. Nineteen copies of +2R is +2R of judgement, and summing it meant switching on another
+  copier improved the trading.
+- **Drawdown is per account, and now has something to be compared against.**
+  `prop_accounts.drawdown` and `drawdown_type` were already recorded and nothing read them. There is
+  a table of worst peak-to-trough against threshold, with what is left — said as a **floor**,
+  because the journal holds closed trades and a trailing threshold follows the account intraday.
+- **The calendar's scope control**, on the same rule, with the same note saying what is left out.
+
+**Verified:** `node tools/probe-stats-decisions.mjs` — 28 checks on the arithmetic and on the
+wording of the threshold table, lifted out of the shipped file. The table was rendered against
+`style.css` in a browser and read correctly. **Not yet seen against the live project** — no fixture
+exists with a real funded account and a threshold set.
+
+**Worth doing next, not done:** a funded-only view (funded and evaluation trading are different
+games — consistency rules, payout windows, a trailing stop that stops trailing), and a range option
+for *since this account started*, because 90 days now straddles three account lifetimes.
+
 ## 25 September 2026 (later) — blank members pages, and the guard against them
 
 **Reported:** blank calendar pages. **Cause:** not the calendar. Five deploys inside thirty-four

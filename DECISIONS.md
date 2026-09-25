@@ -1367,3 +1367,68 @@ so rather than to look empty.
 message, stays silent when the same page imports something that exists, stays silent for ten
 seconds over a page that hangs after writing *Checking your session…*, and the retry lands on a
 cache-busted URL.
+
+---
+
+## 2026-09-25 (statistics) — n means decisions, and drawdown belongs to an account
+
+Three months of real trades and a funded account exposed three things the statistics page had been
+getting away with while the journal was small.
+
+### The sample size was the row count
+
+`renderSummary` and every breakdown handed the shared `summarise` a list of **rows**, and the rows
+are copies: one fill held in nineteen accounts arrives as nineteen of them. The money was right.
+Everything that reads a sample size off it was wrong — and those are precisely the parts that exist
+to stop a member reading noise as a result:
+
+- *"A usable sample"* appeared past fifty rows, which can be three decisions.
+- The too-few warning could not fire on a journal that deserved it.
+- The `thin` and `n=` tags on every slice — the page's one honest marker — were silenced. A model
+  tried once showed `n=19` and no tag at all.
+
+A confident page over three decisions' worth of evidence, which is the same failure as a partial
+session recorded as `ok`: it looks healthy.
+
+**Decided:** `n`, wins and losses are decisions. Nothing needed changing in the slices — inside a
+single account there are no copies, so *By account* is untouched and *By model* collapses as it
+should.
+
+### Dollars pool, R does not
+
+One decision copied into nineteen accounts really did make nineteen lots of money; a total that
+counted it once would tell somebody they earned a nineteenth of what is in their accounts. **R is
+not money.** It measures the decision — how far it went against what was risked — and nineteen
+copies of +2R is +2R of judgement, not +38R. Summing R across accounts produces a figure that
+improves every time another copier is switched on while the trading stays identical. So `UNIT`
+carries a `pools` flag and the two behave differently on purpose.
+
+### Drawdown belongs to an account
+
+One curve was run over every row, giving a peak-to-trough roughly nineteen times the one any single
+account saw. Collapsing to decisions would not have fixed it either — that is the drawdown of an
+imaginary account trading one contract. **A firm fails an account on its own peak to trough against
+its own threshold**, so that is what is computed now: one curve per account, in the order taken, and
+the deepest reported.
+
+And it is finally compared to something. `prop_accounts.drawdown` and `drawdown_type` have existed
+since the table was created and nothing read them, so the only drawdown figure on the site was held
+up against nothing at all. There is now a table of worst peak-to-trough against threshold, with what
+is left.
+
+**Said as a floor, not a measurement.** The journal holds closed trades. A trailing threshold
+follows the account while a position is open, and at most firms it follows unrealised equity, so the
+real low point was at least this deep and probably deeper. A number that gets somebody comfortable
+about their remaining buffer is worse than no number, so the caveat is part of the block rather than
+something to remember to add. Dollars only — an R depth against a dollar threshold is two different
+things with the difference rounded away.
+
+### And the same scope control as the calendar
+
+Passed evaluations were outvoting the account being traded on an all-time page. Same three piles,
+same `retiredAccounts()` from `app.js`, same refusal to hide anything quietly: whenever the scope
+leaves something out, the summary says how many accounts, how many decisions and what they were
+worth. Asking for one account by name still beats the scope.
+
+`tools/probe-stats-decisions.mjs` pins all of it — 28 checks, taking the functions out of the
+shipped file rather than out of a copy that can drift.

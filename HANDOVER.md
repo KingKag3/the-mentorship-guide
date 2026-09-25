@@ -5,6 +5,27 @@ with no memory of how any of it got here.
 
 Last updated: 25 September 2026.
 
+## 25 September 2026 (later) — blank members pages, and the guard against them
+
+**Reported:** blank calendar pages. **Cause:** not the calendar. Five deploys inside thirty-four
+minutes, and GitHub Pages caches each file for ten minutes on its own, so a browser could hold
+`app.js` from 10:27 while fetching the `calendar.html` of 10:38 that imports `retiredAccounts` from
+it. The module graph fails to instantiate and **nothing** on the page runs — including the line that
+unhides `#body`. It clears itself within ten minutes.
+
+**Added [boot-guard.js](boot-guard.js)**, a classic script (no imports, so it cannot fail the same
+way), loaded beside `theme.js` on all eleven pages with an `#auth-root`. Nine seconds of an empty
+`#auth-root` and a hidden `#body` and it says so, quoting what the browser reported, with a retry
+that changes the URL so the reload cannot come from the same cache. It stays silent whenever the
+page has already said something for itself. DECISIONS 2026-09-25 (blank pages).
+
+**Verified in a browser** against a real failing import: fires with the exact message, silent on a
+good import, silent over a page hanging on *Checking your session…*, retry lands cache-busted.
+
+**Still true:** this window reopens on any deploy where a page starts importing a name that the
+previous `app.js` did not export. Push the page and the export together, and expect up to ten
+minutes where a cached browser sees the guard rather than the page.
+
 ## 25 September 2026 — passed accounts stop crowding three pages
 
 An evaluation that has passed is finished, and three pages now act like it. One rule,

@@ -1323,3 +1323,47 @@ or its own status says passed, or its LATEST attempt passed. Three copies would 
 first page to learn a new way of retiring an account would be right and the other two quietly wrong.
 `tools/probe-retired-accounts.mjs` pins the rule, the filter and the wording of the sentence, taking
 all three out of the shipped files rather than out of a copy that can drift.
+
+---
+
+## 2026-09-25 (blank pages) — A members page says when it did not load
+
+**What happened.** Members reported blank calendar pages: masthead, the word *Calendar*, footer,
+nothing in between. Not an error, not a spinner — a page that looked like it legitimately had no
+content.
+
+**The cause is the deploy, not the code.** Every page in the members area is authored hidden —
+`#body` carries `hidden`, and the module unhides it once `requireRole` has answered. That is the
+right default; it stops a member's trades painting for an instant before the auth check finishes.
+But if the module never runs, nothing unhides it, and nothing says so.
+
+There is no build step here, which is deliberate, so the browser caches each file separately.
+GitHub Pages serves `Cache-Control: max-age=600`. Five commits went out in thirty-four minutes:
+`retiredAccounts` was added to `app.js` at 10:27 and `calendar.html` began importing it at 10:38.
+A browser holding `app.js` from before 10:27 while fetching the new `calendar.html` cannot
+instantiate the module graph — *does not provide an export named `retiredAccounts`* — so **no**
+code on the page runs at all. `import.html` had the same ten-minute window from 10:27.
+
+Both files were correct. They were correct separately, which is the whole problem, and it clears
+itself within ten minutes — which is why it is expensive: by the time anybody looks, it works.
+
+**Decided:** `boot-guard.js`, a classic script — no imports, so it cannot fail the same way —
+loaded beside `theme.js` on all eleven pages that have an `#auth-root`. If nine seconds pass with
+`#auth-root` empty and `#body` still hidden, it says the page did not finish loading, quotes what
+the browser actually reported, and offers a retry that changes the URL so the reload cannot be
+answered from the cache that caused it.
+
+**What it will not do.** It never reloads on its own — a reload loop on a page somebody cannot read
+is worse than the blank page. And anything the page has already put in `#auth-root` wins:
+*Checking your session…*, *Not connected*, *Awaiting approval*, *Could not check your session* are
+all better than a vaguer message on top of them. A slow page is not a blank page.
+
+**Not fixed, because it cannot be here.** Without a build step there is nothing to fingerprint the
+filenames with, and GitHub Pages will not take a shorter `max-age`. The window stays. Deploying a
+page and the export it needs in one push narrows it; nothing closes it. So the page is built to say
+so rather than to look empty.
+
+**Verified** in a browser against a real failing import: the guard fires with the exact browser
+message, stays silent when the same page imports something that exists, stays silent for ten
+seconds over a page that hangs after writing *Checking your session…*, and the retry lands on a
+cache-busted URL.

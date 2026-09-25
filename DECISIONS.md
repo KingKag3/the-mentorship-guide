@@ -1258,3 +1258,29 @@ pile nobody opens is where an action goes to be forgotten. So the move is not th
 greying. **Greying means finished** — a funded account exists and there is nothing left to do.
 An evaluation waiting for its number sits in the same pile at full strength with the prompt still on
 it.
+
+---
+
+## 2026-09-25 (later) — A retired account is not offered on the importer
+
+**Decided:** the importer's account suggestions leave out any evaluation that has passed. It stays
+typeable; it stops being offered.
+
+**Why.** Nothing is imported into an account that has been retired: it passed, the firm closed it,
+and the trading moved to the funded account it earned. Leaving it in the list puts the wrong answer
+one keystroke from the right one, on the page whose entire job is filing trades under the correct
+name — and a misfiled account is not obvious afterwards, because the trades look perfectly
+normal under a name that once was right.
+
+**It is a suggestion list, not a rule.** A retired name can still be typed, and a file that names
+its own accounts — which is most of them — is unaffected either way. That is the balance
+being struck: remove a wrong guess without removing a right answer, because somebody re-importing an
+old file covering the period *before* the account passed is doing something legitimate.
+
+**The same rule as the accounts page, not a second one.** An account is retired when a funded
+account names it as where it came from, or its own status says passed, or its LATEST attempt passed.
+The last part matters: an account that passed once, was reset and is being traded again is still
+offered, because what it is doing now is what counts.
+
+**It says so.** The field carries a note when names have been left out, because an account visible
+on the accounts page and missing here would otherwise read as data loss.

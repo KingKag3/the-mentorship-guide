@@ -123,6 +123,7 @@
     <label for="acct">Account name <span class="opt">— used for any row the file does not name</span></label>
     <input id="acct" type="text" list="dl-acct" placeholder="Main" required>
     <datalist id="dl-acct"></datalist>
+    <p class="field-note" id="acct-note"></p>
 
     <label for="file">Export file <span class="opt">— CSV, TSV, XLSX or XLS</span></label>
     <input id="file" type="file"
@@ -362,17 +363,70 @@ let lastFile = null;
 // It was also `.limit(2000)` with no order, so past two thousand trades an
 // account could silently drop out of the list. Paged now, and topped up from
 // `prop_accounts`, so an account set up before its first trade is offered too.
+//
+// A PASSED EVALUATION IS NOT OFFERED. Nothing is imported into an account that
+// has been retired: it passed, the firm closed it, and the trading moved to the
+// funded account it earned. Leaving it in the list makes the wrong answer one
+// keystroke from the right one, on a page whose whole job is filing trades
+// under the correct name.
+//
+// It is only a SUGGESTION list. A retired name can still be typed, and a file
+// that names its own accounts is not affected either way - which is the point:
+// this removes a wrong guess without removing a right answer.
 {
-  const [tradeNames, configured] = await Promise.all([
+  const [tradeNames, configured, attempts] = await Promise.all([
     fetchPaged(() => supabase.from('trades').select('account')
       .eq('user_id', profile.id).order('opened_at', { ascending: false }), 50000),
-    supabase.from('prop_accounts').select('account').eq('user_id', profile.id)
+    supabase.from('prop_accounts').select('account, status, kind, from_account')
+      .eq('user_id', profile.id),
+    // The attempt is where a pass usually lives: an account on its third try
+    // is judged by the third, and `prop_accounts.status` can still read active.
+    // A project without this table yet is not an error - it just has no
+    // attempts, and the other two tests still apply.
+    supabase.from('prop_attempts').select('account, attempt, outcome')
+      .eq('user_id', profile.id)
   ]);
+
+  /* THE SAME RULE THE ACCOUNTS PAGE USES, not a second one that will drift.
+   *
+   *   - a funded account names it as where it came from, or
+   *   - its own status says passed, or
+   *   - its latest attempt passed.
+   */
+  const retired = new Set();
+  for (const row of configured.data || []) {
+    if (row.from_account) retired.add(row.from_account);
+    if (row.status === 'passed') retired.add(row.account);
+  }
+  const latest = new Map();
+  for (const a of attempts.data || []) {
+    const best = latest.get(a.account);
+    if (!best || (a.attempt || 0) >= (best.attempt || 0)) latest.set(a.account, a);
+  }
+  for (const [account, a] of latest) {
+    if (a.outcome === 'passed') retired.add(account);
+  }
+
   const names = [...new Set([
     ...((tradeNames.data || []).map((r) => r.account)),
     ...((configured.data || []).map((r) => r.account))
-  ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  ].filter(Boolean))]
+    .filter((n) => !retired.has(n))
+    .sort((a, b) => a.localeCompare(b));
+
   $('dl-acct').innerHTML = names.map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
+
+  // Said once, plainly, rather than leaving somebody to wonder where an account
+  // they can see on the accounts page went.
+  if (retired.size) {
+    const note = $('acct-note');
+    if (note) {
+      note.textContent = retired.size === 1
+        ? 'One passed account is left out of the suggestions. You can still type its name.'
+        : retired.size + ' passed accounts are left out of the suggestions. You can still type ' +
+          'their names.';
+    }
+  }
 }
 
 /* -------------------------------- reading -------------------------------- */

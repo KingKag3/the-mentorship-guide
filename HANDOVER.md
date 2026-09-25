@@ -5,6 +5,22 @@ with no memory of how any of it got here.
 
 Last updated: 25 September 2026.
 
+## 25 September 2026 (statistics, later) — funded vs evaluation, and the period
+
+- **The account filter can pick a kind.** *Funded accounts* / *Evaluations*, offered only where the
+  journal holds both. Choosing a kind is not naming an account, so the scope still applies inside
+  it; naming one account overrides the scope and the scope control hides itself rather than sitting
+  there doing nothing.
+- **The period is stated** under the controls: *22 decisions across 3 accounts, 6 April to 25
+  September 2026*. Counted in decisions.
+
+No *since this account started* range option: it needs `prop_accounts.started_on`, which is rarely
+filled in, and without it collapses to what *Everything* already shows once an account is picked.
+DECISIONS 2026-09-25 (statistics, later).
+
+**Verified:** `node tools/probe-stats-decisions.mjs` — 45 checks. **Not yet seen against the live
+project.**
+
 ## 25 September 2026 (statistics) — the page was counting copies as evidence
 
 Three months of imported trades and a funded PA account, and [stats.html](stats.html) needed three
@@ -27,10 +43,7 @@ wording of the threshold table, lifted out of the shipped file. The table was re
 `style.css` in a browser and read correctly. **Not yet seen against the live project** — no fixture
 exists with a real funded account and a threshold set.
 
-**Worth doing next, not done:** a funded-only view (funded and evaluation trading are different
-games — consistency rules, payout windows, a trailing stop that stops trailing), and a range option
-for *since this account started*, because 90 days now straddles three account lifetimes.
-
+**Both follow-ups are done** — see the section above.
 ## 25 September 2026 (later) — blank members pages, and the guard against them
 
 **Reported:** blank calendar pages. **Cause:** not the calendar. Five deploys inside thirty-four

@@ -1432,3 +1432,43 @@ worth. Asking for one account by name still beats the scope.
 
 `tools/probe-stats-decisions.mjs` pins all of it — 28 checks, taking the functions out of the
 shipped file rather than out of a copy that can drift.
+
+---
+
+## 2026-09-25 (statistics, later) — Funded is a different game, and the period is said out loud
+
+**Decided:** the account filter can select a **kind** — *Funded accounts* or *Evaluations* — as well
+as a name, and every page of numbers states the period it covers.
+
+**Why the kind.** An evaluation is a test with a pass mark. A funded account is the job: consistency
+rules, a payout window, and a trailing threshold that stops trailing once it is clear of the
+starting balance. The same trader on the same setups behaves differently under each, and averaged
+together that difference is invisible — which is the one thing this page exists to make visible.
+
+Offered only where the journal holds both. A member with one funded account and nothing else is not
+being given a choice, they are being given a list with the answer in it.
+
+**Choosing a kind is not naming an account.** A name overrides the scope, because being shown an
+empty page after picking an account would be the page arguing with the request. A kind says nothing
+about whether a passed evaluation should count, so the scope still applies inside it — and the
+scope control disappears while one account is named, rather than sitting there offering a choice
+that changes nothing.
+
+**An account nobody configured counts as an evaluation**, which is what almost every imported name
+is.
+
+### The period, rather than a fourth range option
+
+*Everything* now spans accounts that started months apart. A win rate over a fortnight and one over
+half a year are different claims wearing the same number, and nothing on the page said which.
+
+There is now a line under the controls: *22 decisions across 3 accounts, 6 April to 25 September
+2026.* Decisions, so copies do not inflate it.
+
+**Deliberately not a range option.** *Since this account started* would need
+`prop_accounts.started_on`, which is rarely filled in, and without it the option collapses to the
+first trade on the account — which is what *Everything* already shows once one account is selected.
+Stating the span is the information that option was standing in for, and it is true on every
+combination of filters rather than only the one.
+
+`tools/probe-stats-decisions.mjs` covers both — 45 checks in total now.

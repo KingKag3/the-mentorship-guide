@@ -100,6 +100,7 @@
     </label>
   </div>
 
+  <p class="stat-note" id="period-note"></p>
   <p class="stat-note" id="unit-note"></p>
 
   <details id="risk-panel" hidden>
@@ -278,13 +279,29 @@ let hidden = accountsHidden();
 let alias = aliasMap(accounts);
 const label = (n) => (n && hidden ? (alias.get(n) || 'Account') : n);
 
-// Only worth offering when there is a choice to make.
-{
+// Only worth offering when there is a choice to make. Rebuilt rather than
+// patched, because the aliases change under it when the privacy toggle moves.
+function renderAccountFilter() {
   const sel = document.getElementById('account-filter');
-  sel.innerHTML = '<option value="all">All accounts</option>' +
-    accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(label(a)) + '</option>').join('');
-  sel.addEventListener('change', (e) => { account = e.target.value; render(); });
+
+  const option = (value, text) =>
+    '<option value="' + escapeHtml(value) + '"' +
+      (value === account ? ' selected' : '') + '>' + escapeHtml(text) + '</option>';
+
+  /* The kinds are offered only where the journal holds both. One funded account
+   * and nothing else is not a choice, it is a list with the answer in it. */
+  const kinds = new Set(accounts.map((a) => kindOf(a)));
+  const groups = kinds.size > 1
+    ? KIND_FILTERS.filter(([key]) => kinds.has(key.slice(5)))
+        .map(([key, name]) => option(key, name)).join('')
+    : '';
+
+  sel.innerHTML = option('all', 'All accounts') + groups +
+    accounts.map((a) => option(a, label(a))).join('');
 }
+
+document.getElementById('account-filter')
+  .addEventListener('change', (e) => { account = e.target.value; render(); });
 
 /* Which lessons actually exist, so a finding never offers a link to a page that
  * would 404. Published only - an unpublished lesson is not readable, and
@@ -328,7 +345,7 @@ let stated = new Map();
  * of that is an error: it is a page that says less, not a page that breaks.
  */
 let retired = new Set();
-const firmLimit = new Map();   // account -> { drawdown, type, kind }
+const accountFacts = new Map();   // account -> { drawdown, type, kind }
 {
   const wanted = 'account, kind, status, from_account, drawdown, drawdown_type';
   let { data: accts } = await supabase.from('prop_accounts').select(wanted);
@@ -347,7 +364,7 @@ const firmLimit = new Map();   // account -> { drawdown, type, kind }
 
   for (const a of accts || []) {
     const dd = Number(a.drawdown);
-    firmLimit.set(a.account, {
+    accountFacts.set(a.account, {
       drawdown: Number.isFinite(dd) && dd > 0 ? dd : null,
       type: a.drawdown_type || null,
       kind: a.kind || 'prop'
@@ -412,7 +429,43 @@ function inRange(r) {
   return new Date(r.opened_at).getTime() >= cutoff;
 }
 
+/* ------------------- funded and evaluation are not the same game -----------
+
+   An evaluation is a test with a pass mark. A funded account is the job: there
+   are consistency rules, a payout window, and a trailing threshold that stops
+   trailing once it is clear of the starting balance. The same trader on the
+   same setups produces different behaviour under each, and averaged together
+   the difference is invisible - which is the one thing this page exists to make
+   visible.
+
+   So the account filter can select a KIND as well as a name. It is offered only
+   when the journal actually holds both, because a member with one funded
+   account and nothing else does not need to be asked. */
+
+const KIND_FILTERS = [
+  ['kind:funded', 'Funded accounts'],
+  ['kind:prop', 'Evaluations']
+];
+
 let account = 'all';
+
+const kindOf = (name) => (accountFacts.get(name) || {}).kind || 'prop';
+
+/** A name means that name. A kind means every account of that kind. */
+function matchesAccount(name) {
+  if (account === 'all') return true;
+  if (account.startsWith('kind:')) return kindOf(name || '') === account.slice(5);
+  return (name || '') === account;
+}
+
+/* Whether ONE account was asked for by name, which is the case that overrides
+ * the scope below. Choosing a kind is not naming an account: it narrows what is
+ * counted without saying which, so the scope still applies inside it. */
+const namedAccount = () => account !== 'all' && !account.startsWith('kind:');
+
+// Built here rather than where the element is wired: the kinds it offers are
+// not known until `prop_accounts` has loaded and `kindOf` exists.
+renderAccountFilter();
 
 /* ---------------------- which accounts are being counted -------------------
 
@@ -439,21 +492,24 @@ let scope = (() => {
 })();
 
 function inScope(name) {
-  if (scope === 'all' || account !== 'all') return true;
+  if (scope === 'all' || namedAccount()) return true;
   const done = retired.has(name || '');
   return scope === 'retired' ? done : !done;
 }
 
 function closedNow() {
   return rows.filter((r) => UNIT[unit].has(r) && inRange(r) && inScope(r.account) &&
-    (account === 'all' || (r.account || '') === account));
+    matchesAccount(r.account));
 }
 
 /** What the scope is keeping off the page, or null when it is keeping nothing. */
 function hiddenByScope() {
-  if (scope === 'all' || account !== 'all') return null;
+  if (scope === 'all' || namedAccount()) return null;
 
-  const off = rows.filter((r) => UNIT[unit].has(r) && inRange(r) && !inScope(r.account));
+  // Inside whatever the account filter already narrowed to: a member looking at
+  // funded accounts is not owed a count of hidden evaluations.
+  const off = rows.filter((r) => UNIT[unit].has(r) && inRange(r) &&
+    matchesAccount(r.account) && !inScope(r.account));
   if (!off.length) return null;
 
   const s = summariseIn(off, unit);
@@ -536,11 +592,15 @@ function summariseNow(list) { return summariseIn(list, unit); }
  * current unit is R. That last is not an empty journal, it is the wrong lens on
  * a full one, and telling someone to add an exit price they already entered
  * sends them to fix the wrong thing. */
-/* Only drawn when there is something to scope. A member who has never retired
- * an account is not asked a question they do not have. */
+/* Only drawn when there is something to scope, and only while it does anything.
+ *
+ * A member who has never retired an account is not asked a question they do not
+ * have. And once ONE account is named the scope is overridden by that name, so
+ * leaving the control on screen would be offering a choice that changes
+ * nothing - a control that does not work is worse than no control. */
 function renderScope() {
   const traded = new Set(rows.map((r) => r.account || ''));
-  const useful = [...retired].some((name) => traded.has(name));
+  const useful = [...retired].some((name) => traded.has(name)) && !namedAccount();
 
   const host = document.getElementById('stats-scope');
   host.hidden = !useful;
@@ -560,12 +620,49 @@ document.addEventListener('click', (e) => {
   scope = btn.dataset.scope;
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* private window */ }
   clearFindingsCache();
-  renderScope();
   render();
 });
 
+/* WHAT IS ACTUALLY IN VIEW, SAID IN ONE LINE.
+ *
+ * "Everything" spans whatever the journal holds, and by now that is several
+ * accounts that started months apart. A member reading a win rate has no way to
+ * know whether it covers a fortnight or half a year, and the number means
+ * something different in each case.
+ *
+ * This is deliberately NOT a fourth range option. "Since this account started"
+ * would need `prop_accounts.started_on`, which is rarely filled in, and without
+ * it the option collapses to the first trade on the account - which is what
+ * "Everything" already shows once one account is selected. Stating the span is
+ * the information that option was standing in for.
+ */
+function periodNote(list) {
+  if (!list.length) return '';
+
+  const s = summariseNow(list);
+  const names = new Set(list.map((r) => r.account || ''));
+
+  // The query is ascending and every filter preserves order, so the ends of the
+  // list are the ends of the period.
+  const from = new Date(list[0].opened_at);
+  const to = new Date(list[list.length - 1].opened_at);
+  const sameYear = from.getFullYear() === to.getFullYear();
+  const day = (d, withYear) => d.toLocaleDateString(undefined,
+    withYear ? { day: 'numeric', month: 'long', year: 'numeric' }
+             : { day: 'numeric', month: 'long' });
+
+  const span = from.toDateString() === to.toDateString()
+    ? day(to, true)
+    : day(from, !sameYear) + ' to ' + day(to, true);
+
+  return s.n + (s.n === 1 ? ' decision' : ' decisions') +
+    (names.size > 1 ? ' across ' + names.size + ' accounts' : '') +
+    ', ' + span + '.';
+}
+
 function render() {
   const list = closedNow();
+  renderScope();
   const other = unit === 'r' ? 'money' : 'r';
   const otherCount = rows.filter((r) => UNIT[other].has(r) && inRange(r)).length;
 
@@ -585,6 +682,8 @@ function render() {
   const cappedNote = capped
     ? ' Only the most recent 2,000 trades are included; there are more.'
     : '';
+
+  document.getElementById('period-note').textContent = periodNote(list);
 
   document.getElementById('unit-note').textContent =
     unit !== 'r' ? cappedNote.trim()
@@ -2412,15 +2511,11 @@ document.querySelector('input[name="unit"][value="' + unit + '"]').checked = tru
   box.addEventListener('change', () => {
     hidden = box.checked;
     setAccountsHidden(hidden);
-    document.getElementById('account-filter').innerHTML =
-      '<option value="all">All accounts</option>' +
-      accounts.map((a) => '<option value="' + escapeHtml(a) + '"' +
-        (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+    renderAccountFilter();
     render();
   });
 }
 
-renderScope();
 render();
 
 // --- maths -----------------------------------------------------------------
@@ -2454,7 +2549,7 @@ function accountDrawdowns(list) {
   const out = [];
 
   for (const [name, rs] of groupBy(list, (r) => r.account || '')) {
-    const set = firmLimit.get(name) || {};
+    const set = accountFacts.get(name) || {};
     out.push({
       name,
       depth: drawdownWith(rs, value),

@@ -61,7 +61,7 @@ const { groupBy, drawdown } = new Function(
  * are handed in rather than rebuilt, so this tests the arithmetic that ships
  * and not a copy of it that can drift. */
 const make = (signature) => new Function(
-  'UNIT', 'unit', 'decisions', 'groupBy', 'drawdownWith', 'firmLimit',
+  'UNIT', 'unit', 'decisions', 'groupBy', 'drawdownWith', 'accountFacts',
   grab(stats, signature) + '; return ' + signature.match(/function (\w+)/)[1] + ';');
 
 const summariseIn = make('function summariseIn(')(
@@ -172,7 +172,7 @@ const { escapeHtml, money } = new Function(
   '; return { escapeHtml, money };')();
 
 const limitBlock = (rows, limits, unit = 'money', hide = false) => new Function(
-  'UNIT', 'unit', 'decisions', 'groupBy', 'drawdownWith', 'firmLimit', 'escapeHtml',
+  'UNIT', 'unit', 'decisions', 'groupBy', 'drawdownWith', 'accountFacts', 'escapeHtml',
   'money', 'label',
   grab(stats, 'function accountDrawdowns(') + '\n' +
   grab(stats, 'function limitBlock(') + '; return limitBlock;')(
@@ -214,6 +214,90 @@ const limitBlock = (rows, limits, unit = 'money', hide = false) => new Function(
   const tight = new Map([['A', { drawdown: 500, type: 'static' }]]);
   const html = limitBlock(list.filter((r) => r.account === 'A'), tight);
   check('a thin buffer is marked', html.includes('thin'), html.includes('thin'));
+}
+
+// -------------------------------------- funded, evaluations, and the period
+
+/* AN EVALUATION IS A TEST. A FUNDED ACCOUNT IS THE JOB.
+ *
+ * Consistency rules, a payout window, a trailing threshold that stops trailing.
+ * Averaged together the difference is invisible, which is the one thing this
+ * page exists to make visible - so the account filter can select a kind.
+ *
+ * The rule that is easy to get backwards: choosing a KIND is not naming an
+ * account. A name overrides the scope, because being shown an empty page after
+ * picking an account would be the page arguing with the request. A kind does
+ * not, because it says nothing about whether a passed evaluation should count. */
+const selector = (account, facts) => new Function(
+  'account', 'accountFacts',
+  // One-liners come out with a regex: `grab` looks for a brace body, and these
+  // two are arrow expressions that have none.
+  stats.match(/const kindOf = [^;]+;/)[0] + '\n' +
+  grab(stats, 'function matchesAccount(') + '\n' +
+  stats.match(/const namedAccount = [^;]+;/)[0] +
+  '; return { matchesAccount, namedAccount, kindOf };')(account, facts);
+
+const FACTS = new Map([
+  ['PA-74', { kind: 'funded' }],
+  ['EVAL-1672', { kind: 'prop' }],
+  ['MINE', { kind: 'live' }]
+]);
+
+{
+  const all = selector('all', FACTS);
+  check('all accounts matches everything',
+        all.matchesAccount('PA-74') && all.matchesAccount('EVAL-1672') && all.matchesAccount(''));
+  check('and is not a named account', !all.namedAccount());
+
+  const funded = selector('kind:funded', FACTS);
+  check('funded keeps the funded account', funded.matchesAccount('PA-74'));
+  check('and drops the evaluation', !funded.matchesAccount('EVAL-1672'));
+  check('and drops the live account', !funded.matchesAccount('MINE'));
+
+  const evals = selector('kind:prop', FACTS);
+  check('evaluations keep the evaluation', evals.matchesAccount('EVAL-1672'));
+  check('and drop the funded account', !evals.matchesAccount('PA-74'));
+
+  // An account the member never configured is an evaluation by default, which
+  // is what almost every imported name is.
+  check('an unconfigured account counts as an evaluation',
+        evals.matchesAccount('IMPORTED-9'));
+
+  check('choosing a kind is not naming an account', !funded.namedAccount());
+  check('naming one is', selector('PA-74', FACTS).namedAccount());
+  check('and a name matches only itself',
+        selector('PA-74', FACTS).matchesAccount('PA-74') &&
+        !selector('PA-74', FACTS).matchesAccount('EVAL-1672'));
+}
+
+/* THE PERIOD, SAID OUT LOUD.
+ *
+ * "Everything" now spans accounts that started months apart, and a win rate
+ * over a fortnight and one over half a year are different claims wearing the
+ * same number. */
+const periodNote = (rows) => new Function(
+  'summariseNow', 'list',
+  grab(stats, 'function periodNote(') + '; return periodNote(list);')(
+    (l) => summariseIn(l, 'money'), rows);
+
+{
+  check('an empty view says nothing', periodNote([]) === '');
+
+  const one = periodNote([fill('A', '20', 500, 2)]);
+  check('a single decision is singular', one.startsWith('1 decision, '), one);
+  check('and a single day is one date, not a range to itself',
+        !one.includes(' to '), one);
+
+  const spread = periodNote([
+    { ...fill('A', '20', 500, 2), opened_at: '2026-04-06T14:00:00Z' },
+    { ...loss('B', '10'), opened_at: '2026-09-25T14:00:00Z' }
+  ]);
+  check('a spread names both ends', spread.includes(' to '), spread);
+  check('and counts the accounts when there is more than one',
+        spread.includes('across 2 accounts'), spread);
+
+  check('copies do not inflate the count',
+        periodNote(list).startsWith('2 decisions across 3 accounts'), periodNote(list));
 }
 
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');

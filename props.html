@@ -1425,10 +1425,30 @@ function passedMap() {
   return out;
 }
 
+/* The state the card shows: the live attempt's outcome where there is one,
+ * because an account on attempt three is judged by attempt three. */
+function outcomeOf(name) {
+  const live = currentAttempt(name);
+  return live ? live.outcome : ((saved.get(name) || {}).status || 'active');
+}
+
+/* PASSED MEANS PASSED, WHETHER OR NOT THE FUNDED ACCOUNT EXISTS YET.
+ *
+ * The first version of this put an evaluation in the Passed pile only once a
+ * funded account named it, which left one that had passed on Friday sitting
+ * among the fifteen still being traded until its number was typed in. It is
+ * not being traded. It is waiting on an administrative step.
+ *
+ * The thing to be careful of is that this card carries the outstanding action -
+ * "start the funded account" - and a pile nobody opens is where an action goes
+ * to be forgotten. So it moves, but it is NOT greyed: greying is for the ones
+ * that are genuinely finished, and this one still wants something. */
 function groupOf(name, passed) {
   if (passed.has(name)) return 'passed';
   const kind = (saved.get(name) || {}).kind || 'prop';
-  return kind === 'funded' ? 'funded' : kind === 'prop' ? 'prop' : 'other';
+  if (kind === 'funded') return 'funded';
+  if (kind !== 'prop') return 'other';
+  return outcomeOf(name) === 'passed' ? 'passed' : 'prop';
 }
 
 function card(name, passedTo) {

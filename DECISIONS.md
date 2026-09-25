@@ -1247,3 +1247,14 @@ have them think the site lost their accounts.
 beside one saying *passed to PA-…* is furniture. And *start the funded account* is no longer offered
 on an evaluation that already produced one, which would otherwise make a second funded account from
 the same pass.
+
+**Corrected the same day.** The first version put an evaluation in the Passed pile only once a
+funded account named it — so one that passed on Friday sat among the ones still being traded
+until its number was typed in. It is not being traded; it is waiting on an administrative step. It
+moves on the pass now, linked or not.
+
+What that risked, and what is done about it: the unlinked card carries the outstanding action, and a
+pile nobody opens is where an action goes to be forgotten. So the move is not the same as the
+greying. **Greying means finished** — a funded account exists and there is nothing left to do.
+An evaluation waiting for its number sits in the same pile at full strength with the prompt still on
+it.

@@ -40,6 +40,13 @@ could not — see DECISIONS 2026-09-28 (later):
   section, so somebody who had just run the SQL saw nothing at all — which looks exactly like the
   migration having failed.
 
+**Confirmed in the browser on 28 September**: the invitation line renders on a funded card, which
+is the proof the migration ran.
+
+**The reading can be set in bulk.** Nineteen cards at three boxes each is fifty-seven boxes to
+record two numbers, which is how a feature goes unused. *Set several at once* carries them, with the
+warning that these are the only fields there that copies do not automatically share.
+
 **No reading has been entered yet**, so the intraday question is still open.
 
 **Assumed, not observed:** the $6,500 allowance on a 250k Apex account. Not load-bearing — a wrong

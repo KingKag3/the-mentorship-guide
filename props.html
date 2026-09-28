@@ -2117,6 +2117,31 @@ function renderBulk() {
           '<div><label>Counting from</label><input name="started_on" type="date"></div>' +
         '</div>' +
 
+        /* NINETEEN CARDS, THREE BOXES EACH, ALL BUT ONE OF THEM THE SAME.
+         *
+         * A dashboard of copied accounts shows one balance and one threshold
+         * repeated down the page - on 25 September 2026, eighteen of nineteen
+         * read $250,696.30 against $244,361, and the nineteenth was $31.90
+         * ahead. Typing that in one card at a time is fifty-seven boxes to fill
+         * to record two numbers, which is how a feature goes unused.
+         *
+         * It is safe here for the reason the rest of this panel is: nothing is
+         * applied to an account that has not been ticked, and the tick list
+         * groups the copies. The one that differs gets its own card. */
+        '<label>What the firm\'s dashboard says <span class="opt">&mdash; only for accounts ' +
+          'showing exactly these figures</span></label>' +
+        '<div class="field-pair">' +
+          '<div><label>Account value</label>' +
+            '<input name="firm_balance" type="number" step="0.01" placeholder="250696.30"></div>' +
+          '<div><label>Threshold <span class="opt">&mdash; the &ldquo;stop&rdquo;</span></label>' +
+            '<input name="firm_threshold" type="number" step="0.01" placeholder="244361"></div>' +
+          '<div><label>Read on</label><input name="firm_seen_on" type="date"></div>' +
+        '</div>' +
+        '<p class="stat-note">These are the only fields here that are <strong>not</strong> shared ' +
+        'by accounts that merely share a product. Two copies drift apart the moment one of them ' +
+        'takes a trade the other missed, so tick only the accounts showing this exact pair and ' +
+        'do the odd one out on its own card.</p>' +
+
         '<label>Apply to</label>' +
         /* SETTING NINETEEN ACCOUNTS AT ONCE NEEDS A WAY BACK.
          *
@@ -2233,7 +2258,11 @@ async function applyBulk(e) {
     kind: txt('kind'),
     firm: txt('firm'), size: num('size'), profit_target: num('profit_target'),
     drawdown: num('drawdown'), lock_at: num('lock_at'),
-    product: txt('product'), min_days: num('min_days'), started_on: txt('started_on')
+    product: txt('product'), min_days: num('min_days'), started_on: txt('started_on'),
+    // Read off the dashboard, not derived from anything. See the note above
+    // the fields: these are per-account figures that copies happen to share.
+    firm_balance: num('firm_balance'), firm_threshold: num('firm_threshold'),
+    firm_seen_on: txt('firm_seen_on')
   };
   for (const k of Object.keys(candidate)) {
     if (candidate[k] !== undefined) patch[k] = candidate[k];

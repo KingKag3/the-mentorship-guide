@@ -320,5 +320,113 @@ check('and the room left is the same across copies, to a dime',
         degraded === '', degraded);
 }
 
+// ------------------------------- has the floor stopped trailing
+
+/* TWO READINGS ANSWER WHAT ONE CANNOT, AND ONLY UNDER ONE CONDITION.
+ *
+ * A trailing threshold follows the high-water mark, so a pair of readings says
+ * whether it is still following - but only across a NEW HIGH. A threshold does
+ * not move while an account is falling, and it does not move while an account
+ * is recovering ground it has already covered. Both of those look exactly like
+ * a lock, and calling either one a lock invents room on an account that has
+ * none - the same failure, in the same direction, as the evaluation lock that
+ * was seeded from a published rule in August and overstated the room by $1,891.
+ *
+ * So the high to beat is the highest balance in EVERY earlier reading, not the
+ * one immediately before. That is the whole reason this is worth a probe.
+ */
+const lockEvidence = (rows) => new Function(
+  'readings', 'account',
+  grab(props, 'function readingsFor(') + '\n' +
+  grab(props, 'function lockEvidence(') + '; return lockEvidence(account);')(
+    rows.map((r) => ({ account: 'A', ...r })), 'A');
+
+const read = (seen_on, balance, threshold) => ({ seen_on, balance, threshold });
+
+{
+  const ev = lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    read('2026-09-28', 251500.00, 245164.70)
+  ]);
+  check('a new high with the threshold following is still trailing',
+        ev && ev.trailing, ev);
+  check('and the climb is reported', ev && Math.abs(ev.climbed - 803.70) < 0.01, ev && ev.climbed);
+}
+
+{
+  const ev = lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    read('2026-09-28', 251500.00, 244361)
+  ]);
+  check('a new high the threshold ignored is a lock', ev && !ev.trailing, ev);
+  check('and the lock is the later threshold',
+        ev && Number(ev.to.threshold) === 244361);
+}
+
+{
+  // The one that matters. Down, then back up but not past the old high: the
+  // threshold correctly does not move, and that is NOT a lock.
+  const ev = lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    read('2026-09-26', 249000.00, 244361),
+    read('2026-09-28', 250500.00, 244361)
+  ]);
+  check('a recovery short of the old high says nothing', ev === null, ev);
+}
+
+{
+  // ...and past it, it does.
+  const ev = lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    read('2026-09-26', 249000.00, 244361),
+    read('2026-09-28', 251000.00, 244361)
+  ]);
+  check('a recovery that clears the old high does say something', ev !== null, ev);
+  check('measured from the old high, not from the dip',
+        ev && Math.abs(ev.climbed - (251000 - 250696.30)) < 0.01, ev && ev.climbed);
+}
+
+{
+  check('one reading is not evidence', lockEvidence([read('2026-09-25', 250696.30, 244361)]) === null);
+  check('no readings at all is not evidence', lockEvidence([]) === null);
+
+  // A falling account never moves its threshold. Reading that as a lock is the
+  // expensive direction to be wrong in.
+  check('a falling account says nothing', lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    read('2026-09-28', 249000.00, 244361)
+  ]) === null);
+
+  // Half a reading cannot be compared with anything.
+  check('a reading missing its threshold is skipped', lockEvidence([
+    read('2026-09-25', 250696.30, 244361),
+    { seen_on: '2026-09-26', balance: 251000 },
+    read('2026-09-28', 251500.00, 245164.70)
+  ]) !== null);
+}
+
+{
+  // A threshold can trail for months and then lock, so the LAST qualifying
+  // pair is the answer - not the first one found.
+  const ev = lockEvidence([
+    read('2026-09-01', 250000, 243500),
+    read('2026-09-10', 251000, 244500),
+    read('2026-09-20', 252000, 244500)
+  ]);
+  check('a later lock beats an earlier trail', ev && !ev.trailing, ev);
+  check('and names the pair it read it from',
+        ev && ev.from.seen_on === '2026-09-10' && ev.to.seen_on === '2026-09-20', ev);
+}
+
+{
+  // Readings entered out of order are sorted by the day they describe, not by
+  // the order somebody happened to type them.
+  const ev = lockEvidence([
+    read('2026-09-28', 251500.00, 245164.70),
+    read('2026-09-25', 250696.30, 244361)
+  ]);
+  check('order typed in does not matter', ev && ev.trailing && ev.to.seen_on === '2026-09-28', ev);
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

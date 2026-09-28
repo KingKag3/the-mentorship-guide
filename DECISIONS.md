@@ -1630,3 +1630,64 @@ The lock fires at a peak of 6,600 above the start. `PA-APEX-26922-74` is $1,501.
 dashboard settles the **intraday** question — whether the threshold captured profit that was never
 closed — and says nothing whatever about the lock. Nothing will, until an account is a full
 allowance plus a hundred ahead.
+
+---
+
+## 2026-09-28 (perishable) — A dashboard is not an archive
+
+**The passed evaluations have gone from the Apex dashboard.** `APEX-26922-1672` and its siblings
+cannot be opened; a firm removes an account once it is finished, and every number it ever showed
+goes with it.
+
+Two consequences, and the second is the one worth building for.
+
+**The August account table is now a primary source.** `prop-preset-drawdown.sql` carries, in a
+comment, the max balance and threshold of five live $250,000 evaluations on 18 August — the evidence
+that an evaluation's drawdown trails the whole way and does not lock at the allowance plus a hundred.
+It was pasted in to explain why a column is null. It is now the only record that those figures ever
+existed, and it cannot be re-taken. Nobody intended to write an archive; it became one when the
+original went away.
+
+**A single reading destroys the last one.** `firm-reading.sql` put one balance, one threshold and
+one date on each account, which answers how much room there is today and nothing else. Every time a
+newer reading is typed the older one is gone — and the older one is now, permanently, the only
+record of a day the firm will not show again.
+
+**Decided:** `supabase/account-readings.sql`. One row per account per day, kept. The columns on
+`prop_accounts` stay and stay meaning *the latest reading*, so every figure already computed from
+them carries on working; this is the history they are the head of, in the same relationship as
+`prop_attempts` to `prop_accounts.status`.
+
+### What a pair of readings settles that one cannot
+
+A trailing threshold follows the high-water mark until, on a funded account, it reportedly stops.
+Nothing on one reading says whether it has stopped. Two do — **but only across a new high**:
+
+- the balance made a new high and the threshold rose with it: still trailing.
+- the balance made a new high and the threshold did not move: it has locked, at the later threshold.
+
+**The high to beat is the highest balance in every earlier reading, not the previous one.** A
+threshold does not move while an account is falling, and does not move while it is recovering ground
+it has already covered. Both look exactly like a lock, and calling either a lock invents room on an
+account that has none — the same failure, in the same direction, as the evaluation lock seeded from
+a published rule in August that overstated the room by $1,891. Two readings after a losing week say
+nothing, and the card says that rather than reading them as an answer.
+
+Where the member can see **Max balance**, that beats all of it: the high-water mark stated rather
+than inferred, settling the question in one row.
+
+**This answers the lock without Apex's site.** Their help centre is behind the same bot check as the
+rest of it, and it was not worked around. Two readings a week apart cost nothing and are an
+observation rather than a published figure — which is the distinction this project has already been
+billed $1,891 for.
+
+**A threshold typed where an allowance belongs is refused.** On a 250k account the threshold is just
+under a quarter of a million and the allowance a few thousand; a reading whose threshold is not below
+its balance is a column copied from the wrong place, and it is caught on the way in rather than
+drawn.
+
+**A backdated reading does not become the card's figure.** The history takes any date; only a
+reading at or after the one already on the account is promoted to `prop_accounts`. Back-filling an
+old one would quietly move every figure on the card to a worse day.
+
+`tools/probe-firm-reading.mjs` — 47 checks now, thirteen of them on this.

@@ -258,7 +258,7 @@ const PRESET_OPTIONAL =
   'product, drawdown_type, funded_lock_at, payout_total_days, payout_min_days, ' +
   'payout_day_min, payout_minimum, max_payouts, consistency_pct, safety_net_payouts';
 
-const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.all([
+const [tradesRes, propsRes, presetRes, adjustRes, attemptRes, readingRes] = await Promise.all([
   // Own rows only - an admin can read other members' shared trades, and their
   // accounts would otherwise appear here as cards. See DECISIONS 2026-09-14.
   fetchPaged(() => supabase.from('trades')
@@ -281,7 +281,12 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes] = await Promise.al
     .select('id, account, happened_on, amount, kind, note').order('happened_on'),
   supabase.from('prop_attempts')
     .select('id, account, attempt, started_on, ended_on, outcome, profit_target, drawdown')
-    .order('account').order('attempt')
+    .order('account').order('attempt'),
+  // Dated readings off the firm's dashboard. A missing table is not an error:
+  // the single reading on each account still works without it.
+  supabase.from('account_readings')
+    .select('id, account, seen_on, balance, threshold, max_balance, note')
+    .order('account').order('seen_on')
 ]);
 
 if (tradesRes.error) { mount.innerHTML = dbError(tradesRes.error); throw tradesRes.error; }
@@ -322,6 +327,25 @@ const attemptsMissing = !!(attemptRes && attemptRes.error);
  * taken nothing out, which is exactly what was assumed before the table
  * existed. A missing table is a missing feature, not a broken page. */
 const adjustments = (adjustRes && adjustRes.data) || [];
+
+/* ---------------------- READINGS OFF THE FIRM'S DASHBOARD -------------------
+
+   A firm's dashboard is not an archive. On 28 September 2026 the passed
+   evaluations went from the Apex one - `APEX-26922-1672` and its siblings
+   cannot be looked at again, and every number they ever showed went with them.
+   The account table copied into `prop-preset-drawdown.sql` back in August is
+   now the only surviving record of them, which nobody intended when it was
+   pasted in as a comment.
+
+   So readings are kept rather than overwritten. `prop_accounts.firm_balance`
+   and friends stay as the LATEST one, which is what every figure on a card is
+   computed from; this is the history they are the head of.
+
+   A missing table is not an error. Everything built on the single reading
+   carries on working; only the comparison between two readings is absent.
+-------------------------------------------------------------------------- */
+const readings = (readingRes && readingRes.data) || [];
+const readingsMissing = !!(readingRes && readingRes.error);
 /* Either half absent means the feature is not installed. The table and the
  * column arrive in the same migration, so a page seeing one without the other
  * is looking at a half-applied migration and should say so rather than offer
@@ -386,6 +410,58 @@ const migrationNote = schemaShort
  * Windowed for the same reason the trades are: a payout taken during a dead
  * attempt is not money out of the current one, and carrying it forward would
  * put a hole in an account that never had it. */
+/** Every reading for one account, oldest first. */
+function readingsFor(account) {
+  return readings.filter((r) => r.account === account)
+    .slice()
+    .sort((a, b) => String(a.seen_on).localeCompare(String(b.seen_on)));
+}
+
+/* WHETHER THE THRESHOLD HAS STOPPED TRAILING, FROM TWO READINGS.
+ *
+ * A trailing threshold follows the high-water mark. Nothing on a single
+ * reading says whether it has stopped following it - but a pair does, provided
+ * the account made a new high between them:
+ *
+ *   * the balance went up and the threshold went up with it: still trailing.
+ *   * the balance went up and the threshold did not move: it has locked, and
+ *     it locked at the threshold in the later reading.
+ *
+ * ONLY WHERE THE LATER BALANCE IS A NEW HIGH. A threshold does not move when
+ * the account falls, and it does not move when it recovers ground it has
+ * already covered - both of which look exactly like a lock if the high-water
+ * mark is not accounted for. Every earlier reading is checked, not just the
+ * previous one, which is what makes a recovery distinguishable from a new
+ * high. Two readings after a losing week say nothing, and this says so rather
+ * than reading them as a lock.
+ *
+ * `max_balance` where the member has it beats all of this, because it is the
+ * high-water mark stated rather than inferred.
+ */
+function lockEvidence(account) {
+  const mine = readingsFor(account).filter(
+    (r) => Number.isFinite(Number(r.balance)) && Number.isFinite(Number(r.threshold)));
+  if (mine.length < 2) return null;
+
+  let best = null;
+  for (let i = 1; i < mine.length; i++) {
+    const now = mine[i];
+    // The highest balance in anything read before this one. A new high has to
+    // beat all of them, not merely the reading immediately before.
+    const high = Math.max(...mine.slice(0, i).map((r) => Number(r.balance)));
+    if (Number(now.balance) <= high) continue;
+
+    const prev = mine.slice(0, i).reduce((a, b) =>
+      Number(b.balance) >= Number(a.balance) ? b : a);
+    const climbed = Number(now.balance) - Number(prev.balance);
+    const moved = Number(now.threshold) - Number(prev.threshold);
+
+    // The later pair wins: a threshold can trail for months and then lock.
+    best = { from: prev, to: now, climbed, moved, trailing: Math.abs(climbed - moved) <= 1 };
+  }
+  return best;
+}
+
 function adjustmentsFor(account, win) {
   return adjustments.filter((a) => {
     if ((a.account || '') !== account) return false;
@@ -1397,6 +1473,115 @@ function payoutCost(isFunded, cfg, p, room, dd) {
  * The amount is entered POSITIVE and stored negative for anything leaving,
  * because "-5000" in a box labelled payout is a double negative somebody will
  * get wrong once and never notice. The sign is the code's business. */
+/* THE READINGS THEMSELVES, AND WHAT A PAIR OF THEM SETTLES.
+ *
+ * Kept because a dashboard is not an archive: an account that passes, fails or
+ * is closed takes every number it ever showed with it. See the comment above
+ * `readings`.
+ *
+ * Offered on a watched account only - an evaluation or a funded account. On
+ * your own money there is no threshold and nothing to read. */
+function readingsBlock(name, isWatched, cfg) {
+  if (!isWatched) return '';
+
+  if (readingsMissing) {
+    return '<p class="stat-note">Readings are kept one per account, so a new one replaces the ' +
+      'last. Run <code>supabase/account-readings.sql</code> to keep them all &mdash; two of them ' +
+      'settle whether the drawdown has stopped trailing, and a firm deletes an account, and its ' +
+      'figures, the moment it is finished.</p>';
+  }
+
+  const mine = readingsFor(name);
+
+  const rows = mine.map((r) => {
+    const bal = Number(r.balance);
+    const stop = Number(r.threshold);
+    const room = Number.isFinite(bal) && Number.isFinite(stop) ? bal - stop : null;
+
+    return '<div class="bar-row">' +
+      '<span>' + escapeHtml(r.seen_on) +
+        (r.max_balance ? ' <span class="tag">max ' + money(Number(r.max_balance)) + '</span>' : '') +
+        (r.note ? '<br><span class="acct-muted">' + escapeHtml(r.note) + '</span>' : '') +
+      '</span>' +
+      '<span class="acct-muted">' + (Number.isFinite(bal) ? money(bal) : '—') + ' / ' +
+        (Number.isFinite(stop) ? money(stop) : '—') + '</span>' +
+      '<b>' + (room === null ? '—' : money(room)) + '</b>' +
+      '<button type="button" class="link-button" data-drop-reading="' + escapeHtml(r.id) +
+        '">remove</button>' +
+    '</div>';
+  }).join('');
+
+  return '<details class="acct-details"><summary>Readings from the firm (' + mine.length +
+    ')</summary>' +
+    '<p class="stat-note">What the dashboard showed, on the day it was read. The newest becomes ' +
+    'the reading every figure on this card is checked against. They are kept rather than ' +
+    'replaced because a firm removes an account once it is finished, and its numbers go with ' +
+    'it &mdash; the passed evaluations behind these funded accounts are already gone.</p>' +
+    (rows ? '<div class="bar-row"><span class="acct-muted">Read on</span>' +
+      '<span class="acct-muted">value / threshold</span>' +
+      '<span class="acct-muted">room</span><span></span></div>' + rows : '') +
+    lockNote(name) +
+    '<form class="auth-form auth-form-wide" data-reading-form="' + escapeHtml(name) + '">' +
+      '<div class="field-pair">' +
+        '<div><label>Read on</label><input name="seen_on" type="date" required></div>' +
+        '<div><label>Account value</label>' +
+          '<input name="balance" type="number" step="0.01" required></div>' +
+        '<div><label>Threshold <span class="opt">&mdash; the &ldquo;stop&rdquo;</span></label>' +
+          '<input name="threshold" type="number" step="0.01" required></div>' +
+      '</div>' +
+      '<label>Max balance <span class="opt">&mdash; optional, from the account summary. It ' +
+        'settles the lock on its own</span></label>' +
+      '<input name="max_balance" type="number" step="0.01">' +
+      '<label>Note <span class="opt">&mdash; optional</span></label>' +
+      '<input name="note" type="text" placeholder="after the first payout">' +
+      '<div class="row-actions">' +
+        '<button class="btn-primary" type="submit">Record it</button>' +
+      '</div>' +
+      '<p class="form-status" data-reading-status="' + escapeHtml(name) + '"></p>' +
+    '</form>' +
+    '</details>';
+}
+
+/* THE ANSWER, WHERE TWO READINGS CARRY ONE.
+ *
+ * Stated as an observation about this account rather than as a rule about the
+ * product, because that distinction is the whole reason the evaluation lock
+ * was wrong: the published figure said the floor stops at the allowance plus a
+ * hundred, and nineteen live accounts said it does not. */
+function lockNote(name) {
+  const withMax = readingsFor(name).filter((r) => Number.isFinite(Number(r.max_balance)) &&
+                                                  Number.isFinite(Number(r.threshold)));
+  if (withMax.length) {
+    const r = withMax[withMax.length - 1];
+    const span = Number(r.max_balance) - Number(r.threshold);
+    return '<p class="stat-note"><strong>Max balance less the threshold is ' + money(span) +
+      '</strong>, read on ' + escapeHtml(r.seen_on) + '. If that is the full allowance the floor ' +
+      'is still trailing and the lock stays empty; if it is smaller, the floor has stopped and ' +
+      'the lock is that figure.</p>';
+  }
+
+  const ev = lockEvidence(name);
+  if (!ev) {
+    const n = readingsFor(name).length;
+    return '<p class="stat-note">' + (n < 2
+      ? 'One more reading, taken after this account makes a new high, says whether the floor is ' +
+        'still trailing. Nothing else here can.'
+      : 'None of these readings is a new high on the one before it, so none of them says ' +
+        'anything about the floor. A threshold does not move while an account is recovering ' +
+        'ground it has already covered, and that looks exactly like a lock.') + '</p>';
+  }
+
+  return '<p class="stat-note">' + (ev.trailing
+    ? '<strong>Still trailing.</strong> Between ' + escapeHtml(ev.from.seen_on) + ' and ' +
+      escapeHtml(ev.to.seen_on) + ' this account gained ' + money(ev.climbed) +
+      ' on its best and the threshold moved ' + money(ev.moved) + ' with it. Leave the lock empty.'
+    : '<strong>The floor has stopped trailing.</strong> Between ' + escapeHtml(ev.from.seen_on) +
+      ' and ' + escapeHtml(ev.to.seen_on) + ' this account gained ' + money(ev.climbed) +
+      ' on its best and the threshold moved ' + money(ev.moved) + '. It has locked at ' +
+      money(Number(ev.to.threshold)) + '; the lock to set above is that, less the starting ' +
+      'balance, plus the drawdown.') + '</p>';
+}
+
 function adjustmentsBlock(name, isFunded, cfg) {
   if (!isFunded) return '';
   if (adjustmentsMissing) {
@@ -1840,6 +2025,7 @@ function card(name, passedTo) {
     payoutCost(isFunded, cfg, p, room, dd) +
     lockQuestion(isFunded, cfg, p) +
     adjustmentsBlock(name, isFunded, cfg) +
+    readingsBlock(name, isWatched, cfg) +
 
     '<div class="card-grid">' +
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +
@@ -2529,6 +2715,13 @@ function render() {
   for (const b of mount.querySelectorAll('[data-drop-adj]')) {
     b.addEventListener('click', () => dropAdjustment(b.getAttribute('data-drop-adj')));
   }
+
+  for (const form of mount.querySelectorAll('form[data-reading-form]')) {
+    form.addEventListener('submit', saveReading);
+  }
+  for (const b of mount.querySelectorAll('[data-drop-reading]')) {
+    b.addEventListener('click', () => dropReading(b.getAttribute('data-drop-reading')));
+  }
   for (const b of mount.querySelectorAll('[data-forget]')) {
     b.addEventListener('click', () => forgetAccount(b.getAttribute('data-forget')));
   }
@@ -2697,6 +2890,93 @@ async function dropAdjustment(id) {
   if (error) { setStatus('#status', error.message, 'error'); return; }
   const at = adjustments.findIndex((a) => String(a.id) === String(id));
   if (at >= 0) adjustments.splice(at, 1);
+  render();
+}
+
+/* ------------------------ readings from the firm --------------------------- */
+
+async function saveReading(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const account = form.getAttribute('data-reading-form');
+  const say = (msg, tone) =>
+    setStatus('[data-reading-status="' + CSS.escape(account) + '"]', msg, tone);
+
+  const num = (k) => {
+    const v = form.querySelector('[name="' + k + '"]').value;
+    return v === '' ? null : Number(v);
+  };
+
+  const seen_on = form.querySelector('[name="seen_on"]').value;
+  const balance = num('balance');
+  const threshold = num('threshold');
+  const max_balance = num('max_balance');
+  const note = form.querySelector('[name="note"]').value.trim() || null;
+
+  if (!seen_on || !Number.isFinite(balance) || !Number.isFinite(threshold)) {
+    say('A date, an account value and a threshold, please.', 'error');
+    return;
+  }
+
+  /* THE THRESHOLD IS THE NUMBER THE ACCOUNT DIES AT, NOT THE ALLOWANCE.
+   *
+   * On a 250k account it is a little under a quarter of a million, and the
+   * allowance is a few thousand. Both get called the drawdown by somebody, and
+   * typing one where the other belongs produces a room figure out by the size
+   * of the account - which is not subtle, and is exactly why it is caught here
+   * rather than drawn.
+   */
+  if (threshold >= balance) {
+    say('The threshold sits below the account value - it is the figure the account is closed ' +
+        'at, not the allowance. Check which column you copied.', 'error');
+    return;
+  }
+
+  say('Recording...', 'info');
+
+  const row = { user_id: profile.id, account, seen_on, balance, threshold, max_balance, note };
+  const { error } = await supabase.from('account_readings')
+    .upsert(row, { onConflict: 'user_id,account,seen_on' });
+
+  if (error) {
+    const file = migrationHint(error);
+    say(file ? error.message + ' - run ' + file + ' in the Supabase SQL editor, then reload.'
+             : error.message, 'error');
+    return;
+  }
+
+  /* THE LATEST READING IS ALSO KEPT ON THE ACCOUNT, and only the latest.
+   *
+   * Every figure on the card is computed from `prop_accounts.firm_*`, so a
+   * reading dated before the one already there must not overwrite it - back-
+   * filling an older reading would quietly move every card figure to a worse
+   * day. The history takes it either way. */
+  const current = saved.get(account) || {};
+  if (!current.firm_seen_on || seen_on >= current.firm_seen_on) {
+    const { error: e2 } = await supabase.from('prop_accounts')
+      .update({ firm_balance: balance, firm_threshold: threshold, firm_seen_on: seen_on })
+      .eq('user_id', profile.id).eq('account', account);
+
+    // The reading is saved either way; failing to promote it is worth saying
+    // and is not worth throwing the reading away over.
+    if (e2) say('Reading saved, but the card could not be updated: ' + e2.message, 'error');
+    else saved.set(account, { ...current, firm_balance: balance,
+                              firm_threshold: threshold, firm_seen_on: seen_on });
+  }
+
+  const at = readings.findIndex((r) => r.account === account && r.seen_on === seen_on);
+  const held = { id: at >= 0 ? readings[at].id : crypto.randomUUID(),
+                 account, seen_on, balance, threshold, max_balance, note };
+  if (at >= 0) readings[at] = held; else readings.push(held);
+
+  render();
+}
+
+async function dropReading(id) {
+  const { error } = await supabase.from('account_readings').delete().eq('id', id);
+  if (error) { setStatus('#status', error.message, 'error'); return; }
+  const at = readings.findIndex((r) => String(r.id) === String(id));
+  if (at >= 0) readings.splice(at, 1);
   render();
 }
 

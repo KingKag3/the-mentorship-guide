@@ -17,6 +17,20 @@ Supersedes `chart-marks-shapes.sql`, which was never run — this repeats all of
 
 Until it runs, pins keep working and the tool row names this file where **Draw on the chart** would be.
 
+### `account-readings.sql` — the readings, kept (28 September 2026)
+
+Run after `firm-reading.sql`. Adds `account_readings`, and backfills it from the single reading
+already on each account where that reading has a date.
+
+Until it runs, a card says so and keeps working on one reading per account. Once it has, each
+watched card carries **Readings from the firm** — and that block appearing is the proof.
+
+**Why there is a table and not just a column.** The passed evaluations went from the Apex dashboard
+on 28 September. `APEX-26922-1672` and its siblings cannot be looked at again, and the account table
+pasted into `prop-preset-drawdown.sql` in August is now the only surviving record of them. A
+dashboard is not an archive. Two readings across a new high also settle whether a funded account's
+floor has stopped trailing, which one reading cannot. DECISIONS 2026-09-28 (perishable).
+
 ## Held back on purpose
 
 Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on

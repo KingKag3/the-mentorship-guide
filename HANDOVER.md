@@ -5,6 +5,25 @@ with no memory of how any of it got here.
 
 Last updated: 28 September 2026.
 
+## 28 September 2026 (later) — the readings are kept, because the accounts are not
+
+**Run `supabase/account-readings.sql`.** After `firm-reading.sql`. Adds `account_readings` and
+backfills it from the dated reading already on each account. A **Readings from the firm** block on a
+watched card is the proof it ran.
+
+**Why:** the passed evaluations have gone from the Apex dashboard. `APEX-26922-1672` and its
+siblings cannot be opened again, and the account table pasted into `prop-preset-drawdown.sql` in
+August is now the only surviving record of them. A single reading per account overwrites the last
+one every time, which on a perishable source is the wrong shape.
+
+**And two readings settle the lock** — the one thing a single reading cannot say — provided the
+later one is a **new high**. A threshold does not move on a falling account, nor on one recovering
+ground it has already covered, and reading either as a lock invents room. The high to beat is the
+highest of every earlier reading, not the previous one.
+
+**Verified:** `node tools/probe-firm-reading.mjs` — 47 checks, thirteen on the lock evidence
+including the recovery case. **Never run against the live project.**
+
 ## 28 September 2026 — the firm's own numbers, typed in
 
 **`supabase/firm-reading.sql` has been run** (28 September 2026). Adds `firm_balance`,

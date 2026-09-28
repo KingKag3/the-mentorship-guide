@@ -1472,3 +1472,79 @@ Stating the span is the information that option was standing in for, and it is t
 combination of filters rather than only the one.
 
 `tools/probe-stats-decisions.mjs` covers both — 45 checks in total now.
+
+---
+
+## 2026-09-28 — What an Apex dashboard actually says, and the line of truth
+
+Nineteen funded accounts on the firm's own dashboard, 25 September 2026, all **Legacy 250k
+Wealthcharts**. Eighteen of them byte-identical; `PA-APEX-26922-74` $31.90 ahead.
+
+### What the columns mean, read off the numbers rather than assumed
+
+- **`balance − PNL` is exactly 250,000.00** on every row. The account size is 250,000 and the PNL
+  column is measured from the start of the account, not from the day.
+- **`STOP` is an absolute account value, not an allowance.** It is the number the account dies at —
+  $244,361, just under a quarter of a million. The allowance for this product is a few thousand.
+  Both get called "the drawdown" by somebody, and confusing them is a $240,000 mistake, which is why
+  `prop_accounts.drawdown` and the new `firm_threshold` are separate columns with labels that say
+  which is which.
+- **The threshold tracks the balance dollar for dollar.** Between -74 and the other eighteen the
+  balance differs by $31.90 and the stop by $32 — the same move, with the stop displayed to the
+  whole dollar. Not a percentage, not a lagging figure.
+- **`balance − stop` is $6,335.30 and $6,335.20** — the same to a dime across accounts that closed
+  $31.90 apart. Both gave back the same amount from their own peak, which is what copied trading
+  looks like from outside.
+- Nineteen accounts, one set of numbers. The strongest possible confirmation of the
+  decisions-not-rows work: the firm's own dashboard shows the copies as copies.
+
+### The one number the journal can never produce
+
+A trailing threshold is anchored to the firm's high-water mark. Where the allowance is known and the
+threshold has not locked:
+
+    the firm's high-water mark = threshold + allowance
+
+and the journal has its own high-water mark from closed trades. **The gap between them is exactly
+the unrealised profit the threshold captured and the journal never saw.**
+
+That turns intraday-versus-end-of-day from a question answered by a dropdown into a measurement, per
+account, in dollars. And a gap of zero is a finding rather than a null result: that account's
+threshold follows closed balance, so every figure the page computes for it is exact rather than a
+floor.
+
+`props.html` has said for weeks that *the firm's own dashboard is the only thing that can answer
+that*. It now asks for the answer.
+
+**Decided:** `supabase/firm-reading.sql` adds `firm_balance`, `firm_threshold` and `firm_seen_on`.
+The accounts page takes them on the card and reports:
+
+- **Room left**, exact, as the firm's own subtraction — not the allowance less a peak-to-trough
+  taken from closed trades, which is a ceiling.
+- **The gap above**, named for what it is, with the intraday verdict and by how much the page's own
+  room figures overstate.
+- **An import check.** `balance − size` is what the firm says the trading earned; `held` is what the
+  journal accounts for. They should agree. On copied accounts this is the only thing that can find a
+  short import, because eighteen other cards are showing the same plausible numbers.
+
+The statistics page's threshold table prefers the reading where one exists and marks the rows that
+use it, so an exact figure and an optimistic one never share a column in silence.
+
+**It declines to answer rather than guessing.** A locked threshold is no longer anchored to a peak;
+a payout at a firm that lowers the mark moves it; no allowance means no arithmetic. Each says which
+is missing instead of producing a figure that quietly means something else.
+
+**The date is not decoration.** A threshold moves on every new high, so a reading over a week old
+says so and asks to be taken again. An undated one admits it cannot tell.
+
+**Nothing is fetched.** The standing rule from 2026-09-17 holds: no firm's API, no scraped
+dashboard. Their site is behind a Cloudflare challenge that was left alone deliberately, and a
+member reading two numbers off a page they already have open costs them ten seconds.
+
+### Still assumed, and marked as such
+
+The $6,500 allowance for a 250k Apex account is the published figure, not something on this
+dashboard. It is not load-bearing: a wrong allowance shows up immediately as the third verdict — an
+implied peak below the journal's own best close, which cannot happen on a trailing account.
+
+`tools/probe-firm-reading.mjs` holds the real rows as its fixture — 22 checks.

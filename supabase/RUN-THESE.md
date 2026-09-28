@@ -17,6 +17,19 @@ Supersedes `chart-marks-shapes.sql`, which was never run — this repeats all of
 
 Until it runs, pins keep working and the tool row names this file where **Draw on the chart** would be.
 
+### `firm-reading.sql` — the firm's own numbers (28 September 2026)
+
+Adds `firm_balance`, `firm_threshold` and `firm_seen_on` to `prop_accounts`.
+
+`props.html` reads all three as optional columns, so the page is identical until this runs. Once it
+has, each card offers **What the firm's dashboard says** — and that block appearing is the proof it
+went in.
+
+Two numbers off the dashboard, and the accounts page stops estimating: room left becomes the firm's
+own subtraction, the gap between their high-water mark and the journal's measures the unrealised
+profit the threshold captured, and `balance − size` against what the journal holds catches a short
+import that nineteen identical cards would otherwise hide. DECISIONS 2026-09-28.
+
 ## Held back on purpose
 
 Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on
@@ -40,6 +53,13 @@ itself, on the first funded card, at the moment somebody can actually check the 
 **Run it when:** an evaluation passes and a funded account exists on the firm's dashboard. Then take
 the first payout, record it, and compare *Max Balance* before and after &mdash; that single
 observation settles `payout_lowers_mark` and is the whole reason this was built.
+
+**The first half of that has happened.** A dashboard screenshot on 28 September 2026 shows nineteen
+funded accounts, `PA-APEX-26922-74` through `-92`, all active. So the reason for the hold is now
+only the second half: nobody has taken a payout yet, and the question this table exists to answer is
+still unanswerable. Run it when the first withdrawal is about to be made, not before &mdash; and
+note the threshold from the dashboard on the accounts page immediately before and after, which is
+now recorded rather than remembered.
 
 
 ---

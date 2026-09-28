@@ -347,7 +347,8 @@ let stated = new Map();
 let retired = new Set();
 const accountFacts = new Map();   // account -> { drawdown, type, kind }
 {
-  const wanted = 'account, kind, status, from_account, drawdown, drawdown_type';
+  const wanted = 'account, kind, status, from_account, drawdown, drawdown_type, ' +
+    'firm_balance, firm_threshold';
   let { data: accts } = await supabase.from('prop_accounts').select(wanted);
 
   // Naming a column that does not exist 400s the whole request rather than
@@ -364,10 +365,17 @@ const accountFacts = new Map();   // account -> { drawdown, type, kind }
 
   for (const a of accts || []) {
     const dd = Number(a.drawdown);
+    // What the firm's own dashboard said, where the member typed it in. Both
+    // halves or neither: a balance with no threshold subtracts from nothing.
+    const bal = Number(a.firm_balance);
+    const stop = Number(a.firm_threshold);
+    const known = Number.isFinite(bal) && Number.isFinite(stop);
+
     accountFacts.set(a.account, {
       drawdown: Number.isFinite(dd) && dd > 0 ? dd : null,
       type: a.drawdown_type || null,
-      kind: a.kind || 'prop'
+      kind: a.kind || 'prop',
+      firmRoom: known ? bal - stop : null
     });
   }
 }
@@ -2554,7 +2562,8 @@ function accountDrawdowns(list) {
       name,
       depth: drawdownWith(rs, value),
       limit: set.drawdown || null,
-      type: set.type || null
+      type: set.type || null,
+      firmRoom: set.firmRoom ?? null
     });
   }
 
@@ -2585,17 +2594,32 @@ function limitBlock(list) {
       '<th>Account</th><th>Worst peak to trough</th><th>Threshold</th><th>Left</th>' +
     '</tr></thead><tbody>' +
     withLimit.map((a) => {
-      const left = a.limit - a.depth;
+      /* THE FIRM'S OWN FIGURE BEATS OURS WHEREVER IT EXISTS.
+       *
+       * Ours is the allowance less a peak-to-trough taken from closed trades,
+       * which is a ceiling: a higher real peak means less room than this says.
+       * Theirs is the subtraction the firm actually performs. Where a reading
+       * has been typed in on the accounts page, it is used and marked, so the
+       * two are never mistaken for each other. */
+      const left = a.firmRoom !== null ? a.firmRoom : a.limit - a.depth;
       const tight = left <= a.limit * 0.25;
       return '<tr>' +
         '<td>' + escapeHtml(label(a.name)) + '</td>' +
         '<td>' + money(-a.depth) + '</td>' +
         '<td>' + money(a.limit) + (a.type ? ' <span class="tag">' + escapeHtml(a.type) + '</span>' : '') + '</td>' +
-        '<td>' + money(left) + (tight ? ' <span class="tag">thin</span>' : '') + '</td>' +
+        '<td>' + money(left) +
+          (a.firmRoom !== null ? ' <span class="tag bull">from the firm</span>' : '') +
+          (tight ? ' <span class="tag">thin</span>' : '') + '</td>' +
       '</tr>';
     }).join('') +
     '</tbody></table></div>' +
-    '<p class="stat-note">Closed trades only, so this is a <strong>floor</strong>. ' +
+    (withLimit.some((a) => a.firmRoom !== null)
+      ? '<p class="stat-note">Rows marked <span class="tag bull">from the firm</span> use the ' +
+        'reading typed in on <a href="props.html">your accounts</a>, which is the firm\'s own ' +
+        'subtraction rather than ours. The rest are computed here.</p>'
+      : '') +
+    '<p class="stat-note"><strong>Worst peak to trough</strong> is from closed trades, so it is ' +
+    'a <strong>floor</strong>. ' +
     (trailing
       ? 'A trailing threshold follows the account while a position is open, so the real low ' +
         'point was at least this deep and probably deeper. '

@@ -3,7 +3,35 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 25 September 2026.
+Last updated: 28 September 2026.
+
+## 28 September 2026 — the firm's own numbers, typed in
+
+**Run `supabase/firm-reading.sql`.** Adds `firm_balance`, `firm_threshold`, `firm_seen_on` to
+`prop_accounts`. Read as optional columns, so the page works either way; a card offering *What the
+firm's dashboard says* is the proof it ran.
+
+An Apex dashboard screenshot of nineteen funded accounts settled several things that were being
+assumed — DECISIONS 2026-09-28 has the full reading. The ones that matter:
+
+- **Apex's `STOP` column is an absolute account value**, not an allowance. $244,361 on a 250k
+  account. `prop_accounts.drawdown` is the allowance and they are not interchangeable.
+- The threshold tracks the balance **dollar for dollar**, shown to the whole dollar.
+- Given the allowance, **`threshold + allowance` is the firm's high-water mark** — so the gap
+  against the journal's own best close measures the unrealised profit the threshold captured. That
+  is the intraday question answered in dollars per account, instead of by a dropdown.
+
+[props.html](props.html) takes the two numbers on each card and reports room left exactly, the gap
+with its verdict, and an import check (`balance − size` against what the journal holds — the only
+thing that can spot a short import on copied accounts). [stats.html](stats.html) prefers the reading
+in its threshold table and marks the rows that use it.
+
+**Verified:** `node tools/probe-firm-reading.mjs` — 22 checks, with the real dashboard rows as the
+fixture. The card was rendered against `style.css` and read correctly. **Never run against the live
+project**, and the migration has not been applied.
+
+**Assumed, not observed:** the $6,500 allowance on a 250k Apex account. Not load-bearing — a wrong
+allowance surfaces as an implied peak below the journal's best close, which the card calls out.
 
 ## 25 September 2026 (statistics, later) — funded vs evaluation, and the period
 

@@ -240,7 +240,8 @@ const ACCOUNT_COLUMNS =
  * running the page without it. Nothing is lost by leaving it: the retry only
  * happens when the first attempt fails, which is never on a project that is
  * up to date. */
-const OPTIONAL_COLUMNS = 'product, payout_lowers_mark';
+const OPTIONAL_COLUMNS =
+  'product, payout_lowers_mark, firm_balance, firm_threshold, firm_seen_on';
 
 /* The presets had the same hole and it was quieter, which made it worse.
  *
@@ -860,6 +861,125 @@ function unclassifiedNote(cfg, isWatched) {
     'figures</strong>. No warning is not the same as no problem.</p>' +
     '<p class="stat-note">Open <em>What this account has to do</em> underneath and pick it, or set ' +
     'them all at once under <em>Set several at once</em> further down.</p></div>';
+}
+
+/* ------------------------ THE LINE OF TRUTH ---------------------------------
+
+   Everything else on this card is computed from closed trades, and the callout
+   at the top of the page spends five paragraphs on what that is worth. It ends
+   on the only honest conclusion available to it: the firm's own dashboard is
+   the only thing that can answer whether the account is still alive.
+
+   Two numbers off that dashboard, and this card stops estimating.
+
+   WHAT THE ESTIMATE COULD NEVER DO, AND THIS CAN.
+
+   The firm's threshold is anchored to the firm's high-water mark. Where the
+   allowance is known and the threshold has not locked,
+
+       the firm's high-water mark = threshold + allowance
+
+   and the journal has its own high-water mark from closed trades. The gap
+   between the two is exactly the unrealised profit the threshold captured and
+   the journal never saw - which turns intraday-versus-end-of-day from a
+   question answered by a dropdown into a measurement, per account, in dollars.
+
+   A gap of zero is a finding, not a null result: this account's threshold
+   follows closed balance, so every figure above it is exact rather than a
+   floor.
+
+   AND IT CHECKS THE IMPORT. `balance - size` is what the firm says the trading
+   earned; `held` is what this journal accounts for. They should agree. When
+   they do not, trades are missing - and on copied accounts that is otherwise
+   invisible, because eighteen other cards are showing the same plausible
+   numbers.
+
+   NOTHING HERE IS FETCHED. See DECISIONS 2026-09-17 for the standing rule on
+   outside data; a member reading two numbers off a page they already have open
+   costs them ten seconds and owes nobody anything.
+-------------------------------------------------------------------------- */
+
+// Past this, a trailing threshold has probably moved and the reading is
+// describing an account that no longer exists.
+const READING_STALE_DAYS = 7;
+
+function firmBlock(cfg, p, dd, locked) {
+  const balance = toNumber(cfg.firm_balance);
+  const threshold = toNumber(cfg.firm_threshold);
+  if (!Number.isFinite(balance) || !Number.isFinite(threshold)) return '';
+
+  const size = toNumber(cfg.size);
+  const room = balance - threshold;
+
+  const lines = [];
+
+  /* A THRESHOLD IS A MOVING NUMBER. A reading from three weeks ago is worse
+   * than no reading, because it looks current. The age is always shown - the
+   * member knows when they typed it and nobody else does. */
+  const seen = cfg.firm_seen_on ? new Date(cfg.firm_seen_on + 'T12:00:00') : null;
+  const age = seen ? Math.round((Date.now() - seen.getTime()) / 86400000) : null;
+  const when = age === null
+    ? 'Undated, so there is no telling how much it has moved since.'
+    : age <= 0 ? 'Read today.'
+    : age === 1 ? 'Read yesterday.'
+    : age < READING_STALE_DAYS ? 'Read ' + age + ' days ago.'
+    : 'Read ' + age + ' days ago, which is old enough that the threshold has almost ' +
+      'certainly moved. Take it again before trusting it.';
+
+  // What the firm says the trading earned, against what this journal holds.
+  if (Number.isFinite(size)) {
+    const theirs = balance - size;
+    const gap = theirs - p.held;
+
+    lines.push(Math.abs(gap) < 0.01
+      ? '<li><strong>Your journal agrees with the firm to the cent</strong> on what this ' +
+        'account holds: ' + money(theirs) + '. Every trade is imported.</li>'
+      : '<li><strong>' + money(Math.abs(gap)) + ' ' + (gap > 0 ? 'missing from' : 'extra in') +
+        ' your journal.</strong> The firm has this account at ' + money(theirs) +
+        ' and the journal accounts for ' + money(p.held) + '. Either an import did not finish, ' +
+        'or money moved without a trade &mdash; record it as an adjustment below.</li>');
+  }
+
+  /* THE MEASUREMENT. Only where the arithmetic actually holds: a locked
+   * threshold is no longer anchored to the peak, and a withdrawal moves it at
+   * firms that lower the mark. Saying which is missing beats a figure that
+   * quietly means something else. */
+  if (!Number.isFinite(dd)) {
+    lines.push('<li>Fill in the drawdown allowance above and this can work out the firm\'s own ' +
+      'high-water mark, and how far above your journal\'s it sits.</li>');
+  } else if (locked) {
+    lines.push('<li>The threshold has locked, so it is no longer anchored to a high-water mark ' +
+      'and nothing can be read back from it. Room left above is the firm\'s own figure.</li>');
+  } else if (p.withdrawn > 0 && p.markFalls) {
+    lines.push('<li>A payout has moved the mark on this account, so the high-water mark cannot ' +
+      'be read back from the threshold. Room left above is the firm\'s own figure.</li>');
+  } else if (Number.isFinite(size)) {
+    const theirPeak = threshold + dd - size;
+    const gap = theirPeak - p.peak;
+
+    lines.push(Math.abs(gap) < 1
+      ? '<li><strong>This account\'s threshold follows your closed balance.</strong> The firm\'s ' +
+        'high-water mark is ' + money(theirPeak) + ' and your journal\'s best close is ' +
+        money(p.peak) + ' &mdash; the same number. Nothing above is a floor or a ceiling on this ' +
+        'account; it is exact.</li>'
+      : gap > 0
+        ? '<li><strong>' + money(gap) + ' of this account\'s threshold came from profit you ' +
+          'never closed.</strong> The firm\'s high-water mark is ' + money(theirPeak) +
+          '; your best close was ' + money(p.peak) + '. That gap is unrealised profit inside a ' +
+          'trade, so this account trails <strong>intraday</strong> &mdash; and every room figure ' +
+          'computed from closed trades overstates by about that much.</li>'
+        : '<li><strong>Your journal\'s best close is ' + money(-gap) + ' above the peak the ' +
+          'threshold implies.</strong> That should not happen on a trailing account. Either the ' +
+          'allowance recorded above is wrong, or the threshold has locked and is not marked as ' +
+          'such, or this journal holds trades the firm never saw.</li>');
+  }
+
+  return '<div class="callout"><span class="callout-label">What the firm says</span>' +
+    '<p><strong>Room left: ' + money(room) + '.</strong> ' +
+    money(balance) + ' against a threshold of ' + money(threshold) + '. ' +
+    escapeHtml(when) + ' This is the firm\'s own arithmetic, not ours.</p>' +
+    (lines.length ? '<ul>' + lines.join('') + '</ul>' : '') +
+    '</div>';
 }
 
 function mismatchNote(cfg, dd, target) {
@@ -1602,6 +1722,7 @@ function card(name, passedTo) {
 
     unclassifiedNote(cfg, isWatched) +
     mismatchNote(cfg, dd, target) +
+    firmBlock(cfg, p, dd, locked) +
     (isFunded ? payoutChecklist(name, cfg, p) : '') +
     payoutCost(isFunded, cfg, p, room, dd) +
     lockQuestion(isFunded, cfg, p) +
@@ -1740,6 +1861,36 @@ function card(name, passedTo) {
          * still one bad trade from over. Nineteen evaluations had no way to
          * record it at all, and the "room left" figure on every one of them
          * was measured from a peak that in reality had stopped moving. */
+        /* TWO NUMBERS OFF THE FIRM'S OWN DASHBOARD.
+         *
+         * The callout at the top of this page spends five paragraphs
+         * explaining that everything here is computed from closed trades and
+         * therefore a floor, and ends on the only honest conclusion available
+         * to it: the firm's dashboard is the only thing that can answer
+         * whether the account is still alive.
+         *
+         * So it is asked for. The threshold wanted is the ABSOLUTE one - Apex
+         * shows it in a column called Stop, a number just under the account
+         * size - and not the allowance, which is the field further up. The two
+         * are both called the drawdown by somebody, which is exactly why the
+         * label says which is wanted and shows the shape of the answer.
+         *
+         * The date is not decoration. A trailing threshold moves every time
+         * the account makes a new high, so a reading from three weeks ago is
+         * worse than no reading: it looks current. */
+        '<label>What the firm\'s dashboard says <span class="opt">&mdash; optional, and the ' +
+          'only exact figures on this card</span></label>' +
+        '<div class="field-pair">' +
+          '<div><label>Account value</label>' +
+            '<input name="firm_balance" type="number" step="0.01" ' +
+              'placeholder="250696.30" value="' + (cfg.firm_balance ?? '') + '"></div>' +
+          '<div><label>Threshold <span class="opt">&mdash; the &ldquo;stop&rdquo;, not the ' +
+            'allowance</span></label>' +
+            '<input name="firm_threshold" type="number" step="0.01" ' +
+              'placeholder="244361" value="' + (cfg.firm_threshold ?? '') + '"></div>' +
+          '<div><label>Read on</label>' +
+            '<input name="firm_seen_on" type="date" value="' + (cfg.firm_seen_on ?? '') + '"></div>' +
+        '</div>' +
         '<div class="field-pair">' +
           '<div><label>Drawdown locks at <span class="opt">— above the start; empty if it ' +
             'never stops trailing</span></label>' +
@@ -2531,7 +2682,11 @@ async function save(e) {
     payout_min_days: num('payout_min_days'),
     payout_day_min: num('payout_day_min'),
     lock_at: num('lock_at'),
-    from_account: txt('from_account')
+    from_account: txt('from_account'),
+    // Read off the firm's dashboard rather than computed from anything here.
+    firm_balance: num('firm_balance'),
+    firm_threshold: num('firm_threshold'),
+    firm_seen_on: txt('firm_seen_on')
   };
   if (row.status !== 'active' && !saved.get(name)?.settled_on) {
     row.settled_on = new Date().toISOString().slice(0, 10);

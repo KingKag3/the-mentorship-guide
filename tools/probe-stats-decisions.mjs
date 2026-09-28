@@ -216,6 +216,28 @@ const limitBlock = (rows, limits, unit = 'money', hide = false) => new Function(
   check('a thin buffer is marked', html.includes('thin'), html.includes('thin'));
 }
 
+{
+  /* A READING FROM THE FIRM BEATS OUR ESTIMATE.
+   *
+   * Ours is the allowance less a peak-to-trough taken from closed trades, so
+   * it is a ceiling. Theirs is the subtraction the firm performs. Where one has
+   * been typed in on the accounts page it is used, and marked, because a figure
+   * that is exact and one that is optimistic should never share a column
+   * without saying which is which. */
+  const rows = list.filter((r) => r.account === 'A');
+
+  const ours = limitBlock(rows, new Map([['A', { drawdown: 2500, type: 'trailing' }]]));
+  check('without a reading it is our own subtraction',
+        ours.includes('$2,100') && !ours.includes('from the firm'), ours);
+
+  const theirs = limitBlock(rows,
+    new Map([['A', { drawdown: 2500, type: 'trailing', firmRoom: 6335.30 }]]));
+  check('with one, that figure is used instead', theirs.includes('$6,335.30'), theirs);
+  check('and is marked as theirs', theirs.includes('from the firm'));
+  check('with a line saying where it came from',
+        theirs.includes("firm's own subtraction rather than ours"), theirs);
+}
+
 // -------------------------------------- funded, evaluations, and the period
 
 /* AN EVALUATION IS A TEST. A FUNDED ACCOUNT IS THE JOB.

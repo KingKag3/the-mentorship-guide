@@ -2215,7 +2215,8 @@ function renderBulk() {
    * already typed. A preset is a starting point, and the member's own figure
    * always wins - theirs might be the current one. */
   const size = form.querySelector('[name="size"]');
-  size.addEventListener('change', () => {
+
+  const offerBulk = () => {
     // Nineteen copied accounts are nineteen of the same product, so the bulk
     // form names one and fills from it. With none named it looks nothing up,
     // rather than guessing at the ladder somebody probably meant.
@@ -2224,13 +2225,38 @@ function renderBulk() {
       size: size.value, product: (form.querySelector('[name="product"]') || {}).value
     });
     if (!hit) return;
+
+    /* AN EVALUATION AND A FUNDED ACCOUNT TAKE THE LOCK FROM DIFFERENT COLUMNS,
+     * and this form did not know that.
+     *
+     * The card form has read `funded_lock_at` for a funded account since the
+     * product migration; this one always read `lock_at`, which is null across
+     * the whole Apex ladder on purpose - nineteen live evaluations proved they
+     * do not lock. So setting up nineteen FUNDED accounts here, which is the
+     * only sane way to set up nineteen of anything, silently left every one of
+     * them with no lock at all.
+     *
+     * Wrong in the safe direction - a floor that never stops trailing
+     * understates the room rather than inventing it - and still wrong, and
+     * invisible, because a blank field looks like a field nobody filled in. */
+    const kindNow = (form.querySelector('[name="kind"]') || {}).value;
+
     for (const [field, value] of [['profit_target', hit.profit_target],
                                  ['drawdown', hit.drawdown],
-                                 ['lock_at', hit.lock_at]]) {
+                                 ['lock_at', kindNow === 'funded'
+                                   ? hit.funded_lock_at : hit.lock_at]]) {
       const el = form.querySelector('[name="' + field + '"]');
       if (el && !el.value && value !== null && value !== undefined) el.value = value;
     }
-  });
+  };
+
+  // All three change which row of the ladder applies, and `kind` now changes
+  // which column of it is read, so all three offer.
+  size.addEventListener('change', offerBulk);
+  for (const field of ['product', 'kind']) {
+    const el = form.querySelector('[name="' + field + '"]');
+    if (el) el.addEventListener('change', offerBulk);
+  }
 
   form.addEventListener('submit', applyBulk);
 }

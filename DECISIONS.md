@@ -1588,3 +1588,45 @@ to type them. Half a reading — one of the two filled in — asks for the other
 quiet.
 
 `tools/probe-firm-reading.mjs` covers both: 33 checks.
+
+---
+
+## 2026-09-28 (the lock) — Asked again, answered from what was already recorded
+
+**Asked:** does the trailing drawdown stop once the account is a full allowance plus $100 above the
+start, per Apex's help centre page on intraday trailing drawdown PA accounts?
+
+**Their site could not be read.** The help centre sits behind the same Cloudflare challenge as the
+rest of apextraderfunding.com. It was not solved or worked around; that stays deliberate. So nothing
+below is new evidence, and none of it came from the page in question.
+
+**The site already holds that exact rule, and it is already split in two.**
+`prop_presets.funded_lock_at` is the allowance plus $100 on every Legacy row — 6,600 on a 250k —
+sourced from Apex's payout page and commented as such. `prop_presets.lock_at`, the evaluation
+column, is **null across the whole ladder on purpose**: `prop-preset-drawdown.sql` records nineteen
+live $250,000 evaluations, every one between $6,746 and $8,242 in profit and so well past the $6,600
+the lock was supposed to fire at, with every threshold still sitting exactly one allowance under its
+high-water mark. Computed as a pure trailing floor it reproduces the firm's own distance-to-drawdown
+to the cent; computed with the lock it overstated the room by $1,891 on the first account checked.
+
+So: **an evaluation demonstrably does not lock at allowance + $100. A funded account is believed to,
+and has never been observed.** That is the same distinction the question is asking about, and it was
+recorded on 18 August because the published rule and the firm's own account table disagreed.
+
+### What the question found
+
+The card form has read `funded_lock_at` for a funded account since the product migration. **The bulk
+form always read `lock_at`** — the evaluation column, null by design — with no idea that `kind`
+changes which column applies. Setting up nineteen funded accounts there, which is the only sane way
+to set up nineteen of anything, silently left every one of them with no lock at all.
+
+Wrong in the safe direction: a floor that never stops trailing understates room rather than
+inventing it. Still wrong, and invisible, because a blank field looks like a field nobody filled in.
+Fixed, and `kind` and `product` now re-offer the preset the way they do on a card.
+
+### It cannot be settled tonight
+
+The lock fires at a peak of 6,600 above the start. `PA-APEX-26922-74` is $1,501.50 up. Tonight's
+dashboard settles the **intraday** question — whether the threshold captured profit that was never
+closed — and says nothing whatever about the lock. Nothing will, until an account is a full
+allowance plus a hundred ahead.

@@ -7,9 +7,11 @@ Last updated: 28 September 2026.
 
 ## 28 September 2026 — the firm's own numbers, typed in
 
-**Run `supabase/firm-reading.sql`.** Adds `firm_balance`, `firm_threshold`, `firm_seen_on` to
-`prop_accounts`. Read as optional columns, so the page works either way; a card offering *What the
-firm's dashboard says* is the proof it ran.
+**`supabase/firm-reading.sql` has been run** (28 September 2026). Adds `firm_balance`,
+`firm_threshold`, `firm_seen_on` to `prop_accounts`. Read as optional columns, so the page works
+either way — which is also why the run is **not yet confirmed**: nothing on the page changes until a
+balance and a threshold are typed into a card, and the *What the firm's dashboard says* block that
+appears when they are is the proof.
 
 An Apex dashboard screenshot of nineteen funded accounts settled several things that were being
 assumed — DECISIONS 2026-09-28 has the full reading. The ones that matter:
@@ -28,7 +30,7 @@ in its threshold table and marks the rows that use it.
 
 **Verified:** `node tools/probe-firm-reading.mjs` — 22 checks, with the real dashboard rows as the
 fixture. The card was rendered against `style.css` and read correctly. **Never run against the live
-project**, and the migration has not been applied.
+project** — the migration is in, and no reading has been entered yet.
 
 **Assumed, not observed:** the $6,500 allowance on a 250k Apex account. Not load-bearing — a wrong
 allowance surfaces as an implied peak below the journal's best close, which the card calls out.

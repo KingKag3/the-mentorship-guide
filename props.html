@@ -555,6 +555,17 @@ function progress(account, cfg, attemptRow, dd) {
   const closeDay = () => { if (held > peak) peak = held; };
   let openDay = events.length ? events[0].on : null;
 
+  /* WHERE THIS ACCOUNT STOOD ON A GIVEN DAY, not only where it stands now.
+   *
+   * A reading off the firm's dashboard is dated, and comparing it with a
+   * journal that has three more days of trading in it is not a comparison. It
+   * reports every account as short or over by whatever happened since, which
+   * on nineteen copied accounts is nineteen false alarms saying the same thing.
+   *
+   * One entry per day, overwritten as the day goes on, so the last event of a
+   * day leaves the state at its close. */
+  const stateOn = new Map();
+
   for (const e of events) {
     // A new day begins: whatever yesterday closed at is now the mark to beat.
     if (eod && e.on !== openDay) {
@@ -584,10 +595,16 @@ function progress(account, cfg, attemptRow, dd) {
     // is touched; everything after it happened on an account the firm had
     // already closed.
     if (floor > 0 && dip >= floor && !breachedOn) breachedOn = e.on;
+
+    stateOn.set(e.on, { total, held, peak, withdrawn });
   }
 
   // The last day still owes its close, or an EOD account never marks at all.
-  if (eod) closeDay();
+  if (eod) {
+    closeDay();
+    // ...and the snapshot taken before that close is now out of date by it.
+    if (openDay) stateOn.set(openDay, { total, held, peak, withdrawn });
+  }
 
   const days = new Set(mine.map((t) => localDay(t.opened_at)).filter(Boolean)).size;
 
@@ -621,7 +638,7 @@ function progress(account, cfg, attemptRow, dd) {
 
   return { total, held, withdrawn, markFalls, eod,
            peak, dipNow, worstDip, worstOn, breachedOn, days, counted,
-           trades: mine.length, byDay };
+           trades: mine.length, byDay, stateOn };
 }
 
 /* How a funded account stands against its payout terms.
@@ -903,10 +920,91 @@ function unclassifiedNote(cfg, isWatched) {
 // describing an account that no longer exists.
 const READING_STALE_DAYS = 7;
 
+/* WHERE THE ACCOUNT STOOD ON THE DAY THE READING WAS TAKEN.
+ *
+ * Not where it stands now. The first real reading made this obvious: a
+ * dashboard read on 25 September against a journal carrying 26 September's
+ * trading reports the account as hundreds of dollars over, on every one of
+ * nineteen copied cards, and every one of them is wrong.
+ *
+ * The latest snapshot at or before the day, because a firm's reading is taken
+ * at a moment and the last close before it is the number it can be compared
+ * with. Null when the journal has nothing that early - which is a real answer,
+ * not a zero. */
+function stateAsAt(p, day) {
+  if (!p.stateOn || !day) return null;
+
+  let best = null;
+  for (const [on, snap] of p.stateOn) {
+    if (on <= day && (best === null || on > best.on)) best = { on, ...snap };
+  }
+  return best;
+}
+
+/* ------------------------ THE LINE OF TRUTH ---------------------------------
+
+   Everything else on this card is computed from closed trades, and the callout
+   at the top of the page spends five paragraphs on what that is worth. It ends
+   on the only honest conclusion available to it: the firm's own dashboard is
+   the only thing that can answer whether the account is still alive.
+
+   Two numbers off that dashboard, and this card stops estimating.
+
+   WHAT THE ESTIMATE COULD NEVER DO, AND THIS CAN.
+
+   The firm's threshold is anchored to the firm's high-water mark. Where the
+   allowance is known and the threshold has not locked,
+
+       the firm's high-water mark = threshold + allowance
+
+   and the journal has its own high-water mark from closed trades. The gap
+   between the two is exactly the unrealised profit the threshold captured and
+   the journal never saw - which turns intraday-versus-end-of-day from a
+   question answered by a dropdown into a measurement, per account, in dollars.
+
+   A gap of zero is a finding, not a null result: this account's threshold
+   follows closed balance, so every figure above it is exact rather than a
+   floor.
+
+   AND IT CHECKS THE IMPORT. `balance - size` is what the firm says the trading
+   earned; the journal's own total on that day is what this holds. They should
+   agree. When they do not, trades are missing - and on copied accounts that is
+   otherwise invisible, because eighteen other cards are showing the same
+   plausible numbers.
+
+   EVERY COMPARISON IS DATED. See `stateAsAt`: an undated reading gets room
+   left and nothing else, because the rest of it would be arithmetic between
+   two different days.
+
+   NOTHING HERE IS FETCHED. See DECISIONS 2026-09-17 for the standing rule on
+   outside data; a member reading two numbers off a page they already have open
+   costs them ten seconds and owes nobody anything.
+-------------------------------------------------------------------------- */
+
 function firmBlock(cfg, p, dd, locked) {
   const balance = toNumber(cfg.firm_balance);
   const threshold = toNumber(cfg.firm_threshold);
-  if (!Number.isFinite(balance) || !Number.isFinite(threshold)) return '';
+
+  /* NOTHING TYPED IN YET IS NOT THE SAME AS NO COLUMN TO TYPE IT INTO.
+   *
+   * `undefined` means the select never asked for it, because the migration has
+   * not run. `null` means it ran and the box is empty. Saying so is also the
+   * only way to tell from this page that the migration landed at all - the
+   * fields sit inside a collapsed section, and a block that appears only after
+   * a reading is saved leaves somebody who has just run the SQL with nothing
+   * to look at. */
+  if (!Number.isFinite(balance) || !Number.isFinite(threshold)) {
+    // Both undefined means the select never asked. One of the two filled in
+    // means the migration is plainly there and half a reading was entered,
+    // which wants finishing rather than silence.
+    if (optionalMissing ||
+        (cfg.firm_balance === undefined && cfg.firm_threshold === undefined)) return '';
+
+    return '<p class="stat-note">Every figure on this card is worked out from closed trades. ' +
+      'Two numbers from your firm\'s dashboard &mdash; the account value and the threshold it ' +
+      'dies at &mdash; replace the estimate with their own arithmetic, and say how far out the ' +
+      'estimate was. They are under <em>What this account has to do</em>.</p>';
+  }
 
   const size = toNumber(cfg.size);
   const room = balance - threshold;
@@ -926,52 +1024,67 @@ function firmBlock(cfg, p, dd, locked) {
     : 'Read ' + age + ' days ago, which is old enough that the threshold has almost ' +
       'certainly moved. Take it again before trusting it.';
 
-  // What the firm says the trading earned, against what this journal holds.
-  if (Number.isFinite(size)) {
-    const theirs = balance - size;
-    const gap = theirs - p.held;
+  const then = stateAsAt(p, cfg.firm_seen_on);
 
-    lines.push(Math.abs(gap) < 0.01
-      ? '<li><strong>Your journal agrees with the firm to the cent</strong> on what this ' +
-        'account holds: ' + money(theirs) + '. Every trade is imported.</li>'
-      : '<li><strong>' + money(Math.abs(gap)) + ' ' + (gap > 0 ? 'missing from' : 'extra in') +
-        ' your journal.</strong> The firm has this account at ' + money(theirs) +
-        ' and the journal accounts for ' + money(p.held) + '. Either an import did not finish, ' +
-        'or money moved without a trade &mdash; record it as an adjustment below.</li>');
-  }
+  if (!cfg.firm_seen_on) {
+    lines.push('<li>Put the date you read these in and this can check them against the journal. ' +
+      'Without it there is nothing to compare them with: the journal has moved on since, and by ' +
+      'how much is exactly what the date says.</li>');
+  } else if (!then) {
+    lines.push('<li>Nothing was traded on this account on or before ' +
+      escapeHtml(cfg.firm_seen_on) + ', so there is nothing to check the reading against.</li>');
+  } else {
+    // What the firm says the trading earned, against what this journal held on
+    // the same day - not today.
+    if (Number.isFinite(size)) {
+      const theirs = balance - size;
+      const gap = theirs - then.held;
+      const asOf = then.on === cfg.firm_seen_on
+        ? 'on ' + escapeHtml(then.on)
+        : 'at its last close before then, ' + escapeHtml(then.on);
 
-  /* THE MEASUREMENT. Only where the arithmetic actually holds: a locked
-   * threshold is no longer anchored to the peak, and a withdrawal moves it at
-   * firms that lower the mark. Saying which is missing beats a figure that
-   * quietly means something else. */
-  if (!Number.isFinite(dd)) {
-    lines.push('<li>Fill in the drawdown allowance above and this can work out the firm\'s own ' +
-      'high-water mark, and how far above your journal\'s it sits.</li>');
-  } else if (locked) {
-    lines.push('<li>The threshold has locked, so it is no longer anchored to a high-water mark ' +
-      'and nothing can be read back from it. Room left above is the firm\'s own figure.</li>');
-  } else if (p.withdrawn > 0 && p.markFalls) {
-    lines.push('<li>A payout has moved the mark on this account, so the high-water mark cannot ' +
-      'be read back from the threshold. Room left above is the firm\'s own figure.</li>');
-  } else if (Number.isFinite(size)) {
-    const theirPeak = threshold + dd - size;
-    const gap = theirPeak - p.peak;
+      lines.push(Math.abs(gap) < 0.01
+        ? '<li><strong>Your journal agrees with the firm to the cent</strong> ' + asOf + ': ' +
+          money(theirs) + '. Every trade up to that point is imported.</li>'
+        : '<li><strong>' + money(Math.abs(gap)) + ' ' + (gap > 0 ? 'missing from' : 'extra in') +
+          ' your journal</strong> ' + asOf + '. The firm had this account at ' + money(theirs) +
+          ' and the journal held ' + money(then.held) + '. Either an import did not finish, or ' +
+          'money moved without a trade &mdash; record it as an adjustment below.</li>');
+    }
 
-    lines.push(Math.abs(gap) < 1
-      ? '<li><strong>This account\'s threshold follows your closed balance.</strong> The firm\'s ' +
-        'high-water mark is ' + money(theirPeak) + ' and your journal\'s best close is ' +
-        money(p.peak) + ' &mdash; the same number. Nothing above is a floor or a ceiling on this ' +
-        'account; it is exact.</li>'
-      : gap > 0
-        ? '<li><strong>' + money(gap) + ' of this account\'s threshold came from profit you ' +
-          'never closed.</strong> The firm\'s high-water mark is ' + money(theirPeak) +
-          '; your best close was ' + money(p.peak) + '. That gap is unrealised profit inside a ' +
-          'trade, so this account trails <strong>intraday</strong> &mdash; and every room figure ' +
-          'computed from closed trades overstates by about that much.</li>'
-        : '<li><strong>Your journal\'s best close is ' + money(-gap) + ' above the peak the ' +
-          'threshold implies.</strong> That should not happen on a trailing account. Either the ' +
-          'allowance recorded above is wrong, or the threshold has locked and is not marked as ' +
-          'such, or this journal holds trades the firm never saw.</li>');
+    /* THE MEASUREMENT. Only where the arithmetic actually holds: a locked
+     * threshold is no longer anchored to the peak, and a withdrawal moves it
+     * at firms that lower the mark. Saying which is missing beats a figure
+     * that quietly means something else. */
+    if (!Number.isFinite(dd)) {
+      lines.push('<li>Fill in the drawdown allowance above and this can work out the firm\'s own ' +
+        'high-water mark, and how far above your journal\'s it sits.</li>');
+    } else if (locked) {
+      lines.push('<li>The threshold has locked, so it is no longer anchored to a high-water mark ' +
+        'and nothing can be read back from it. Room left above is the firm\'s own figure.</li>');
+    } else if (then.withdrawn > 0 && p.markFalls) {
+      lines.push('<li>A payout has moved the mark on this account, so the high-water mark cannot ' +
+        'be read back from the threshold. Room left above is the firm\'s own figure.</li>');
+    } else if (Number.isFinite(size)) {
+      const theirPeak = threshold + dd - size;
+      const gap = theirPeak - then.peak;
+
+      lines.push(Math.abs(gap) < 1
+        ? '<li><strong>This account\'s threshold follows your closed balance.</strong> The ' +
+          'firm\'s high-water mark was ' + money(theirPeak) + ' and your journal\'s best close ' +
+          'was ' + money(then.peak) + ' &mdash; the same number. Nothing above is a floor or a ' +
+          'ceiling on this account; it is exact.</li>'
+        : gap > 0
+          ? '<li><strong>' + money(gap) + ' of this account\'s threshold came from profit you ' +
+            'never closed.</strong> The firm\'s high-water mark was ' + money(theirPeak) +
+            '; your best close was ' + money(then.peak) + '. That gap is unrealised profit ' +
+            'inside a trade, so this account trails <strong>intraday</strong> &mdash; and every ' +
+            'room figure computed from closed trades overstates by about that much.</li>'
+          : '<li><strong>Your journal\'s best close was ' + money(-gap) + ' above the peak the ' +
+            'threshold implies.</strong> That should not happen on a trailing account. Either ' +
+            'the allowance recorded above is wrong, or the threshold has locked and is not ' +
+            'marked as such, or this journal holds trades the firm never saw.</li>');
+    }
   }
 
   return '<div class="callout"><span class="callout-label">What the firm says</span>' +

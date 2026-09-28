@@ -64,10 +64,14 @@ const { toNumber, money, escapeHtml } = new Function(
   grab(app, 'export function escapeHtml(').replace('export ', '') +
   '; return { toNumber, money, escapeHtml };')();
 
-const firmBlock = new Function(
-  'toNumber', 'money', 'escapeHtml',
+const makeFirmBlock = (optionalMissing) => new Function(
+  'toNumber', 'money', 'escapeHtml', 'optionalMissing',
   props.match(/const READING_STALE_DAYS = [^;]+;/)[0] + '\n' +
-  grab(props, 'function firmBlock(') + '; return firmBlock;')(toNumber, money, escapeHtml);
+  grab(props, 'function stateAsAt(') + '\n' +
+  grab(props, 'function firmBlock(') + '; return firmBlock;')(
+    toNumber, money, escapeHtml, optionalMissing);
+
+const firmBlock = makeFirmBlock(false);
 
 let bad = 0;
 
@@ -88,9 +92,20 @@ const ALLOWANCE = 250000 - 243500;        // 6,500 - the published figure, assum
 const ROW = { balance: 250696.30, stop: 244361 };
 const FIRST = { balance: 250728.20, stop: 244393 };
 
-// What the page is handed about the journal.
-const walk = (held, peak, extra) => ({ held, peak, withdrawn: 0, markFalls: false, ...extra });
-const cfg = (over) => ({ size: SIZE, firm_seen_on: today, ...over });
+/* What the page is handed about the journal.
+ *
+ * `stateOn` is the dated part and the reason this fixture is not just two
+ * numbers: the reading is taken on a day, and the journal it is checked
+ * against has to be the journal AS IT WAS on that day. The first real reading
+ * made that obvious - a dashboard read on the 25th against a journal carrying
+ * the 26th's trading reported every account as hundreds of dollars over. */
+const READ_ON = '2026-09-25';
+const walk = (held, peak, extra) => ({
+  held, peak, withdrawn: 0, markFalls: false,
+  stateOn: new Map([[READ_ON, { total: held, held, peak, withdrawn: 0 }]]),
+  ...extra
+});
+const cfg = (over) => ({ size: SIZE, firm_seen_on: READ_ON, ...over });
 
 // ------------------------------------------------- what the dashboard itself says
 
@@ -180,14 +195,20 @@ check('and the room left is the same across copies, to a dime',
         noDd.includes('Fill in the drawdown allowance'), noDd);
 
   const paid = firmBlock(cfg({ firm_balance: ROW.balance, firm_threshold: ROW.stop }),
-                         walk(696.30, 861, { withdrawn: 5000, markFalls: true }),
+                         walk(696.30, 861, {
+                           withdrawn: 5000, markFalls: true,
+                           stateOn: new Map([[READ_ON, { total: 696.30, held: 696.30,
+                                                         peak: 861, withdrawn: 5000 }]])
+                         }),
                          ALLOWANCE, false);
   check('a payout that moved the mark stops the arithmetic',
         paid.includes('payout has moved the mark'), paid);
 
-  check('nothing at all is shown without both numbers',
-        firmBlock(cfg({ firm_balance: ROW.balance }), walk(696.30, 861), ALLOWANCE, false) === '' &&
-        firmBlock(cfg({ firm_threshold: ROW.stop }), walk(696.30, 861), ALLOWANCE, false) === '');
+  // Half a reading is not a reading, and is not silence either: the column is
+  // plainly there, so the answer is to ask for the other number.
+  const half = firmBlock(cfg({ firm_balance: ROW.balance }), walk(696.30, 861), ALLOWANCE, false);
+  check('half a reading gives no room figure', !half.includes('Room left'), half);
+  check('and asks for the other number', half.includes('Two numbers from your firm'), half);
 }
 
 // ------------------------------------------------------------ how old it is
@@ -195,7 +216,11 @@ check('and the room left is the same across copies, to a dime',
 {
   const old = new Date(Date.now() - 21 * 86400000).toISOString().slice(0, 10);
   const html = firmBlock({ size: SIZE, firm_seen_on: old, firm_balance: ROW.balance,
-                           firm_threshold: ROW.stop }, walk(696.30, 861), ALLOWANCE, false);
+                           firm_threshold: ROW.stop },
+                         walk(696.30, 861, {
+                           stateOn: new Map([[old, { total: 696.30, held: 696.30,
+                                                     peak: 861, withdrawn: 0 }]])
+                         }), ALLOWANCE, false);
   check('a stale reading says so and how stale',
         html.includes('21 days ago') && html.includes('Take it again'), html);
 
@@ -203,9 +228,96 @@ check('and the room left is the same across copies, to a dime',
                             walk(696.30, 861), ALLOWANCE, false);
   check('an undated one admits it cannot tell', undated.includes('no telling'), undated);
 
-  const fresh = firmBlock(cfg({ firm_balance: ROW.balance, firm_threshold: ROW.stop }),
-                          walk(696.30, 861), ALLOWANCE, false);
+  const fresh = firmBlock({ size: SIZE, firm_seen_on: today,
+                            firm_balance: ROW.balance, firm_threshold: ROW.stop },
+                          walk(696.30, 861, {
+                            stateOn: new Map([[today, { total: 696.30, held: 696.30,
+                                                        peak: 861, withdrawn: 0 }]])
+                          }), ALLOWANCE, false);
   check('and a reading taken today is not nagged about', fresh.includes('Read today.'));
+}
+
+// ----------------------------------------------- the reading has a date on it
+
+{
+  /* THE FIRST REAL READING FOUND THIS.
+   *
+   * The dashboard was read on 25 September and the journal carried the 26th's
+   * trading as well. Comparing the reading with the journal's CURRENT total
+   * reports the account as hundreds of dollars over - on all nineteen copied
+   * cards, identically, which makes it look like a finding rather than a bug. */
+  const later = walk(696.30, 861, {
+    held: 1467.10, peak: 1467.10,
+    stateOn: new Map([
+      ['2026-09-25', { total: 696.30, held: 696.30, peak: 861, withdrawn: 0 }],
+      ['2026-09-26', { total: 1467.10, held: 1467.10, peak: 1467.10, withdrawn: 0 }]
+    ])
+  });
+
+  const html = firmBlock(cfg({ firm_balance: ROW.balance, firm_threshold: ROW.stop }),
+                         later, ALLOWANCE, false);
+
+  check('a later day in the journal does not read as a discrepancy',
+        html.includes('agrees with the firm to the cent'), html);
+  check('and the verdict uses that day\'s peak, not the latest',
+        html.includes('follows your closed balance'), html);
+}
+
+{
+  // A reading taken on a day nothing was traded compares against the last
+  // close before it, and says which day that was.
+  const gap = walk(696.30, 861, {
+    stateOn: new Map([['2026-09-24', { total: 696.30, held: 696.30, peak: 861, withdrawn: 0 }]])
+  });
+  const html = firmBlock(cfg({ firm_balance: ROW.balance, firm_threshold: ROW.stop }),
+                         gap, ALLOWANCE, false);
+  check('a quiet day falls back to the last close, and names it',
+        html.includes('last close before then, 2026-09-24'), html);
+}
+
+{
+  // Nothing that early at all is a real answer, not a zero to subtract from.
+  const young = walk(696.30, 861, {
+    stateOn: new Map([['2026-09-26', { total: 696.30, held: 696.30, peak: 861, withdrawn: 0 }]])
+  });
+  const html = firmBlock(cfg({ firm_balance: ROW.balance, firm_threshold: ROW.stop }),
+                         young, ALLOWANCE, false);
+  check('a journal with nothing that early says so rather than comparing',
+        html.includes('nothing to check the reading against'), html);
+  check('and still gives the room, which needs no journal at all',
+        html.includes('$6,335.30'), html);
+}
+
+{
+  // Without a date there is nothing to compare against, and the page asks for
+  // one instead of quietly comparing two different days.
+  const html = firmBlock({ size: SIZE, firm_balance: ROW.balance, firm_threshold: ROW.stop },
+                         walk(696.30, 861), ALLOWANCE, false);
+  check('an undated reading asks for the date', html.includes('Put the date you read these in'),
+        html);
+  check('and makes no claim about the journal',
+        !html.includes('agrees with the firm') && !html.includes('missing from'), html);
+}
+
+// --------------------------------------- an empty box is not a missing column
+
+{
+  /* The fields sit inside a collapsed section and the block only appears once
+   * something is saved, so somebody who has just run the migration has nothing
+   * to look at. `undefined` (never selected) and `null` (selected and empty)
+   * are different facts and the page uses both. */
+  const ran = firmBlock({ size: SIZE, firm_balance: null, firm_threshold: null },
+                        walk(696.30, 861), ALLOWANCE, false);
+  check('an empty reading on a page that can hold one invites it',
+        ran.includes('Two numbers from your firm'), ran);
+
+  const notRun = firmBlock({ size: SIZE }, walk(696.30, 861), ALLOWANCE, false);
+  check('a column that was never selected says nothing at all', notRun === '', notRun);
+
+  const degraded = makeFirmBlock(true)({ size: SIZE, firm_balance: null, firm_threshold: null },
+                                       walk(696.30, 861), ALLOWANCE, false);
+  check('and neither does a page that fell back to the older select',
+        degraded === '', degraded);
 }
 
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');

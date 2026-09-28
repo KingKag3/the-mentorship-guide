@@ -29,8 +29,18 @@ thing that can spot a short import on copied accounts). [stats.html](stats.html)
 in its threshold table and marks the rows that use it.
 
 **Verified:** `node tools/probe-firm-reading.mjs` — 22 checks, with the real dashboard rows as the
-fixture. The card was rendered against `style.css` and read correctly. **Never run against the live
-project** — the migration is in, and no reading has been entered yet.
+fixture. **The migration is in** and the first card was looked at, which found two things fixtures
+could not — see DECISIONS 2026-09-28 (later):
+
+- Every comparison is now **dated**. It was checking a reading taken on the 25th against a journal
+  carrying the 26th, which on nineteen copied accounts reports the same false discrepancy nineteen
+  times. The walk keeps a per-day snapshot and the reading is compared with the journal as it stood
+  on that day. No date means room left and nothing else.
+- **An empty box and a missing column now read differently.** The fields are inside a collapsed
+  section, so somebody who had just run the SQL saw nothing at all — which looks exactly like the
+  migration having failed.
+
+**No reading has been entered yet**, so the intraday question is still open.
 
 **Assumed, not observed:** the $6,500 allowance on a 250k Apex account. Not load-bearing — a wrong
 allowance surfaces as an implied peak below the journal's best close, which the card calls out.

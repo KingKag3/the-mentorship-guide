@@ -1548,3 +1548,43 @@ dashboard. It is not load-bearing: a wrong allowance shows up immediately as the
 implied peak below the journal's own best close, which cannot happen on a trailing account.
 
 `tools/probe-firm-reading.mjs` holds the real rows as its fixture — 22 checks.
+
+---
+
+## 2026-09-28 (later) — A dated reading is compared with a dated journal
+
+The migration went in and the first card was looked at. Two things were wrong, and both were only
+visible on real data.
+
+### The comparison was between two different days
+
+`firm_balance − size` was being checked against what the journal holds **now**. A reading taken on
+25 September, against a journal carrying the 26th's trading as well, reports the account as hundreds
+of dollars over — and on nineteen copied accounts it reports it nineteen times, identically, which
+makes a bug look like a finding. `PA-APEX-26922-92` shows $1,467.10 from 50 closed trades against a
+dashboard reading of $696.30; nothing is wrong with either number.
+
+**Decided:** the walk keeps a snapshot per day — total, held, peak, withdrawn as they stood at that
+day's close — and every comparison uses the latest snapshot at or before the reading's date. The
+peak the verdict is measured against is that day's peak, not the latest.
+
+**A reading with no date gets room left and nothing else**, and is asked for the date. Room left is
+the firm's own subtraction and needs no journal; everything else is arithmetic between two days and
+cannot be done without knowing which two.
+
+A reading dated to a day nothing was traded falls back to the last close before it and names that
+day. A journal with nothing that early says so rather than comparing against zero.
+
+### There was no way to tell the migration had landed
+
+The fields sit inside a collapsed section, and the block only appeared once a reading was saved. So
+somebody who had just run the SQL had nothing at all to look at — which is indistinguishable from
+the migration having failed.
+
+**Decided:** `undefined` and `null` are different facts here, as elsewhere on this site. A column
+the select never asked for means the migration has not run, and the card says nothing. A column that
+exists with an empty value means it has, and the card says what the two numbers would buy and where
+to type them. Half a reading — one of the two filled in — asks for the other rather than going
+quiet.
+
+`tools/probe-firm-reading.mjs` covers both: 33 checks.

@@ -5,6 +5,25 @@ with no memory of how any of it got here.
 
 Last updated: 29 September 2026.
 
+## 29 September 2026 (later) — and a way in when pasting is blocked
+
+**Apex's account panel does not allow copying.** So the same rows can be typed: a grid under the
+paste box, folded away, one row per account with three boxes each and the room computed as you type.
+Read that against the firm's own distance-to-drawdown column and a transposed digit shows up
+immediately. Nothing is saved while any row is wrong.
+
+Both routes go through one writer, so a card cannot end up showing a reading from one of them while
+the history holds the other.
+
+`.reading-grid` in `style.css`: account numbers no longer wrap at every hyphen, the inputs are wide
+enough for a quarter of a million with cents, and the number spinners are gone. All three were only
+visible once it was rendered.
+
+**A near miss:** the edit that introduced this deleted seven hundred lines of `props.html` -
+`render`, `forgetAccount`, `applyBulk`, the attempts handlers - by slicing to an anchor that turned
+out to be far below the intended one. The syntax check passed. `tools/probe-forget-account.mjs`
+caught it. DECISIONS 2026-09-29 (later).
+
 ## 29 September 2026 — paste the firm's table
 
 A paste box above the account cards. Select the firm's account table **including the column

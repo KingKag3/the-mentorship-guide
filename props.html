@@ -2438,9 +2438,34 @@ function renderPaste() {
         '<p class="form-status" id="paste-status"></p>' +
       '</form>' +
       '<div id="paste-preview"></div>' +
+
+      /* THE WAY IN WHEN COPYING IS BLOCKED.
+       *
+       * The Apex dashboard does not allow it, and a reader that can only be
+       * fed by the clipboard cannot be fed at all. Folded away because pasting
+       * is the better path wherever it works, and open to anybody it does not. */
+      '<details class="acct-details"><summary>Or type them in &mdash; when the dashboard ' +
+        'will not let you copy</summary>' +
+        '<p class="stat-note">Every account on this page, three boxes each, tab across. The room ' +
+        'appears as you type: read it against the firm&rsquo;s own distance-to-drawdown column ' +
+        'and a transposed digit shows up immediately. Leave a row blank to skip it.</p>' +
+        '<form class="auth-form auth-form-wide" id="grid-form">' +
+          '<div class="field-pair">' +
+            '<div><label>Read on</label>' +
+              '<input name="seen_on" type="date" value="' + todayISO() + '" required></div>' +
+          '</div>' +
+          '<div id="grid-rows"></div>' +
+          '<div class="row-actions">' +
+            '<button class="btn-primary" type="submit">Record what is filled in</button>' +
+          '</div>' +
+          '<p class="form-status" id="grid-status"></p>' +
+        '</form>' +
+      '</details>' +
     '</section>';
 
   $('paste-form').addEventListener('submit', readPastedTable);
+  $('grid-form').addEventListener('submit', saveGrid);
+  renderGrid();
 }
 
 // Local, not UTC: a reading taken at 7pm New York is that day's reading, and
@@ -2521,7 +2546,23 @@ async function commitPastedTable() {
   if (!pasted) return;
   const { seen_on, rows } = pasted;
 
-  setStatus('#paste-status', 'Recording ' + rows.length + '...', 'info');
+  if (!await recordReadings(seen_on, rows, '#paste-status')) return;
+
+  pasted = null;
+  $('paste-text').value = '';
+  $('paste-preview').innerHTML = '';
+  setStatus('#paste-status', rows.length + ' recorded.', 'ok');
+  render();
+}
+
+/* THE ONE WRITER.
+ *
+ * A table off the clipboard and a grid typed by hand are two ways of filling in
+ * the same rows. Two copies of the promotion rule below would eventually
+ * disagree about which reading a card is showing, and the disagreement would be
+ * invisible - both figures are plausible readings of the same account. */
+async function recordReadings(seen_on, rows, statusSel) {
+  setStatus(statusSel, 'Recording ' + rows.length + '...', 'info');
 
   const { error } = await supabase.from('account_readings').upsert(
     rows.map((r) => ({ user_id: profile.id, account: r.account, seen_on,
@@ -2531,15 +2572,15 @@ async function commitPastedTable() {
 
   if (error) {
     const file = migrationHint(error);
-    setStatus('#paste-status',
+    setStatus(statusSel,
       file ? error.message + ' - run ' + file + ' in the Supabase SQL editor, then reload.'
            : error.message, 'error');
-    return;
+    return false;
   }
 
   /* The latest reading is promoted onto each account, and only where it IS the
-   * latest - the same rule a single reading follows. Pasting last week's table
-   * fills the history without moving every card figure back a week. */
+   * latest - the same rule a single reading follows. Recording last week's
+   * table fills the history without moving every card figure back a week. */
   const promote = rows.filter((r) => {
     const held = saved.get(r.account);
     return held && (!held.firm_seen_on || seen_on >= held.firm_seen_on);
@@ -2561,10 +2602,114 @@ async function commitPastedTable() {
     if (at >= 0) readings[at] = held; else readings.push(held);
   }
 
-  pasted = null;
-  $('paste-text').value = '';
-  $('paste-preview').innerHTML = '';
-  setStatus('#paste-status', rows.length + ' recorded.', 'ok');
+  return true;
+}
+
+/* ---------------------- TYPING THEM IN, WHEN PASTING IS NOT ALLOWED --------
+
+   The Apex dashboard does not permit copying. A reader that can only be fed by
+   the clipboard is a reader that cannot be fed at all, and nineteen accounts of
+   perishable figures do not wait for a firm to change its mind.
+
+   So the same rows can be typed into a grid: every account already on this
+   page, three boxes each, tab across. Nothing else is asked for - a note and a
+   date per row would triple the typing to record something every row shares.
+
+   THE ROOM IS COMPUTED AS YOU TYPE, and that is the point of the grid rather
+   than a decoration. Two columns crossed is the one mistake that matters here,
+   and it shows up instantly as a room figure that is negative or absurd beside
+   eighteen that are not. Read back against the firm's own distance-to-drawdown
+   column it also catches a transposed digit, which nothing else here can.
+-------------------------------------------------------------------------- */
+
+function renderGrid() {
+  const host = $('grid-rows');
+  if (!host) return;
+
+  host.innerHTML =
+    '<div class="table-scroll"><table class="reading-grid"><thead><tr>' +
+      '<th>Account</th><th>Account value</th><th>Threshold</th>' +
+      '<th>Max balance <span class="opt">optional</span></th><th>Room</th>' +
+    '</tr></thead><tbody>' +
+    names.map((n) =>
+      '<tr data-grid-row="' + escapeHtml(n) + '">' +
+        '<td>' + escapeHtml(label(n)) + '</td>' +
+        '<td><input type="number" step="0.01" class="order-input" data-grid="balance" ' +
+          'aria-label="Account value for ' + escapeHtml(label(n)) + '"></td>' +
+        '<td><input type="number" step="0.01" class="order-input" data-grid="threshold" ' +
+          'aria-label="Threshold for ' + escapeHtml(label(n)) + '"></td>' +
+        '<td><input type="number" step="0.01" class="order-input" data-grid="max_balance" ' +
+          'aria-label="Max balance for ' + escapeHtml(label(n)) + '"></td>' +
+        '<td class="grid-room"></td>' +
+      '</tr>').join('') +
+    '</tbody></table></div>';
+
+  for (const el of host.querySelectorAll('[data-grid]')) {
+    el.addEventListener('input', () => showGridRoom(el.closest('[data-grid-row]')));
+  }
+}
+
+function gridValue(row, field) {
+  const el = row.querySelector('[data-grid="' + field + '"]');
+  if (!el || el.value === '') return null;
+  const n = Number(el.value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function showGridRoom(row) {
+  const cell = row.querySelector('.grid-room');
+  const balance = gridValue(row, 'balance');
+  const threshold = gridValue(row, 'threshold');
+
+  if (balance === null || threshold === null) { cell.textContent = ''; return; }
+
+  // Said rather than merely styled: a threshold above the account value is two
+  // columns crossed, the row will be refused, so it says so while it can still
+  // be fixed without hunting for which row it was.
+  if (threshold >= balance) {
+    cell.innerHTML = '<span class="field-note-bad">threshold is above the value</span>';
+    return;
+  }
+  cell.innerHTML = '<b>' + money(balance - threshold) + '</b>';
+}
+
+async function saveGrid(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const seen_on = form.querySelector('[name="seen_on"]').value;
+  if (!seen_on) { setStatus('#grid-status', 'Which day was this read?', 'error'); return; }
+
+  const rows = [];
+  const wrong = [];
+
+  for (const row of form.querySelectorAll('[data-grid-row]')) {
+    const account = row.getAttribute('data-grid-row');
+    const balance = gridValue(row, 'balance');
+    const threshold = gridValue(row, 'threshold');
+
+    // A row nobody filled in is a row nobody filled in, not a reading of zero.
+    if (balance === null && threshold === null) continue;
+    if (balance === null || threshold === null) { wrong.push(account); continue; }
+    if (threshold >= balance) { wrong.push(account); continue; }
+
+    rows.push({ account, balance, threshold, max_balance: gridValue(row, 'max_balance') });
+  }
+
+  /* NOTHING IS SAVED WHILE ANY ROW IS WRONG. Seventeen of nineteen going in
+   * and two being rejected leaves somebody to work out which two, on a page
+   * that has just scrolled and re-rendered. */
+  if (wrong.length) {
+    setStatus('#grid-status', wrong.length + ' row' + (wrong.length === 1 ? '' : 's') +
+      ' would not make sense - an account value and a threshold below it are both needed. ' +
+      'Nothing was saved.', 'error');
+    return;
+  }
+
+  if (!rows.length) { setStatus('#grid-status', 'Nothing filled in.', 'error'); return; }
+
+  if (!await recordReadings(seen_on, rows, '#grid-status')) return;
+
+  setStatus('#grid-status', rows.length + ' recorded.', 'ok');
   render();
 }
 

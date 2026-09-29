@@ -4701,3 +4701,25 @@ details > summary:hover { color: var(--accent); }
 
 
 .cal-account { width: auto !important; min-width: 12em; margin: 0 !important; }
+
+/* Typing a firm's readings in, one row per account.
+ *
+ * An account number wraps at every hyphen if it is allowed to - PA-APEX-26922-74
+ * becomes four lines, and a column of those is unreadable - and a number box at
+ * its default width truncates a quarter of a million with cents to "2457",
+ * which looks like a value somebody typed rather than one being hidden. Both
+ * were only visible once it was rendered. */
+.reading-grid td:first-child { white-space: nowrap; }
+.reading-grid td, .reading-grid th { vertical-align: middle; }
+.reading-grid .order-input { width: 100%; min-width: 14ch; }
+
+/* No spinners. They eat the width the figure needs - "246213.51" renders as
+ * "246213.!" beside them - and stepping a quarter of a million by a cent is
+ * not a thing anybody wants to do with an arrow key. */
+.reading-grid input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.reading-grid input[type="number"]::-webkit-outer-spin-button,
+.reading-grid input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.reading-grid .grid-room { white-space: nowrap; }

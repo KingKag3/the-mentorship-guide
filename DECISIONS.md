@@ -1753,3 +1753,45 @@ Both the readings list and the parse preview were built as `.bar-row`, which is 
 stop lining up at all. Both are tables now. Caught by rendering them rather than by reading them.
 
 `tools/probe-firm-reading.mjs` — 69 checks, with the real table as its fixture.
+
+---
+
+## 2026-09-29 (later) — The dashboard does not allow copying
+
+The paste box was built for a table that cannot be selected. Apex's account panel blocks it.
+
+**Decided:** the same rows can be typed in. A grid under the paste box, folded away, with one row per
+account already on the page and three boxes each. Nothing per-row that every row shares - one date
+at the top, no notes - because a note field per row triples the typing to record nothing.
+
+**The room is computed as you type, and that is the point rather than a decoration.** Two columns
+crossed is the one mistake that matters here, and it shows as a room that is negative or absurd
+beside eighteen that are not. Read back against the firm's own distance-to-drawdown column it also
+catches a transposed digit, which nothing else on the page can.
+
+**Nothing is saved while any row is wrong.** Seventeen of nineteen going in and two being rejected
+leaves somebody to work out which two, on a page that has just re-rendered under them.
+
+**One writer for both.** A table off the clipboard and a grid typed by hand fill in the same rows,
+and two copies of the promotion rule would eventually disagree about which reading a card is
+showing - invisibly, because both figures are plausible readings of the same account.
+
+### Two things only rendering could have found
+
+The account column wrapped at every hyphen, one segment per line, so `PA-APEX-26922-74` became four
+lines and a column of them was unreadable. And a number input at its default width truncated
+`246213.51` to `246213.!` - which does not look like a value being hidden, it looks like a value
+somebody typed. Both fixed in `style.css` under `.reading-grid`, and the spinners are gone with
+them: stepping a quarter of a million by a cent is not a thing anybody wants from an arrow key.
+
+### A near miss worth recording
+
+Replacing `commitPastedTable` was done by slicing from its name to the next function - and the
+anchor chosen for "the next function" appears seven hundred lines later, so the edit silently
+deleted `render`, `forgetAccount`, `applyBulk`, the attempts handlers and most of the page. The
+syntax check passed, because what was left was valid JavaScript.
+
+`tools/probe-forget-account.mjs` failed, which is the only reason it was caught. A probe written in
+August to pin down one account-removal rule earned its keep by refusing to find the function at all.
+The lesson is not about probes - it is that a slice between two anchors needs the second anchor
+checked, so the replacement now asserts the span is small before it writes anything.

@@ -17,20 +17,6 @@ Supersedes `chart-marks-shapes.sql`, which was never run — this repeats all of
 
 Until it runs, pins keep working and the tool row names this file where **Draw on the chart** would be.
 
-### `account-readings.sql` — the readings, kept (28 September 2026)
-
-Run after `firm-reading.sql`. Adds `account_readings`, and backfills it from the single reading
-already on each account where that reading has a date.
-
-Until it runs, a card says so and keeps working on one reading per account. Once it has, each
-watched card carries **Readings from the firm** — and that block appearing is the proof.
-
-**Why there is a table and not just a column.** The passed evaluations went from the Apex dashboard
-on 28 September. `APEX-26922-1672` and its siblings cannot be looked at again, and the account table
-pasted into `prop-preset-drawdown.sql` in August is now the only surviving record of them. A
-dashboard is not an archive. Two readings across a new high also settle whether a funded account's
-floor has stopped trailing, which one reading cannot. DECISIONS 2026-09-28 (perishable).
-
 ## Held back on purpose
 
 Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on
@@ -169,6 +155,7 @@ accounts, and the steps are in the **Untested** section of `HANDOVER.md`.
 | `trade-reviews-thread.sql` | 13 Aug 2026 | Three policies, no schema change, letting a member write on their own trade while it is shared. **Not independently confirmed** — the proof is a Send under a shared trade in the journal that does not report a row-level security violation. The refusals matter more than the success and cannot be checked from the SQL editor at all, because RLS does not apply to the table owner: see the four things to watch in `HANDOVER.md` |
 | `trade-reviews.sql` | 12 Aug 2026 | The mentor's answer to a shared trade, in its own table. **Confirmed from outside the same day**: signed out, with the publishable key only, `trade_reviews` answers `200 []` — the same signature as `trades`, which is a table that exists behind a policy that holds. A table that does not exist answers `404 PGRST205` and names itself, which is exactly the error the reply box was reporting beforehand. What that does *not* prove is the policies: an admin writing a reply and the member reading it back needs two signed-in sessions, and is in the **Untested** section of `HANDOVER.md` |
 | `journal-media-privacy.sql`, and `storage.sql` re-run after it | 12 Aug 2026 | Journal screenshots stop being readable by every other member. **Verified by attack the same day**: one admin, one path string, minutes apart — a `signedUrl` while the trade was shared, `Object not found` once the member unticked it. Nothing changed in between but their checkbox. `HANDOVER.md` has the evidence and the five wrong-looking errors that fooled four earlier attempts |
+| `account-readings.sql` | 29 Sep 2026 | `account_readings`: one reading per account per day, kept, because a firm deletes an account and its figures the moment it is finished. **Run, not yet confirmed** — the backfill moves dated readings off `prop_accounts`, and there were none to move, so an empty table is the expected result rather than a failure. The proof is the page: a **Paste the firm's account table** panel above the cards, and a **Readings from the firm** block on each watched card |
 | `firm-reading.sql` | 28 Sep 2026 | Adds `firm_balance`, `firm_threshold` and `firm_seen_on` to `prop_accounts`, so the accounts page stops estimating room left. **Run, not yet confirmed** — the editor reports success on a statement that changed nothing just as readily as on one that did, so the proof is a **What the firm's dashboard says** block on a card after typing a balance and a threshold into it. The commented `information_schema` query at the foot of the file answers the same question and expects three rows |
 | `trade-chart-url.sql` | 12 Aug 2026 | Adds `chart_url` to `trades`. **Confirmed by the result**: a chart renders on the Review tab, and nothing but this column can produce one. It also unblocked saving from the journal form at all — `readForm` sends the key on every save, so the form had never once saved successfully before this |
 | `prop-attempts.sql` | 12 Aug 2026 | One account, several lives. **Not independently confirmed** — an Attempts section on each card in `props.html` is the proof, and until one is seen the backfill has not been shown to have run |

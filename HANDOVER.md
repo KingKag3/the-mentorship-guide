@@ -24,14 +24,16 @@ Liquidity* wherever they sit, matching is on the whole cell (not a substring —
 
 **Verified:** `node tools/probe-firm-reading.mjs` — 69 checks, the real table as fixture, including
 a reordered table, a headerless one, crossed columns and a space-aligned paste. The preview was
-rendered against `style.css`, which is how two `.bar-row` lists were caught wrapping. **Never run
-against the live project.**
+rendered against `style.css`, which is how two `.bar-row` lists were caught wrapping. **Nothing has
+been pasted into the live page yet**, so the parser has met the real table only as a fixture.
 
 ## 28 September 2026 (later) — the readings are kept, because the accounts are not
 
-**Run `supabase/account-readings.sql`.** After `firm-reading.sql`. Adds `account_readings` and
-backfills it from the dated reading already on each account. A **Readings from the firm** block on a
-watched card is the proof it ran.
+**`supabase/account-readings.sql` has been run** (29 September 2026). Adds `account_readings` and
+backfills it from the dated reading already on each account — of which there were none, so an empty
+table is the expected result and not a failure. The proof it ran is the page: a **Paste the firm's
+account table** panel above the cards, and a **Readings from the firm** block on each watched card.
+Both are hidden while the table is missing.
 
 **Why:** the passed evaluations have gone from the Apex dashboard. `APEX-26922-1672` and its
 siblings cannot be opened again, and the account table pasted into `prop-preset-drawdown.sql` in

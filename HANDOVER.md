@@ -3,7 +3,29 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 28 September 2026.
+Last updated: 29 September 2026.
+
+## 29 September 2026 — paste the firm's table
+
+A paste box above the account cards. Select the firm's account table **including the column
+titles**, paste, check the preview, record. One reading per account in one step; nineteen accounts
+at four figures each was seventy-six boxes and therefore never going to happen.
+
+**Columns are matched by name, and a table with no titles is refused rather than guessed at.** Every
+figure there is a dollar amount in the same range, so position proves nothing and a Max Balance in
+the threshold field is wrong by the size of the account without looking wrong. *Balance* beats *Net
+Liquidity* wherever they sit, matching is on the whole cell (not a substring — "balance" is inside
+"max balance"), and a row whose threshold is not below its account value is dropped and named.
+
+**The 29 September table settled two things**, both now fixtures:
+- `Dist Drawdown` = Balance − Liquidation Threshold, to the cent — Apex confirming the room formula.
+- Max Balance − Liquidation Threshold = **exactly $6,500** on all nineteen: still trailing on a
+  funded account. Not the lock at allowance + $100; nothing has been near it.
+
+**Verified:** `node tools/probe-firm-reading.mjs` — 69 checks, the real table as fixture, including
+a reordered table, a headerless one, crossed columns and a space-aligned paste. The preview was
+rendered against `style.css`, which is how two `.bar-row` lists were caught wrapping. **Never run
+against the live project.**
 
 ## 28 September 2026 (later) — the readings are kept, because the accounts are not
 

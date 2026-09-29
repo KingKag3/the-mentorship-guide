@@ -428,5 +428,171 @@ const read = (seen_on, balance, threshold) => ({ seen_on, balance, threshold });
   check('order typed in does not matter', ev && ev.trailing && ev.to.seen_on === '2026-09-28', ev);
 }
 
+// ------------------------------- reading the table off the clipboard
+
+/* THE REAL TABLE, 29 SEPTEMBER 2026.
+ *
+ * Nineteen funded accounts after a bad day. Three rows of it here, with the
+ * columns in the order the dashboard showed them and the blank Daily Loss
+ * Limit and Cool Down cells left in, because those are what a real paste
+ * contains and a parser that only handles a tidy one is not a parser.
+ *
+ * Every figure in that table is a dollar amount in the same range, which is
+ * why the columns are matched by NAME. A Max Balance written into `threshold`
+ * produces a room figure wrong by the size of the account and looks entirely
+ * reasonable doing it.
+ */
+const parseReadingTable = new Function(
+  props.match(/const READING_HEADERS = \{[\s\S]*?\n\};/)[0] + '\n' +
+  props.match(/const normHeader = [\s\S]*?\n[^\n]*\.trim\(\);/)[0] + '\n' +
+  grab(props, 'function readingNumber(') + '\n' +
+  grab(props, 'function splitRow(') + '\n' +
+  grab(props, 'function parseReadingTable(') +
+  '; return parseReadingTable;')();
+
+const TAB = '\t';
+const HEAD = ['Display Name', 'Balance', 'Max Balance', 'Net Liquidity',
+              'Liquidation Threshold', 'Daily Loss Limit', 'Cool Down Period',
+              'Dist Drawdown', 'Realized PnL', 'Unrealized PnL', 'Total PnL'].join(TAB);
+
+const REAL = [
+  ['PA-APEX-26922-74', '$246,213.51', '$252,247.60', '$246,213.51', '$245,747.60',
+   '', '-', '$465.91', '-$3,786.49', '$0.00', '-$3,786.49'],
+  ['PA-APEX-26922-75', '$246,183.11', '$252,215.70', '$246,183.11', '$245,715.70',
+   '', '-', '$467.41', '-$3,816.89', '$0.00', '-$3,816.89'],
+  ['PA-APEX-26922-76', '$246,225.11', '$252,255.70', '$246,225.11', '$245,755.70',
+   '', '-', '$469.41', '-$3,774.89', '$0.00', '-$3,774.89']
+].map((r) => r.join(TAB));
+
+const NAMES = ['PA-APEX-26922-74', 'PA-APEX-26922-75', 'PA-APEX-26922-76'];
+
+{
+  const out = parseReadingTable([HEAD, ...REAL].join('\n'), NAMES);
+
+  check('the real table reads', !out.error && out.rows.length === 3, out.error);
+  check('the account name comes off Display Name',
+        out.rows[0].account === 'PA-APEX-26922-74', out.rows[0]);
+  check('Balance is the account value, not Max Balance',
+        out.rows[0].balance === 246213.51, out.rows[0].balance);
+  check('the threshold is the liquidation threshold',
+        out.rows[0].threshold === 245747.60, out.rows[0].threshold);
+  check('and Max Balance lands in its own field',
+        out.rows[0].max_balance === 252247.60, out.rows[0].max_balance);
+
+  // The firm's own Dist Drawdown column, reproduced from two others.
+  check('room matches the firm\'s Dist Drawdown to the cent',
+        Math.abs((out.rows[0].balance - out.rows[0].threshold) - 465.91) < 0.005,
+        out.rows[0].balance - out.rows[0].threshold);
+
+  // And the finding the table settles: max less threshold is the full $6,500.
+  check('max less threshold is the full allowance, so it is still trailing',
+        Math.abs((out.rows[0].max_balance - out.rows[0].threshold) - 6500) < 0.005);
+
+  check('the accounts are recognised as ones this journal knows',
+        out.rows.every((r) => r.known));
+  check('and nothing was skipped', out.skipped.length === 0, out.skipped);
+}
+
+{
+  // Columns moved and some hidden. Position tells you nothing; the names do.
+  const head = ['Liquidation Threshold', 'Account', 'Max Balance', 'Balance'].join(TAB);
+  const row = ['$245,747.60', 'PA-APEX-26922-74', '$252,247.60', '$246,213.51'].join(TAB);
+  const out = parseReadingTable([head, row].join('\n'), NAMES);
+
+  check('a reordered table reads the same',
+        !out.error && out.rows[0].balance === 246213.51 &&
+        out.rows[0].threshold === 245747.60 && out.rows[0].max_balance === 252247.60,
+        out.rows && out.rows[0]);
+}
+
+{
+  // "balance" is inside "max balance". Matching on substrings maps both to one
+  // column and the room figure comes out six and a half thousand dollars wrong.
+  const head = ['Display Name', 'Max Balance', 'Balance', 'Liquidation Threshold'].join(TAB);
+  const row = ['PA-APEX-26922-74', '$252,247.60', '$246,213.51', '$245,747.60'].join(TAB);
+  const out = parseReadingTable([head, row].join('\n'), NAMES);
+
+  check('Max Balance before Balance does not capture Balance',
+        out.rows[0].balance === 246213.51 && out.rows[0].max_balance === 252247.60,
+        out.rows[0]);
+}
+
+{
+  /* Both Balance and Net Liquidity are in the real table, and they are equal
+   * only while nothing is open. Column order must not decide which one a
+   * reading means. */
+  const head = ['Display Name', 'Net Liquidity', 'Balance', 'Liquidation Threshold'].join(TAB);
+  const row = ['PA-APEX-26922-74', '$240,000.00', '$246,213.51', '$245,747.60'].join(TAB);
+  const out = parseReadingTable([head, row].join('\n'), NAMES);
+  check('Balance beats Net Liquidity wherever it sits',
+        out.rows[0].balance === 246213.51, out.rows[0]);
+}
+
+{
+  const out = parseReadingTable(REAL.join('\n'), NAMES);
+  check('a table with no titles is refused, not guessed',
+        !!out.error && /header/i.test(out.error), out.error);
+}
+
+{
+  const head = ['Display Name', 'Balance', 'Total PnL'].join(TAB);
+  const out = parseReadingTable([head, ['PA-1', '$1.00', '$2.00'].join(TAB)].join('\n'), []);
+  check('a table with no threshold column is refused',
+        !!out.error && /threshold/i.test(out.error), out.error);
+}
+
+{
+  /* Max Balance where the threshold belongs. The row is arithmetically
+   * impossible - a threshold above the account value - and dropping it beats
+   * drawing a room figure of minus six thousand as though it meant something. */
+  const head = ['Display Name', 'Balance', 'Liquidation Threshold'].join(TAB);
+  const rows = [['PA-APEX-26922-74', '$246,213.51', '$252,247.60'].join(TAB),
+                ['PA-APEX-26922-75', '$246,183.11', '$245,715.70'].join(TAB)];
+  const out = parseReadingTable([head, ...rows].join('\n'), NAMES);
+
+  check('a threshold above the account value is dropped',
+        out.rows.length === 1 && out.rows[0].account === 'PA-APEX-26922-75', out.rows);
+  check('and the dropped row is named', out.skipped.includes('PA-APEX-26922-74'), out.skipped);
+}
+
+{
+  // A row with a blank figure is left out rather than recorded as a zero.
+  const head = ['Display Name', 'Balance', 'Liquidation Threshold'].join(TAB);
+  const rows = [['PA-APEX-26922-74', '-', '$245,747.60'].join(TAB),
+                ['PA-APEX-26922-75', '$246,183.11', '$245,715.70'].join(TAB)];
+  const out = parseReadingTable([head, ...rows].join('\n'), NAMES);
+  check('a dash is not a zero', out.rows.length === 1 && out.skipped.length === 1, out);
+}
+
+{
+  // A toolbar, a title, a selected-rows counter - whatever sits above the
+  // table in a real selection.
+  const junk = ['Broker Portfolio', 'Show Suspended/Liquidated Accounts', ''];
+  const out = parseReadingTable([...junk, HEAD, ...REAL].join('\n'), NAMES);
+  check('anything above the header is skipped', !out.error && out.rows.length === 3, out.error);
+}
+
+{
+  // Columns rendered with spaces instead of tabs.
+  const spaced = 'Display Name   Balance      Liquidation Threshold\n' +
+                 'PA-APEX-26922-74   $246,213.51   $245,747.60';
+  const out = parseReadingTable(spaced, NAMES);
+  check('a space-aligned table reads too',
+        !out.error && out.rows[0].threshold === 245747.60, out.error || out.rows[0]);
+}
+
+{
+  const out = parseReadingTable([HEAD, ['PA-NEW-1', '$1,000.00', '$900.00', '', '$800.00']
+    .join(TAB)].join('\n'), NAMES);
+  check('an account this journal has never seen is read and marked',
+        out.rows.length === 1 && out.rows[0].known === false, out.rows);
+}
+
+{
+  check('nothing pasted says so', !!parseReadingTable('', NAMES).error);
+  check('and so does a header with nothing under it',
+        !!parseReadingTable(HEAD, NAMES).error);
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

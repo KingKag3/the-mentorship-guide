@@ -99,6 +99,7 @@
   </div>
 
   <div id="bulk"></div>
+  <div id="paste"></div>
 
   <!-- Five call sites wrote to `#status` and it did not exist, so every one of
        them was silent: a failed forget, a failed payout, a failed high-water
@@ -1493,22 +1494,25 @@ function readingsBlock(name, isWatched, cfg) {
 
   const mine = readingsFor(name);
 
+  /* A TABLE, NOT `.bar-row`. That is a three-column grid - label, track,
+   * value - and a reading has five things to say. A fourth child wraps onto
+   * its own line and the columns stop lining up at all. */
   const rows = mine.map((r) => {
     const bal = Number(r.balance);
     const stop = Number(r.threshold);
     const room = Number.isFinite(bal) && Number.isFinite(stop) ? bal - stop : null;
+    const max = Number(r.max_balance);
 
-    return '<div class="bar-row">' +
-      '<span>' + escapeHtml(r.seen_on) +
-        (r.max_balance ? ' <span class="tag">max ' + money(Number(r.max_balance)) + '</span>' : '') +
-        (r.note ? '<br><span class="acct-muted">' + escapeHtml(r.note) + '</span>' : '') +
-      '</span>' +
-      '<span class="acct-muted">' + (Number.isFinite(bal) ? money(bal) : '—') + ' / ' +
-        (Number.isFinite(stop) ? money(stop) : '—') + '</span>' +
-      '<b>' + (room === null ? '—' : money(room)) + '</b>' +
-      '<button type="button" class="link-button" data-drop-reading="' + escapeHtml(r.id) +
-        '">remove</button>' +
-    '</div>';
+    return '<tr>' +
+      '<td>' + escapeHtml(r.seen_on) +
+        (r.note ? '<br><span class="acct-muted">' + escapeHtml(r.note) + '</span>' : '') + '</td>' +
+      '<td>' + (Number.isFinite(bal) ? money(bal) : '&mdash;') + '</td>' +
+      '<td>' + (Number.isFinite(stop) ? money(stop) : '&mdash;') + '</td>' +
+      '<td>' + (Number.isFinite(max) ? money(max) : '&mdash;') + '</td>' +
+      '<td><b>' + (room === null ? '&mdash;' : money(room)) + '</b></td>' +
+      '<td><button type="button" class="link-button" data-drop-reading="' + escapeHtml(r.id) +
+        '">remove</button></td>' +
+    '</tr>';
   }).join('');
 
   return '<details class="acct-details"><summary>Readings from the firm (' + mine.length +
@@ -1517,9 +1521,12 @@ function readingsBlock(name, isWatched, cfg) {
     'the reading every figure on this card is checked against. They are kept rather than ' +
     'replaced because a firm removes an account once it is finished, and its numbers go with ' +
     'it &mdash; the passed evaluations behind these funded accounts are already gone.</p>' +
-    (rows ? '<div class="bar-row"><span class="acct-muted">Read on</span>' +
-      '<span class="acct-muted">value / threshold</span>' +
-      '<span class="acct-muted">room</span><span></span></div>' + rows : '') +
+    (rows
+      ? '<div class="table-scroll"><table><thead><tr>' +
+          '<th>Read on</th><th>Account value</th><th>Threshold</th><th>Max balance</th>' +
+          '<th>Room</th><th></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '') +
     lockNote(name) +
     '<form class="auth-form auth-form-wide" data-reading-form="' + escapeHtml(name) + '">' +
       '<div class="field-pair">' +
@@ -2250,6 +2257,316 @@ function card(name, passedTo) {
    differs from its copies is the one worth knowing about, and that is exactly
    what this panel would flatten if it were the only way in.
 ------------------------------------------------------------------------- */
+
+/* ------------------- READING A FIRM'S ACCOUNT TABLE OFF THE CLIPBOARD -------
+
+   Nineteen accounts, four figures each, all of them on one screen the member
+   is already looking at and all of them gone the moment those accounts are
+   finished. Seventy-six boxes is not a data-entry problem, it is the reason
+   the figures do not get recorded at all - and the passed evaluations behind
+   these funded accounts have already proved what not recording them costs.
+
+   THE COLUMNS ARE NOT GUESSED. A firm's table can be reordered by the member,
+   columns can be hidden, and every one of these figures is a dollar amount in
+   the same range - so position tells you nothing, and a Max Balance written
+   into `threshold` produces a room figure wrong by the size of the account
+   without looking wrong at all.
+
+   So the header row is required, and the columns are matched by NAME. Without
+   one this refuses to read the table rather than making an attractive guess.
+   That is the difference between a tool and a trap.
+
+   Nothing is written until the member has seen what was read.
+-------------------------------------------------------------------------- */
+
+/* Matched against the whole normalised header cell, never as a substring:
+ * "balance" is inside "max balance", and taking the first hit would map both
+ * to the same column. */
+const READING_HEADERS = {
+  account:     ['display name', 'account', 'account name', 'name'],
+  balance:     ['balance', 'account value', 'account balance', 'net liquidity'],
+  threshold:   ['liquidation threshold', 'threshold', 'stop', 'liquidation price'],
+  max_balance: ['max balance', 'maximum balance', 'max bal', 'high water mark']
+};
+
+const normHeader = (cell) =>
+  String(cell).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/* A firm writes money as $246,213.51 and an empty cell as a dash. `Number('')`
+ * and `Number('-')` are 0 and NaN respectively, and neither is "no figure", so
+ * the answer is null and the caller decides. */
+function readingNumber(cell) {
+  const text = String(cell == null ? '' : cell).trim();
+  if (!text || /^[-–—]$/.test(text)) return null;
+
+  const negative = /^\(.*\)$/.test(text) || text.startsWith('-') || text.startsWith('−');
+  const digits = text.replace(/[^0-9.]/g, '');
+  if (!digits) return null;
+
+  const value = Number(digits);
+  if (!Number.isFinite(value)) return null;
+  return negative ? -value : value;
+}
+
+/* Tabs when the table came from a browser, which is the usual case. Runs of
+ * two or more spaces when it came from somewhere that renders columns. A
+ * single space is never a separator - account names and headers contain them. */
+function splitRow(line) {
+  if (line.includes('\t')) return line.split('\t').map((c) => c.trim());
+  return line.split(/ {2,}/).map((c) => c.trim());
+}
+
+/**
+ * Read a pasted account table.
+ *
+ * Returns `{ rows, header }` on success, or `{ error }` with something the
+ * member can act on. Never a partial guess.
+ */
+function parseReadingTable(text, knownAccounts) {
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.trimEnd()).filter((l) => l.trim());
+  if (!lines.length) return { error: 'Nothing pasted.' };
+
+  // The header is the first line that names at least the account column and
+  // one figure. Anything above it - a page title, a toolbar - is skipped.
+  let header = null;
+  let at = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const cells = splitRow(lines[i]).map(normHeader);
+    const found = {};
+
+    /* ALIAS ORDER WINS, NOT COLUMN ORDER.
+     *
+     * The real table carries both Balance and Net Liquidity, and they are the
+     * same number only while nothing is open. Taking whichever appeared first
+     * in the table would mean the reading quietly changed meaning the moment a
+     * position was left running, so the preferred name is tried first and the
+     * fallbacks only if it is absent. */
+    for (const [field, aliases] of Object.entries(READING_HEADERS)) {
+      for (const alias of aliases) {
+        const hit = cells.indexOf(alias);
+        if (hit >= 0) { found[field] = hit; break; }
+      }
+    }
+
+    if (found.account !== undefined && (found.balance !== undefined ||
+                                        found.threshold !== undefined)) {
+      header = found;
+      at = i;
+      break;
+    }
+  }
+
+  if (!header) {
+    return { error: 'No header row found. Select the column titles as well as the rows - the ' +
+      'columns are matched by name, because every figure in that table is a dollar amount and ' +
+      'guessing which is which would put your Max Balance where the threshold belongs.' };
+  }
+
+  if (header.balance === undefined || header.threshold === undefined) {
+    return { error: 'The header names the accounts but not both figures. An account value and a ' +
+      'liquidation threshold are the two this needs; Max Balance is welcome and optional.' };
+  }
+
+  const known = new Set(knownAccounts || []);
+  const rows = [];
+  const skipped = [];
+
+  for (let i = at + 1; i < lines.length; i++) {
+    const cells = splitRow(lines[i]);
+    const account = (cells[header.account] || '').trim();
+    if (!account) continue;
+
+    const balance = readingNumber(cells[header.balance]);
+    const threshold = readingNumber(cells[header.threshold]);
+    const max_balance = header.max_balance === undefined
+      ? null : readingNumber(cells[header.max_balance]);
+
+    if (balance === null || threshold === null) { skipped.push(account); continue; }
+
+    /* THE ONE CHECK THAT CANNOT BE SKIPPED. A threshold is the figure the
+     * account is closed at and sits below the account value; a Max Balance
+     * sits above it. A row that fails this has had two columns crossed, and
+     * drawing it would be worse than refusing it. */
+    if (threshold >= balance) { skipped.push(account); continue; }
+
+    rows.push({ account, balance, threshold, max_balance,
+                known: known.size === 0 || known.has(account) });
+  }
+
+  if (!rows.length) {
+    return { error: 'The header was read but no row under it had both an account value and a ' +
+      'threshold below it.' };
+  }
+
+  return { rows, skipped };
+}
+
+/* The panel. Offered only where there is a table worth pasting - one account
+ * is four boxes, and a box is clearer than a parser. */
+let pasted = null;      // what the last parse produced, awaiting confirmation
+
+function renderPaste() {
+  const host = $('paste');
+  if (!host) return;
+
+  if (readingsMissing || names.length < 2) { host.innerHTML = ''; return; }
+
+  host.innerHTML =
+    '<section class="prop-bulk">' +
+      '<h2>Paste the firm\'s account table</h2>' +
+      '<p class="stat-note">Select the table on your firm\'s dashboard &mdash; <strong>including ' +
+      'the column titles</strong> &mdash; and paste it here. One reading per account, in one go. ' +
+      'The columns are matched by name rather than by position, so a table with the columns ' +
+      'moved around or hidden reads the same, and one without titles is refused rather than ' +
+      'guessed at.</p>' +
+      '<p class="stat-note">It needs an account name, an account value and a liquidation ' +
+      'threshold. <strong>Max Balance is worth including</strong>: it settles on its own whether ' +
+      'the drawdown has stopped trailing, which otherwise takes two readings a week apart.</p>' +
+      '<form class="auth-form auth-form-wide" id="paste-form">' +
+        '<div class="field-pair">' +
+          '<div><label>Read on</label>' +
+            '<input name="seen_on" type="date" value="' + todayISO() + '" required></div>' +
+        '</div>' +
+        '<label for="paste-text">The table</label>' +
+        '<textarea id="paste-text" name="table" rows="6" spellcheck="false" ' +
+          'placeholder="Display Name&#9;Balance&#9;Max Balance&#9;Liquidation Threshold&#10;' +
+          'PA-APEX-26922-74&#9;$246,213.51&#9;$252,247.60&#9;$245,747.60"></textarea>' +
+        '<div class="row-actions">' +
+          '<button class="btn-secondary" type="submit">Read the table</button>' +
+        '</div>' +
+        '<p class="form-status" id="paste-status"></p>' +
+      '</form>' +
+      '<div id="paste-preview"></div>' +
+    '</section>';
+
+  $('paste-form').addEventListener('submit', readPastedTable);
+}
+
+// Local, not UTC: a reading taken at 7pm New York is that day's reading, and
+// toISOString would file it under tomorrow.
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+function readPastedTable(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const seen_on = form.querySelector('[name="seen_on"]').value;
+  const text = $('paste-text').value;
+
+  if (!seen_on) { setStatus('#paste-status', 'Which day was this read?', 'error'); return; }
+
+  const out = parseReadingTable(text, names);
+  if (out.error) {
+    pasted = null;
+    $('paste-preview').innerHTML = '';
+    setStatus('#paste-status', out.error, 'error');
+    return;
+  }
+
+  pasted = { seen_on, rows: out.rows };
+
+  /* SHOWN BEFORE IT IS WRITTEN, always.
+   *
+   * Nineteen rows parsed out of pasted text is exactly the kind of thing that
+   * is right nineteen times and then silently wrong on the twentieth, and the
+   * member is the only one who can see the table it came from. Room is
+   * computed here too, because a row whose room is nonsense is the fastest way
+   * to spot two columns crossed. */
+  const unknown = out.rows.filter((r) => !r.known);
+
+  $('paste-preview').innerHTML =
+    '<p class="stat-note">Read ' + out.rows.length + ' account' +
+      (out.rows.length === 1 ? '' : 's') + '. Check them against the table before recording.</p>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>Account</th><th>Account value</th><th>Threshold</th><th>Max balance</th><th>Room</th>' +
+    '</tr></thead><tbody>' +
+    out.rows.map((r) =>
+      '<tr>' +
+        '<td>' + escapeHtml(label(r.account)) +
+          (r.known ? '' : ' <span class="tag">new</span>') + '</td>' +
+        '<td>' + money(r.balance) + '</td>' +
+        '<td>' + money(r.threshold) + '</td>' +
+        '<td>' + (r.max_balance === null ? '&mdash;' : money(r.max_balance)) + '</td>' +
+        '<td><b>' + money(r.balance - r.threshold) + '</b></td>' +
+      '</tr>').join('') +
+    '</tbody></table></div>' +
+    (out.skipped.length
+      ? '<p class="stat-note"><strong>' + out.skipped.length + ' row' +
+        (out.skipped.length === 1 ? '' : 's') + ' left out</strong>, for a missing figure or a ' +
+        'threshold that was not below the account value: ' +
+        escapeHtml(out.skipped.slice(0, 6).join(', ')) +
+        (out.skipped.length > 6 ? ' and others' : '') + '.</p>'
+      : '') +
+    (unknown.length
+      ? '<p class="stat-note">' + unknown.length + ' of these ' +
+        (unknown.length === 1 ? 'is an account' : 'are accounts') + ' this journal has never ' +
+        'seen. The readings are kept anyway &mdash; a reading is worth having before the card ' +
+        'exists, not after.</p>'
+      : '') +
+    '<div class="row-actions">' +
+      '<button type="button" class="btn-primary" id="paste-commit">Record ' + out.rows.length +
+        ' reading' + (out.rows.length === 1 ? '' : 's') + ' for ' + escapeHtml(seen_on) +
+      '</button>' +
+    '</div>';
+
+  setStatus('#paste-status', '', 'info');
+  $('paste-commit').addEventListener('click', commitPastedTable);
+}
+
+async function commitPastedTable() {
+  if (!pasted) return;
+  const { seen_on, rows } = pasted;
+
+  setStatus('#paste-status', 'Recording ' + rows.length + '...', 'info');
+
+  const { error } = await supabase.from('account_readings').upsert(
+    rows.map((r) => ({ user_id: profile.id, account: r.account, seen_on,
+                       balance: r.balance, threshold: r.threshold,
+                       max_balance: r.max_balance })),
+    { onConflict: 'user_id,account,seen_on' });
+
+  if (error) {
+    const file = migrationHint(error);
+    setStatus('#paste-status',
+      file ? error.message + ' - run ' + file + ' in the Supabase SQL editor, then reload.'
+           : error.message, 'error');
+    return;
+  }
+
+  /* The latest reading is promoted onto each account, and only where it IS the
+   * latest - the same rule a single reading follows. Pasting last week's table
+   * fills the history without moving every card figure back a week. */
+  const promote = rows.filter((r) => {
+    const held = saved.get(r.account);
+    return held && (!held.firm_seen_on || seen_on >= held.firm_seen_on);
+  });
+
+  for (const r of promote) {
+    await supabase.from('prop_accounts')
+      .update({ firm_balance: r.balance, firm_threshold: r.threshold, firm_seen_on: seen_on })
+      .eq('user_id', profile.id).eq('account', r.account);
+    saved.set(r.account, { ...saved.get(r.account), firm_balance: r.balance,
+                           firm_threshold: r.threshold, firm_seen_on: seen_on });
+  }
+
+  for (const r of rows) {
+    const at = readings.findIndex((x) => x.account === r.account && x.seen_on === seen_on);
+    const held = { id: at >= 0 ? readings[at].id : crypto.randomUUID(),
+                   account: r.account, seen_on, balance: r.balance,
+                   threshold: r.threshold, max_balance: r.max_balance, note: null };
+    if (at >= 0) readings[at] = held; else readings.push(held);
+  }
+
+  pasted = null;
+  $('paste-text').value = '';
+  $('paste-preview').innerHTML = '';
+  setStatus('#paste-status', rows.length + ' recorded.', 'ok');
+  render();
+}
 
 function renderBulk() {
   if (names.length < 2) { $('bulk').innerHTML = ''; return; }
@@ -3163,11 +3480,13 @@ async function save(e) {
     setAccountsHidden(hidden);
     alias = aliasMap(names);
     renderBulk();
+    renderPaste();
     render();
   });
 }
 
 renderBulk();
+renderPaste();
 render();
 </script>
 

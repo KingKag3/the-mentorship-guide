@@ -1691,3 +1691,65 @@ reading at or after the one already on the account is promoted to `prop_accounts
 old one would quietly move every figure on the card to a worse day.
 
 `tools/probe-firm-reading.mjs` — 47 checks now, thirteen of them on this.
+
+---
+
+## 2026-09-29 — The firm's table, read off the clipboard
+
+**Decided:** a paste box on the accounts page that reads a firm's account table and records one
+reading per account in a single step.
+
+**Why it is not a nicety.** Nineteen accounts at four figures each is seventy-six boxes to record
+something that is on screen already and gone the moment those accounts are finished. That is not a
+data-entry problem, it is the reason the figures do not get recorded at all — and the passed
+evaluations behind these funded accounts already proved what not recording them costs.
+
+### The columns are matched by name, and a table without titles is refused
+
+Every figure in that table is a dollar amount in the same range. Position tells you nothing: the
+columns can be reordered and hidden by the member, and a Max Balance written into `threshold`
+produces a room figure wrong by the size of the account while looking entirely reasonable.
+
+So the header row is required and the columns are matched by their names. Without one it refuses to
+read the table rather than making an attractive guess. **That is the difference between a tool and a
+trap.**
+
+Three details that are each a bug if got wrong:
+
+- **The alias order wins, not the column order.** The real table carries both *Balance* and *Net
+  Liquidity*, which are the same number only while nothing is open. Taking whichever appeared first
+  would mean a reading quietly changed meaning the first time a position was left running.
+- **Matching is on the whole normalised cell, never a substring.** "balance" is inside "max
+  balance"; a substring match maps both to one column.
+- **A threshold that is not below the account value is dropped and named.** That row has had two
+  columns crossed, and drawing it beats nothing only if you think a room figure of minus six
+  thousand means something.
+
+**Nothing is written until it has been seen.** The parse is shown as a table with the room computed
+per row, because a row whose room is nonsense is the fastest way to spot two crossed columns, and
+because nineteen rows parsed out of pasted text is exactly the thing that is right nineteen times
+and silently wrong on the twentieth.
+
+Readings for accounts this journal has never seen are kept: a reading is worth having before the
+card exists, not after. And a pasted table only promotes onto `prop_accounts` where it is at or
+after the reading already there — pasting last week's fills the history without moving every card
+figure back a week.
+
+### What the real table settled on the way in
+
+The 29 September dashboard gave the arithmetic for free, and two of them are now fixtures in
+`tools/probe-firm-reading.mjs`:
+
+- **`Dist Drawdown` = Balance − Liquidation Threshold**, to the cent, on every row. That is Apex
+  confirming the room formula this site has been computing since `firm-reading.sql`.
+- **Max Balance − Liquidation Threshold = exactly $6,500** on all nineteen. The floor is still
+  trailing on a funded account at $2,247.60 above its start. It does not settle the lock at
+  allowance + $100, because nothing has been near it.
+
+### Two `.bar-row` lists that were not rows
+
+Both the readings list and the parse preview were built as `.bar-row`, which is a three-column grid
+— label, track, value. Five things in a three-column grid wrap onto their own lines and the columns
+stop lining up at all. Both are tables now. Caught by rendering them rather than by reading them.
+
+`tools/probe-firm-reading.mjs` — 69 checks, with the real table as its fixture.

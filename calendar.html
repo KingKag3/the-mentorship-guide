@@ -346,7 +346,7 @@ $('account-filter').addEventListener('change', (e) => { account = e.target.value
 const SCOPES = [
   ['active', 'Still trading'],
   ['all', 'Everything'],
-  ['retired', 'Passed accounts']
+  ['retired', 'Finished accounts']
 ];
 
 const SCOPE_KEY = 'tk_cal_scope';
@@ -1196,10 +1196,19 @@ function scopeNote() {
   const off = hiddenByScope();
   if (!off) return '';
 
-  const what = scope === 'retired' ? 'still being traded' : 'passed and retired';
+  /* "Finished" rather than "passed": an account that was blown is as finished
+   * as one that passed, and calling it passed would be a cheerful lie.
+   *
+   * Built as a whole phrase because the adjective lands on opposite sides in
+   * the two cases - "1 finished account", "1 account still being traded" - and
+   * one template for both produced "1 account finished is not counted". */
+  const one = off.accounts === 1;
+  const phrase = scope === 'retired'
+    ? off.accounts + (one ? ' account' : ' accounts') + ' still being traded'
+    : off.accounts + (one ? ' finished account' : ' finished accounts');
+
   return '<p class="stat-note">' +
-    off.accounts + (off.accounts === 1 ? ' account ' : ' accounts ') + what +
-    ' ' + (off.accounts === 1 ? 'is' : 'are') + ' not counted above: ' +
+    phrase + ' ' + (one ? 'is' : 'are') + ' not counted above: ' +
     off.decisions + (off.decisions === 1 ? ' decision' : ' decisions') +
     (off.value === null ? '' : ' worth ' + fmt(off.value)) + ' this month. ' +
     '<button type="button" class="link-button" data-scope="all">Count everything</button>.</p>';

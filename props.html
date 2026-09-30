@@ -180,7 +180,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, rende
          money, tradeValue, hasResult, localDay, dbError, migrationHint,
          accountsHidden, setAccountsHidden, aliasMap,
          toNumber, fetchPaged,
-         pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES } from './app.js';
+         pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES,
+         retiredAccounts } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -322,6 +323,14 @@ for (const a of (attemptRes && attemptRes.data) || []) {
   attemptsByAccount.get(a.account).push(a);
 }
 const attemptsMissing = !!(attemptRes && attemptRes.error);
+
+/* Which accounts are finished - passed, failed or retired, unless their latest
+ * attempt says they are being traded again. The same rule the importer, the
+ * calendar and the statistics ask; it lives in app.js so the four cannot come
+ * to disagree. Recomputed on every render because a status saved on a card
+ * changes it. */
+let finished = new Set();
+const allAttempts = () => [...attemptsByAccount.values()].flat();
 
 /* Adjustments are optional the same way attempts are. A project that has not
  * run the migration keeps the page it had - every account reads as having
@@ -1846,7 +1855,7 @@ const KINDS = [
 const TABS = [
   ['funded', 'Funded'],
   ['prop', 'Evaluations'],
-  ['passed', 'Passed'],
+  ['finished', 'Finished'],
   ['other', 'Live and demo']
 ];
 
@@ -1885,12 +1894,28 @@ function outcomeOf(name) {
  * "start the funded account" - and a pile nobody opens is where an action goes
  * to be forgotten. So it moves, but it is NOT greyed: greying is for the ones
  * that are genuinely finished, and this one still wants something. */
+/* FINISHED IS A PILE, AND FAILED BELONGS IN IT.
+ *
+ * It was called Passed, and it held evaluations that had passed. Nineteen
+ * funded accounts were blown on 30 September 2026 and every one of them stayed
+ * under Funded, beside the ones still being traded - which is the page
+ * presenting nineteen dead accounts as the live picture.
+ *
+ * So the test is `retiredAccounts` now, the same rule the importer, the
+ * calendar and the statistics ask, rather than a fourth copy of it here. A
+ * funded account that has been blown and an evaluation that has passed are the
+ * same fact to every page except this one, and this one was the odd one out.
+ *
+ * A passed evaluation still carries the outstanding action - "start the funded
+ * account" - and a pile nobody opens is where an action goes to be forgotten.
+ * That is why it is not greyed until the funded account exists, and why the
+ * pile is not collapsed by default. */
 function groupOf(name, passed) {
-  if (passed.has(name)) return 'passed';
+  if (passed.has(name) || finished.has(name)) return 'finished';
   const kind = (saved.get(name) || {}).kind || 'prop';
   if (kind === 'funded') return 'funded';
   if (kind !== 'prop') return 'other';
-  return outcomeOf(name) === 'passed' ? 'passed' : 'prop';
+  return 'prop';
 }
 
 function card(name, passedTo) {
@@ -2733,10 +2758,31 @@ function renderBulk() {
       'apply it to whichever accounts it describes. Anything left blank is left alone on the ' +
       'accounts you apply to, so this can also set a single field across the lot.</p>' +
       '<form class="auth-form auth-form-wide" id="bulk-form">' +
-        '<label>What kind of account</label>' +
-        '<select name="kind"><option value="">Leave as they are</option>' +
-          KINDS.map((k) => '<option value="' + k[0] + '">' + escapeHtml(k[1]) + '</option>').join('') +
-        '</select>' +
+        '<div class="field-pair">' +
+          '<div><label>What kind of account</label>' +
+            '<select name="kind"><option value="">Leave as they are</option>' +
+              KINDS.map((k) => '<option value="' + k[0] + '">' + escapeHtml(k[1]) +
+                '</option>').join('') +
+            '</select></div>' +
+
+          /* NINETEEN ACCOUNTS ARE BLOWN IN ONE AFTERNOON, NOT ONE AT A TIME.
+           *
+           * A copier ends them together, and marking them one card at a time is
+           * nineteen edits to record a single event. Until this existed there
+           * was nowhere to do it, so it did not get done - and an account left
+           * `active` after it is dead is still offered on the importer and
+           * still averaged into the statistics, which is the site describing
+           * trading nobody can do any more. */
+          '<div><label>Where they stand <span class="opt">&mdash; finished accounts leave the ' +
+            'importer and the default view</span></label>' +
+            '<select name="status" class="role-select">' +
+              '<option value="">Leave as they are</option>' +
+              '<option value="active">Still being traded</option>' +
+              '<option value="failed">Blown</option>' +
+              '<option value="passed">Passed</option>' +
+              '<option value="retired">Retired</option>' +
+            '</select></div>' +
+        '</div>' +
         '<div class="field-pair">' +
           '<div><label>Firm</label><input name="firm" type="text" list="dl-firm" value="Apex"></div>' +
           '<div><label>Which account <span class="opt">- sets the terms</span></label>' +
@@ -2930,6 +2976,7 @@ async function applyBulk(e) {
   const patch = {};
   const candidate = {
     kind: txt('kind'),
+    status: txt('status'),
     firm: txt('firm'), size: num('size'), profit_target: num('profit_target'),
     drawdown: num('drawdown'), lock_at: num('lock_at'),
     product: txt('product'), min_days: num('min_days'), started_on: txt('started_on'),
@@ -2947,6 +2994,13 @@ async function applyBulk(e) {
   // a value for it at the same time is a mistake, and clearing is the safer
   // reading of it.
   if (form.querySelector('[name="clear_lock"]').checked) patch.lock_at = null;
+
+  /* The day it stopped, recorded once, the same way a single card records it.
+   * Only where the account has not already got one - re-marking nineteen
+   * accounts should not move the date they actually ended. */
+  if (patch.status && patch.status !== 'active') {
+    patch.settled_on = new Date().toISOString().slice(0, 10);
+  }
 
   /* Naming a product across nineteen accounts sets the mechanism on all of
    * them, but only when a size was given too - without one there is no preset
@@ -2969,6 +3023,11 @@ async function applyBulk(e) {
   const rows = picked.map((name) => {
     const row = Object.assign({ status: 'active' }, saved.get(name) || {}, patch,
       { user_id: profile.id, account: name });
+
+    // See above: a settled date already on the account is the real one.
+    if (patch.settled_on && (saved.get(name) || {}).settled_on) {
+      row.settled_on = saved.get(name).settled_on;
+    }
     // id is generated. Carrying a cached one into an upsert makes it argue with
     // itself about which row it is looking at.
     delete row.id;
@@ -3115,6 +3174,7 @@ function render() {
    * paging through everything and then filtering would give a page of three
    * cards and a pager claiming eighteen. */
   const passed = passedMap();
+  finished = retiredAccounts([...saved.values()], allAttempts());
   const piles = new Map(TABS.map(([key]) => [key, []]));
   for (const name of names) piles.get(groupOf(name, passed)).push(name);
 
@@ -3275,7 +3335,10 @@ async function forgetAccount(name) {
    *
    * A table this project has not migrated yet is not an error here: the
    * account simply has nothing in it. */
-  for (const table of ['prop_attempts', 'account_adjustments', 'prop_accounts', 'trades']) {
+  // `account_readings` joined this list when the table arrived. A reading left
+  // behind is a row nothing on the site can ever show again.
+  for (const table of ['prop_attempts', 'account_adjustments', 'account_readings',
+                       'prop_accounts', 'trades']) {
     if (table === 'trades' && !mine.length) continue;
     const { error } = await supabase.from(table).delete()
       .eq('user_id', profile.id).eq('account', name);
@@ -3288,6 +3351,9 @@ async function forgetAccount(name) {
 
   saved.delete(name);
   attemptsByAccount.delete(name);
+  for (let i = readings.length - 1; i >= 0; i--) {
+    if (readings[i].account === name) readings.splice(i, 1);
+  }
   for (let i = adjustments.length - 1; i >= 0; i--) {
     if (adjustments[i].account === name) adjustments.splice(i, 1);
   }

@@ -2027,35 +2027,55 @@ export function setStatus(selector, message, kind = 'info') {
 
 /* --------------------------- accounts that are done ------------------------
 
-   An evaluation that has passed is finished: the firm closes it and the trading
-   moves to the funded account it earned. Three pages need to know which those
-   are - the accounts page greys them, the importer stops offering them, and the
-   calendar leaves them out of the default view - and three copies of the rule
-   would not stay equal. The first page to learn about a new way of retiring an
-   account would be right and the other two would be quietly wrong.
+   An evaluation that has passed is finished: the firm closes it and the
+   trading moves to the funded account it earned. So is one that has failed,
+   and so is a funded account that has been blown - more so, because nothing
+   moves anywhere afterwards. Three pages need to know which those are - the
+   accounts page greys them, the importer stops offering them, and the calendar
+   and statistics leave them out of the default view - and three copies of the
+   rule would not stay equal. The first page to learn about a new way of
+   finishing an account would be right and the other two quietly wrong.
 
-   WHAT COUNTS AS PASSED, in the order the evidence is trusted:
+   WHAT COUNTS AS FINISHED, in the order the evidence is trusted:
 
      - a funded account names it in `from_account`. Written when the member
        pressed "start the funded account", so this is the firmest evidence
-       there is: another account exists because this one passed.
-     - the account's own `status` says passed.
-     - its LATEST attempt passed. An account that passed once, was reset and is
-       being traded again is NOT retired: what it is doing now is what counts,
-       and its third attempt says active.
+       there is: another account exists because this one passed. Nothing
+       undoes it.
+     - the account's own `status` is passed, failed or retired.
+     - its LATEST attempt says the same.
 
-   The attempts table may not exist on a project that has not run its migration.
-   That is not an error here - such a project simply has no attempts, and the
-   other two tests still apply.
+   AND THE LATEST ATTEMPT CAN UNDO THE OTHERS. An evaluation that failed, was
+   reset and is being traded again is NOT finished: what it is doing now is
+   what counts, and its third attempt says active. That is the whole reason the
+   attempts table exists, and it is why this cannot simply be a status check.
+
+   `failed` was not on this list until 30 September 2026, when nineteen funded
+   accounts were blown in a day. Greying a card is not the point - a finished
+   account that is still offered on the importer and still averaged into the
+   statistics is the page telling you about trading nobody can do any more.
+
+   The attempts table may not exist on a project that has not run its
+   migration. That is not an error here - such a project simply has no
+   attempts, and the other two tests still apply.
 -------------------------------------------------------------------------- */
 
-/** The accounts that have passed and are no longer traded. */
+/* Anything that is not `active`. `retired` is in the enum and nothing sets it
+ * yet; leaving it out would make the first thing that does silently wrong. */
+const FINISHED = new Set(['passed', 'failed', 'retired']);
+
+/** The accounts that are finished and are no longer traded. */
 export function retiredAccounts(accounts, attempts) {
   const out = new Set();
 
+  /* Accounts a funded one was born from. Held separately because this is the
+   * only evidence an attempt row cannot argue with: the funded account exists,
+   * so the evaluation behind it is over whatever its own rows say. */
+  const linked = new Set();
+
   for (const row of accounts || []) {
-    if (row.from_account) out.add(row.from_account);
-    if (row.status === 'passed') out.add(row.account);
+    if (row.from_account) { out.add(row.from_account); linked.add(row.from_account); }
+    if (FINISHED.has(row.status)) out.add(row.account);
   }
 
   // The highest-numbered attempt per account, which is the one being traded.
@@ -2064,8 +2084,12 @@ export function retiredAccounts(accounts, attempts) {
     const best = latest.get(a.account);
     if (!best || (a.attempt || 0) >= (best.attempt || 0)) latest.set(a.account, a);
   }
+
   for (const [account, a] of latest) {
-    if (a.outcome === 'passed') out.add(account);
+    if (linked.has(account)) continue;
+    if (FINISHED.has(a.outcome)) out.add(account);
+    // Reset and being traded again. The status column is stale, not the truth.
+    else out.delete(account);
   }
 
   return out;

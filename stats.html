@@ -491,7 +491,7 @@ renderAccountFilter();
 const SCOPES = [
   ['active', 'Still trading'],
   ['all', 'Everything'],
-  ['retired', 'Passed accounts']
+  ['retired', 'Finished accounts']
 ];
 
 const SCOPE_KEY = 'tk_stats_scope';
@@ -528,10 +528,14 @@ function scopeNote() {
   const off = hiddenByScope();
   if (!off) return '';
 
-  const what = scope === 'retired' ? 'still being traded' : 'passed and retired';
+  // See the calendar for why this is one phrase rather than one template.
+  const one = off.accounts === 1;
+  const phrase = scope === 'retired'
+    ? off.accounts + (one ? ' account' : ' accounts') + ' still being traded'
+    : off.accounts + (one ? ' finished account' : ' finished accounts');
+
   return '<p class="stat-note">' +
-    off.accounts + (off.accounts === 1 ? ' account ' : ' accounts ') + what + ' ' +
-    (off.accounts === 1 ? 'is' : 'are') + ' not in any of this: ' +
+    phrase + ' ' + (one ? 'is' : 'are') + ' not in any of this: ' +
     off.n + (off.n === 1 ? ' decision' : ' decisions') +
     ', ' + UNIT[unit].fmt(off.total) + '. ' +
     '<button type="button" class="link-button" data-scope="all">Count everything</button>.</p>';

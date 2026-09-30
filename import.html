@@ -407,10 +407,14 @@ let lastFile = null;
   if (retired.size) {
     const note = $('acct-note');
     if (note) {
+      /* "Finished", not "passed". Nineteen blown funded accounts are left out
+       * of this list for exactly the same reason a passed evaluation is, and
+       * telling somebody their blown accounts passed would be worse than
+       * saying nothing at all. */
       note.textContent = retired.size === 1
-        ? 'One passed account is left out of the suggestions. You can still type its name.'
-        : retired.size + ' passed accounts are left out of the suggestions. You can still type ' +
-          'their names.';
+        ? 'One finished account is left out of the suggestions. You can still type its name.'
+        : retired.size + ' finished accounts are left out of the suggestions. You can still ' +
+          'type their names.';
     }
   }
 }

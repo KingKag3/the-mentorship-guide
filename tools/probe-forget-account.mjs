@@ -38,6 +38,10 @@ const make = (state) => {
     confirm: (m) => { ctx.asked.push(m); return state.answer !== false; },
     render: () => ctx.rendered++,
     renderBulk: () => {},
+    // Readings arrived with `account-readings.sql`. One left behind is a row
+    // nothing on the site can ever show again, so the delete list grew and
+    // this had to grow with it.
+    readings: state.readings || [],
     status: [], asked: [], rendered: 0,
     supabase: { from: (table) => { const f = { table, filters: {} };
       return { delete: () => { deletes.push(f); return {
@@ -54,6 +58,8 @@ const make = (state) => {
 const t = (id, account, day, pnl) =>
   ({ id, account, opened_at: day + 'T14:30:00Z', net_pnl: pnl });
 
+const reading = (account, seen_on) => ({ id: account + seen_on, account, seen_on });
+
 let bad = 0;
 const check = (what, ok, detail) => {
   console.log((ok ? 'ok   ' : 'FAIL ') + what + (detail ? '  ' + detail : ''));
@@ -64,7 +70,8 @@ const check = (what, ok, detail) => {
 {
   const { api, ctx } = make({
     trades: [t(1, 'APEX001', '2026-08-26', -120), t(2, 'APEX001', '2026-08-24', 40)],
-    adjustments: [], names: ['APEX001', 'REAL'], saved: []
+    adjustments: [], names: ['APEX001', 'REAL'], saved: [],
+    readings: [reading('APEX001', '2026-09-29'), reading('REAL', '2026-09-29')]
   });
   const html = api.forgetBlock('APEX001', undefined);
   check('trades-only account offers removal', html.includes('data-forget="APEX001"'));
@@ -73,8 +80,10 @@ const check = (what, ok, detail) => {
   await api.forgetAccount('APEX001');
   check('confirmation names count, span and worth',
     /2 trades, .*2026.* to .*2026.*, worth -\$80\.00 between them/.test(ctx.asked[0] || ''), ctx.asked[0]);
-  check('deletes four tables', deletes.length === 4, deletes.map((d) => d.table).join(','));
-  check('trades deleted last', deletes[3] && deletes[3].table === 'trades');
+  check('deletes five tables', deletes.length === 5, deletes.map((d) => d.table).join(','));
+  check('trades deleted last', deletes[4] && deletes[4].table === 'trades');
+  check('readings among them', deletes.some((d) => d.table === 'account_readings'),
+        deletes.map((d) => d.table).join(','));
   check('every delete scoped to user and account',
     deletes.every((d) => d.filters.user_id === 'me' && d.filters.account === 'APEX001'));
   check('name gone from the list', !ctx.names.includes('APEX001'), ctx.names.join(','));
@@ -95,7 +104,7 @@ const check = (what, ok, detail) => {
   await api.forgetAccount('TEST');
   check('confirmation does not invent trades', !/\btrades?\b,/.test(ctx.asked[0] || ''), ctx.asked[0]);
   check('skips the trades table when there are none',
-    deletes.length === 3 && !deletes.some((d) => d.table === 'trades'),
+    deletes.length === 4 && !deletes.some((d) => d.table === 'trades'),
     deletes.map((d) => d.table).join(','));
   check('adjustment forgotten too', ctx.adjustments.length === 0);
   check('saved row forgotten', !ctx.saved.has('TEST'));

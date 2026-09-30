@@ -3,7 +3,30 @@
 State of the members-area build. Written for whoever picks this up next, including a fresh session
 with no memory of how any of it got here.
 
-Last updated: 29 September 2026.
+Last updated: 30 September 2026.
+
+## 30 September 2026 — failed counts as finished
+
+Nineteen funded accounts blown in a day, all still sitting under **Funded**, still on the importer's
+list and still averaged into the calendar and the statistics.
+
+- **`retiredAccounts` now counts passed, failed and retired.** It only counted passed. The case that
+  justified leaving failed out - a reset evaluation - is handled by the latest attempt, which can
+  now take an account back OFF the list as well as put it on. A funded account naming it in
+  `from_account` is the one thing nothing undoes.
+- **`props.html` had a fourth copy of the rule** and grouped by it, so a blown funded account was
+  never going to move. It asks the shared one now, and the pile is **Finished** rather than Passed.
+- **The bulk panel takes a status**, because nineteen accounts end together and marking them one
+  card at a time is how an event goes unrecorded. It stamps `settled_on` where there is none.
+- **`forgetAccount` was leaving `account_readings` behind** — added two days ago, never added to the
+  delete list.
+
+**To clear the blown PA accounts:** *Set several at once* → **Where they stand: Blown** → tick the
+nineteen (the `PA-APEX-26922` group button picks them in one click) → apply. Trades stay; the cards
+grey, leave the importer and drop out of the default calendar and statistics view. Reversible — set
+them back to *Still being traded* and they return.
+
+**Verified:** all nine probes and six checkers. **Not seen in a browser** against the live data.
 
 ## 29 September 2026 (later) — and a way in when pasting is blocked
 

@@ -1795,3 +1795,57 @@ syntax check passed, because what was left was valid JavaScript.
 August to pin down one account-removal rule earned its keep by refusing to find the function at all.
 The lesson is not about probes - it is that a slice between two anchors needs the second anchor
 checked, so the replacement now asserts the span is small before it writes anything.
+
+---
+
+## 2026-09-30 — Failed is finished
+
+Nineteen funded accounts were blown in a day. Every one of them stayed under **Funded** beside
+nothing, was still offered on the importer, and was still averaged into the calendar and the
+statistics.
+
+**`retiredAccounts` only counted `passed`.** The reasoning for leaving `failed` out was a failed
+evaluation being reset and traded again - which is real, and is already handled by the latest
+attempt. Excluding every failed account to cover that case meant the site kept describing trading
+nobody can do any more.
+
+**Decided:** passed, failed and retired all count as finished. `retired` is in the enum and nothing
+sets it yet; leaving it out would make the first thing that does silently wrong.
+
+**And the latest attempt can now undo it.** It could only ever add before. An account whose status
+says failed but whose third attempt says active is being traded again - the status column is stale,
+not the truth - so a live latest attempt takes it back off the list. The one thing that cannot be
+undone is a funded account naming it in `from_account`: that account exists because this one passed,
+and no later row changes it.
+
+### The pile was called Passed, and it had its own copy of the rule
+
+`props.html` grouped by a fourth implementation - `outcomeOf(name) === 'passed'` - so a blown funded
+account was never going to land anywhere but Funded whatever `retiredAccounts` said. It asks the
+shared rule now, and the pile is **Finished**: a funded account that has been blown and an
+evaluation that has passed are the same fact to every page, and this was the one treating them
+differently.
+
+A passed evaluation still carries the outstanding action - *start the funded account* - so it is
+still not greyed until the funded account exists.
+
+### Nineteen accounts end together, so they are marked together
+
+There was nowhere to set a status in bulk, which meant recording one event took nineteen card edits,
+which meant it did not get recorded. The bulk panel takes a status now, and stamps `settled_on`
+where the account has not already got one - re-marking should not move the day it actually ended.
+
+### Wording
+
+"Passed accounts" became "Finished accounts" on the calendar and the statistics, and the note reads
+"3 finished accounts are not counted above". Telling somebody their blown accounts passed would be
+worse than saying nothing. The phrase is built whole rather than from one template, because the
+adjective falls on opposite sides of the noun in the two scopes and one template produced *"1
+account finished is not counted"*.
+
+### And a table that had been left out of a delete
+
+`forgetAccount` deletes attempts, adjustments, the account and its trades. `account_readings`
+arrived two days ago and was never added, so forgetting an account left readings behind - rows
+nothing on the site can ever show again. Fixed, and `tools/probe-forget-account.mjs` counts the
+tables now rather than trusting the list.

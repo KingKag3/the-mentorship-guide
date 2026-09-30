@@ -47,6 +47,7 @@ const grab = (text, signature) => {
 };
 
 const { retiredAccounts } = new Function(
+  src.match(/const FINISHED = [^;]+;/)[0] + '\n' +
   grab(src, 'export function retiredAccounts(').replace('export ', '') +
   '; return { retiredAccounts };')();
 
@@ -120,9 +121,53 @@ const has = (set, name) => set.has(name);
 }
 
 {
+  /* FAILED IS FINISHED TOO, since 30 September 2026.
+   *
+   * It was not, and the reasoning was about a failed evaluation being reset.
+   * That case is handled below by the latest attempt; leaving every failed
+   * account out of the rule meant nineteen blown funded accounts stayed on the
+   * importer's list and in the statistics, which is the page describing
+   * trading nobody can do any more. */
   const out = retiredAccounts([{ account: 'B', status: 'failed' }],
                               [{ account: 'B', attempt: 1, outcome: 'failed' }]);
-  check('a failed account is not retired', !has(out, 'B'), [...out]);
+  check('a failed account is finished', has(out, 'B'), [...out]);
+
+  check('status alone is enough when there are no attempts',
+        has(retiredAccounts([{ account: 'C', status: 'failed' }], []), 'C'));
+
+  check('and so is a failed latest attempt over an active status',
+        has(retiredAccounts([{ account: 'D', status: 'active' }],
+                            [{ account: 'D', attempt: 2, outcome: 'failed' }]), 'D'));
+}
+
+{
+  /* THE CASE THE OLD RULE WAS PROTECTING, done properly.
+   *
+   * Failed on attempt two, reset, trading again on three. The status column is
+   * stale; the attempt is not. */
+  const out = retiredAccounts(
+    [{ account: 'E', status: 'failed' }],
+    [{ account: 'E', attempt: 2, outcome: 'failed' },
+     { account: 'E', attempt: 3, outcome: 'active' }]);
+  check('failed then reset then traded again is NOT finished', !has(out, 'E'), [...out]);
+}
+
+{
+  /* ...but a funded account existing is not undone by anything. The evaluation
+   * behind it is over whatever its own rows say. */
+  const out = retiredAccounts(
+    [{ account: 'PA-1', kind: 'funded', from_account: 'EVAL-1' },
+     { account: 'EVAL-1', status: 'active' }],
+    [{ account: 'EVAL-1', attempt: 4, outcome: 'active' }]);
+  check('a linked evaluation stays finished even with a live attempt',
+        has(out, 'EVAL-1'), [...out]);
+}
+
+{
+  // `retired` is in the enum and nothing sets it yet. Leaving it out would
+  // make the first thing that does silently wrong.
+  check('a retired status counts',
+        has(retiredAccounts([{ account: 'F', status: 'retired' }], []), 'F'));
 }
 
 // ------------------------------------------- what the calendar does with it
@@ -203,7 +248,7 @@ const summaryNote = ({ trades, retired, scope, account = 'all', metric = 'dollar
 
   const note = summaryNote({ trades, retired, scope: 'active' });
   check('the note names how many accounts are out',
-        note.includes('2 accounts passed and retired'), note);
+        note.includes('2 finished accounts are not counted'), note);
   check('and collapses the copies to one decision', note.includes('1 decision'), note);
   check('and gives what they made', note.includes('$1,000'), note);
   check('and offers the whole picture', note.includes('data-scope="all"'));
@@ -223,7 +268,7 @@ const summaryNote = ({ trades, retired, scope, account = 'all', metric = 'dollar
   const one = summaryNote({ trades: [fill('APEX-26922-1672', 20)],
                             retired: new Set(['APEX-26922-1672']), scope: 'active' });
   check('one account reads as one account',
-        one.includes('1 account passed and retired is not counted'), one);
+        one.includes('1 finished account is not counted'), one);
 }
 
 {

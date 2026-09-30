@@ -2929,16 +2929,51 @@ textarea + .field-note,
 .readout .callout { margin: var(--s-4) 0 0; }
 
 /* A bar drawn with a width rather than a chart library. */
+/* THE LABEL COLUMN SIZES TO ITS CONTENT, WITHIN LIMITS.
+ *
+ * It was a flat `minmax(90px, 150px)`, which was fine while the label was a
+ * name. Once the name carries a tag saying what kind of account it is,
+ * `APEX-26922-1704 PROP` is past 150px and the tag drops onto a second line -
+ * so the tag reads as a caption under the row rather than as part of it, and
+ * the rows stop lining up with each other.
+ *
+ * `fit-content(45%)` lets the column take the widest label there actually is,
+ * capped at 45% of the row - an account name is member-supplied and could be
+ * anything, and past that the bar, which is the thing being compared, loses
+ * more than the label gains. Every row in the grid shares the resulting width,
+ * so they still line up.
+ *
+ * NOT `minmax(90px, min(45%, max-content))`, which was the first attempt and
+ * is invalid twice over: `max-content` is not allowed inside `min()`, and
+ * `fit-content()` is not allowed inside `minmax()`. An invalid
+ * `grid-template-columns` is dropped in its entirety, so the grid fell back to
+ * one column and every bar row became three stacked lines - a much bigger
+ * break than the wrap being fixed, and silent. The floor is a `min-width` on
+ * the cell instead.
+ */
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(90px, 150px) 1fr auto;
+  grid-template-columns: fit-content(45%) 1fr auto;
   gap: var(--s-3);
   align-items: center;
   padding: 7px 0;
   font-size: var(--step--1);
 }
 
-.bar-row > span:first-child { color: var(--ink-500); }
+/* The name and its tag are one thing and break as one. Without this the column
+ * sizes to `max-content` and the browser wraps inside it anyway, which is the
+ * bug with an extra step. */
+.bar-row > span:first-child {
+  color: var(--ink-500);
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+/* ...unless there is genuinely no room, where wrapping beats overflowing off
+ * the side of a phone. */
+@media (max-width: 560px) {
+  .bar-row > span:first-child { white-space: normal; }
+}
 
 .bar-track {
   position: relative;

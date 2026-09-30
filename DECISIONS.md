@@ -2053,3 +2053,28 @@ it.
 `not set up`, in plain grey, on any card whose kind has never been recorded. `.tag.time` is already
 the live account's colour and `.tag.warn` does not exist; an alarm colour would overstate it anyway,
 because this is a prompt rather than a problem.
+
+---
+
+## 2026-09-30 (one line) — The label column sizes to its label
+
+With a kind tag beside the name, `APEX-26922-1704 PROP` is past the 150px the label column was fixed
+at, so the tag dropped onto a second line - reading as a caption under the row rather than as part
+of it, and leaving the rows no longer lining up with each other.
+
+`fit-content(45%)` takes the widest label there actually is and caps it at 45% of the row. Every row
+in the grid shares the resulting width, so they still align, and past 45% the bar - which is the
+thing being compared - would lose more than the label gains. The name and its tag are `nowrap` so
+they break as one unit, relaxed under 560px where wrapping beats running off the side of a phone.
+
+### The first attempt broke every bar on the site, silently
+
+`minmax(90px, min(45%, max-content))` is invalid twice over: `max-content` is not allowed inside
+`min()`, and `fit-content()` is not allowed inside `minmax()`. **An invalid
+`grid-template-columns` is dropped in its entirety**, so the grid fell back to one column and every
+bar row on four pages became three stacked lines.
+
+Nothing warned. The CSS parsed, the page rendered, and the break was four times larger than the wrap
+being fixed - visible only because it was looked at. A stylesheet has no equivalent of the syntax
+check every other file here gets, which is the argument for rendering a change rather than reading
+it.

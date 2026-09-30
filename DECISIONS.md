@@ -1946,3 +1946,41 @@ rather than failing to find it.
 **The lesson is not about upserts.** It is that a hand-written UPDATE is silent about the rows it
 did not find, so anything run there needs a count checked afterwards - which is why every migration
 in this repo ends with a verification query and why the ones offered in conversation now do too.
+
+---
+
+## 2026-09-30 (the dropdown) — The tab picks the pile, the list narrows within it
+
+The account filter offered every account that had ever traded and did not change when the scope did.
+By the end of September that was forty-eight names, forty-two of them finished, with two live
+accounts buried in the middle - and moving between **Still trading**, **Everything** and **Finished
+accounts** left the list identical. The tabs read as a filter on the page rather than on the list,
+which is backwards.
+
+**Decided:** the filter sits **below** the tabs and is built from them. Same on the calendar and the
+statistics.
+
+### It retires a rule rather than adding one
+
+*"Asking for an account by name beats the scope"* was written because a finished account was offered
+under Still trading, and being shown an empty month after picking one would have been the page
+arguing with the request. Scope the list and that cannot happen - so the exception has nothing left
+to do, and keeping it would invert its own purpose: the only way to reach it now is a stale value in
+the select, which it would answer by silently ignoring the tab.
+
+`tools/probe-retired-accounts.mjs` carried a check asserting the old behaviour. It is now the
+opposite check, with the reasoning beside it, rather than deleted - a rule that was right for six
+days and then wrong is worth being able to read.
+
+### What changes when the tab moves
+
+A selection the new pile does not hold cannot survive the move, so it goes back to **All accounts**.
+Leaving it would filter the page to an account the tab does not contain: an empty page, with the
+control that caused it naming a reason nobody can see.
+
+On the statistics page the kind filters are scoped with it, for the same reason - offering *Funded
+accounts* under Still trading when every funded account is blown is a choice that leads nowhere.
+
+### And the control hides itself when it is not a choice
+
+A pile with one account in it says nothing the tab has not already said.

@@ -187,10 +187,20 @@ const has = (set, name) => set.has(name);
   check('everything scope keeps both',
         all('APEX-26922-1672') && all('APEX-26922-1679'));
 
-  // Picking a retired account by name and being shown an empty month would be
-  // the page arguing with what was just asked for.
+  /* A NAMED ACCOUNT NO LONGER BEATS THE SCOPE, AND MUST NOT.
+   *
+   * It did, because the filter offered every account that had ever traded
+   * whatever the tab said - so picking a finished one under Still trading and
+   * being shown an empty month would have been the page arguing with the
+   * request.
+   *
+   * The filter is built from this function now, so an out-of-scope account
+   * cannot be chosen at all. An exception for choosing one would only ever
+   * fire on a stale value left in the select, and would then silently ignore
+   * the tab - which is the failure the exception was written to prevent,
+   * pointing the other way. */
   const named = makeInScope(retired, 'active', 'APEX-26922-1672');
-  check('a named account beats the scope', named('APEX-26922-1672'));
+  check('the scope holds even with that account named', !named('APEX-26922-1672'));
 
   // A trade with no account recorded is not retired, and belongs in the
   // default view rather than nowhere.
@@ -278,6 +288,39 @@ const summaryNote = ({ trades, retired, scope, account = 'all', metric = 'dollar
   const note = summaryNote({ trades, retired: new Set(['X']), scope: 'active' });
   check('an unpriced month gives the count without inventing a total',
         note.includes('1 decision this month') && !note.includes('worth'), note);
+}
+
+// ------------------------------------- the list the control offers
+
+/* THE TAB PICKS THE PILE; THE LIST NARROWS WITHIN IT.
+ *
+ * Forty-two accounts finished in a fortnight and the filter went on offering
+ * all of them, unchanged, while the tabs above it moved - so the tabs read as
+ * a filter on the page rather than on the list, which is backwards. */
+const accountsInScope = (all, retired, scope) => new Function(
+  'accounts', 'retired', 'scope', 'account',
+  grab(cal, 'function inScope(') + '\n' +
+  grab(cal, 'function accountsInScope(') + '; return accountsInScope();')(
+    all, retired, scope, 'all');
+
+{
+  const all = ['APEX-1672', 'APEX-1673', 'APEX-1679', 'APEX-1680'];
+  const retired = new Set(['APEX-1672', 'APEX-1673']);
+
+  check('still trading offers only the live ones',
+        accountsInScope(all, retired, 'active').join() === 'APEX-1679,APEX-1680',
+        accountsInScope(all, retired, 'active'));
+
+  check('finished offers only the finished ones',
+        accountsInScope(all, retired, 'retired').join() === 'APEX-1672,APEX-1673',
+        accountsInScope(all, retired, 'retired'));
+
+  check('everything offers everything',
+        accountsInScope(all, retired, 'all').length === 4);
+
+  // A pile with nothing in it offers nothing rather than falling back to all.
+  check('an empty pile is empty',
+        accountsInScope(['APEX-1679'], new Set(), 'retired').length === 0);
 }
 
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');

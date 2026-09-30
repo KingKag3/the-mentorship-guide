@@ -78,12 +78,15 @@
     </label>
   </div>
 
+  <!-- The tabs first: the list under them is what they hold, and it changes
+       with them. Above them it read as a filter on the page rather than on the
+       list, and offered forty-two accounts that finished months ago. -->
+  <div id="stats-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
+
   <div class="cal-toggle" id="account-toggle" hidden>
     <label for="account-filter">Account</label>
     <select id="account-filter" class="role-select cal-account" aria-label="Filter by account"></select>
   </div>
-
-  <div id="stats-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
 
   <div class="cal-toggle" id="range-toggle">
     <label class="check-line">
@@ -281,23 +284,39 @@ const label = (n) => (n && hidden ? (alias.get(n) || 'Account') : n);
 
 // Only worth offering when there is a choice to make. Rebuilt rather than
 // patched, because the aliases change under it when the privacy toggle moves.
+/* THE LIST IS WHAT THE TAB ABOVE IT HOLDS.
+ *
+ * Every account that has ever traded is a list of history once most of them
+ * are finished, and it did not change when the scope did - so the tabs read as
+ * a filter on the page and not on the list, which is backwards.
+ *
+ * The kinds are scoped with it: offering "Funded accounts" under Still trading
+ * when every funded account is blown is a choice that leads to an empty page.
+ */
+function accountsInScope() {
+  return accounts.filter(inScope);
+}
+
 function renderAccountFilter() {
   const sel = document.getElementById('account-filter');
+  const mine = accountsInScope();
 
   const option = (value, text) =>
     '<option value="' + escapeHtml(value) + '"' +
       (value === account ? ' selected' : '') + '>' + escapeHtml(text) + '</option>';
 
-  /* The kinds are offered only where the journal holds both. One funded account
-   * and nothing else is not a choice, it is a list with the answer in it. */
-  const kinds = new Set(accounts.map((a) => kindOf(a)));
+  /* Offered only where the pile holds both. One funded account and nothing
+   * else is not a choice, it is a list with the answer in it. */
+  const kinds = new Set(mine.map((a) => kindOf(a)));
   const groups = kinds.size > 1
     ? KIND_FILTERS.filter(([key]) => kinds.has(key.slice(5)))
         .map(([key, name]) => option(key, name)).join('')
     : '';
 
   sel.innerHTML = option('all', 'All accounts') + groups +
-    accounts.map((a) => option(a, label(a))).join('');
+    mine.map((a) => option(a, label(a))).join('');
+
+  document.getElementById('account-toggle').hidden = mine.length < 2;
 }
 
 document.getElementById('account-filter')
@@ -466,14 +485,12 @@ function matchesAccount(name) {
   return (name || '') === account;
 }
 
-/* Whether ONE account was asked for by name, which is the case that overrides
- * the scope below. Choosing a kind is not naming an account: it narrows what is
- * counted without saying which, so the scope still applies inside it. */
+/* Whether ONE account was asked for by name. It no longer overrides the scope
+ * - the filter is built from the scope, so an out-of-scope account cannot be
+ * chosen - but two things still turn on it: a member looking at one account is
+ * not owed a count of the others, and a scope control that cannot change what
+ * is on screen should not be on screen. */
 const namedAccount = () => account !== 'all' && !account.startsWith('kind:');
-
-// Built here rather than where the element is wired: the kinds it offers are
-// not known until `prop_accounts` has loaded and `kindOf` exists.
-renderAccountFilter();
 
 /* ---------------------- which accounts are being counted -------------------
 
@@ -499,11 +516,19 @@ let scope = (() => {
   try { return localStorage.getItem(SCOPE_KEY) || 'active'; } catch { return 'active'; }
 })();
 
+/* No exception for a named account any more. It existed because the filter
+ * offered every account whatever the tab said; the filter is built from this
+ * function now, so an out-of-scope account cannot be chosen. */
 function inScope(name) {
-  if (scope === 'all' || namedAccount()) return true;
+  if (scope === 'all') return true;
   const done = retired.has(name || '');
   return scope === 'retired' ? done : !done;
 }
+
+/* Built here rather than where the element is wired, because it needs three
+ * things that arrive late: `kindOf` from `prop_accounts`, and the scope it
+ * filters by, which is declared immediately above. */
+renderAccountFilter();
 
 function closedNow() {
   return rows.filter((r) => UNIT[unit].has(r) && inRange(r) && inScope(r.account) &&
@@ -631,7 +656,24 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   scope = btn.dataset.scope;
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* private window */ }
+
+  /* A CHOICE THE NEW PILE DOES NOT HOLD CANNOT SURVIVE THE MOVE.
+   *
+   * Leaving a finished account selected while moving to Still trading would
+   * filter the page to an account the tab does not contain: an empty page,
+   * with the control that caused it naming a reason nobody can see. Back to
+   * all accounts, which is what the tab means. The kind filters go the same
+   * way when the new pile holds only one kind. */
+  if (account !== 'all') {
+    const mine = accountsInScope();
+    const stillThere = account.startsWith('kind:')
+      ? mine.some((a) => kindOf(a) === account.slice(5))
+      : mine.includes(account);
+    if (!stillThere) account = 'all';
+  }
+
   clearFindingsCache();
+  renderAccountFilter();
   render();
 });
 
@@ -686,7 +728,7 @@ function render() {
 
   document.getElementById('unit-toggle').hidden = !(rNow && moneyCount());
   document.getElementById('risk-panel').hidden = !accounts.length;
-  document.getElementById('account-toggle').hidden = accounts.length < 2;
+  // `renderAccountFilter` owns this now: it knows how many the pile holds.
 
   // Says where each R came from. "18 of 171 measured, 153 from a figure you
   // gave us" is a different claim from "171 trades measured in R", and the page

@@ -5,6 +5,20 @@ with no memory of how any of it got here.
 
 Last updated: 30 September 2026.
 
+## 30 September 2026 (the dropdown) — scoped to the tab above it
+
+The account filter offered all forty-eight accounts whatever the tab said. It sits below the tabs
+now, on both the calendar and the statistics, and holds what the tab holds. A selection the new pile
+does not contain resets to *All accounts* rather than filtering the page to nothing; the kind
+filters on the statistics page are scoped the same way; and the control hides itself when the pile
+has one account in it.
+
+**It removes a rule.** *"A named account beats the scope"* existed because a finished account could
+be picked under Still trading. It cannot now, so the exception would only ever fire on a stale
+value and would then ignore the tab. The probe's check for it is inverted rather than deleted.
+
+**Verified:** eleven probes, six checkers. **Not seen in a browser** against the live data.
+
 ## 30 September 2026 (the update that matched nothing)
 
 Four evaluations were marked failed in the SQL editor and stayed active. They had traded for weeks

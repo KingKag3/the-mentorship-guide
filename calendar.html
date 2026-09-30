@@ -83,11 +83,17 @@
       <input type="radio" name="metric" value="r">
       <span>R multiple</span>
     </label>
+  </div>
+
+  <!-- THE TABS COME FIRST, AND THE LIST BELOW THEM IS WHAT THEY HOLD.
+       The filter used to sit above the scope and offer every account that had
+       ever traded - forty-two of them finished months ago - which made the
+       tabs look like a view of a list that did not change when they moved. -->
+  <div id="cal-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
+  <div class="cal-toggle">
     <select id="account-filter" class="role-select cal-account" hidden
             aria-label="Filter by account"></select>
   </div>
-
-  <div id="cal-scope" class="seg" role="tablist" aria-label="Which accounts to count" hidden></div>
 
   <div id="summary"></div>
   <div id="grid" class="cal-scroll"></div>
@@ -321,10 +327,41 @@ let alias = aliasMap(accounts);
 const label = (n) => (n && hidden ? (alias.get(n) || 'Account') : n);
 let account = 'all';
 
-$('account-filter').innerHTML =
-  '<option value="all">All accounts</option>' +
-  accounts.map((a) => '<option value="' + escapeHtml(a) + '">' + escapeHtml(label(a)) + '</option>').join('');
-$('account-filter').hidden = accounts.length === 0;
+/* ---------------- THE LIST IS WHAT THE TAB ABOVE IT HOLDS -------------------
+
+   It used to be every account that had ever traded. By the end of a year that
+   is a list of history with four live accounts buried in it, and it did not
+   change when the scope did - so the tabs read as a filter on the page and not
+   on the list, which is exactly backwards.
+
+   Scoped, it is a much smaller and more honest control: the tab picks the
+   pile, the list narrows within it.
+
+   AND IT RETIRES A RULE. "Asking for an account by name beats the scope"
+   existed because a finished account was offered under `Still trading` and
+   being shown an empty month would have been the page arguing with the
+   request. It cannot be offered now, so the override has nothing to do - and
+   keeping it would mean the one remaining way to reach it, a stale value left
+   in the select, silently ignored the tab.
+-------------------------------------------------------------------------- */
+
+function accountsInScope() {
+  return accounts.filter(inScope);
+}
+
+function renderAccountFilter() {
+  const mine = accountsInScope();
+  const sel = $('account-filter');
+
+  // A choice of one is not a choice: with a single account in the pile the
+  // control says nothing the tab has not already said.
+  sel.hidden = mine.length < 2;
+
+  sel.innerHTML = '<option value="all">All accounts</option>' +
+    mine.map((a) => '<option value="' + escapeHtml(a) + '"' +
+      (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+}
+
 $('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
 
 /* ---------------------- what the calendar is counting ----------------------
@@ -360,13 +397,12 @@ let byDay = new Map();
 
 /* Is this account in the scope on screen?
  *
- * ASKING FOR ONE ACCOUNT BY NAME BEATS THE SCOPE. The filter still lists every
- * account that has ever traded, retired ones included, and picking one of them
- * and being shown an empty month would be the page arguing with the member
- * about what they just asked for. The scope decides what "all accounts" means;
- * a name means that name. */
+ * No exception for a named account any more. It used to be needed because the
+ * filter offered every account whatever the tab said; the filter is built from
+ * this function now, so an out-of-scope account cannot be chosen and an
+ * exception for choosing one would only ever fire on a stale value. */
 function inScope(name) {
-  if (scope === 'all' || account !== 'all') return true;
+  if (scope === 'all') return true;
   const done = retired.has(name || '');
   return scope === 'retired' ? done : !done;
 }
@@ -1172,8 +1208,8 @@ function redrawAround() {
  * So whenever anything is hidden, it is named, counted, and its total is given.
  * Nothing disappears quietly. */
 function hiddenByScope() {
-  // `inScope` lets a named account through whatever the scope says, so with one
-  // picked nothing is being hidden and there is nothing to report.
+  // Only while the whole pile is on screen. Somebody who asked for one account
+  // is not owed a count of the others.
   if (scope === 'all' || account !== 'all' || !hasRetired) return null;
 
   const year = cursor.getFullYear();
@@ -1748,10 +1784,7 @@ for (const radio of document.querySelectorAll('input[name="metric"]')) {
     hidden = box.checked;
     setAccountsHidden(hidden);
     render();
-    $('account-filter').innerHTML =
-      '<option value="all">All accounts</option>' +
-      accounts.map((a) => '<option value="' + escapeHtml(a) + '"' +
-        (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+    renderAccountFilter();
   });
 }
 
@@ -1772,15 +1805,27 @@ if (hasRetired) {
     if (!btn) return;
     scope = btn.dataset.scope;
     try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* private window */ }
+
+    /* AN ACCOUNT THAT IS NO LONGER IN THE PILE CANNOT STAY SELECTED.
+     *
+     * Moving from Finished to Still trading with a finished account chosen
+     * would leave the page filtered to an account the tab does not hold: an
+     * empty month, with a control naming the reason and no way to see that it
+     * was the reason. Back to all accounts, which is what the tab means. */
+    if (account !== 'all' && !inScope(account)) account = 'all';
+
     for (const b of $('cal-scope').querySelectorAll('[data-scope]')) {
       const on = b.dataset.scope === scope;
       b.classList.toggle('is-on', on);
       b.setAttribute('aria-selected', String(on));
     }
+
+    renderAccountFilter();
     regroup();
   });
 }
 
+renderAccountFilter();
 regroup();
 </script>
 

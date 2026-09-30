@@ -1984,3 +1984,31 @@ accounts* under Still trading when every funded account is blown is a choice tha
 ### And the control hides itself when it is not a choice
 
 A pile with one account in it says nothing the tab has not already said.
+
+---
+
+## 2026-09-30 (the live tag) — Saying what an account is, off the accounts page
+
+`prop_accounts.kind` has existed since the table did, and only the accounts page ever showed it.
+Everywhere else a live margin account at a broker and one of nineteen copied evaluations were the
+same name in the same list.
+
+**That is the one distinction on this site that changes what a figure MEANS.** An evaluation's
+$4,000 loss is a fee already paid for a test that failed. A live account's $4,000 loss is money.
+Reading them off the same list as the same kind of thing is the sort of quiet wrongness this project
+exists to avoid.
+
+**Decided:** `kindTag` and `kindWord` move into `app.js` and are used on the calendar and the
+statistics - in the account breakdown, and in the filter, where an `<option>` takes no markup so the
+same fact arrives as a word.
+
+**Only where it is not the default.** Every account here is an evaluation unless somebody says
+otherwise, so tagging all of them `evaluation` would be noise against which the one tag worth seeing
+could not stand out. The accounts page keeps naming all four, because that is the page where the
+kind is being answered rather than reported - a card saying nothing there would read as a card
+nobody has got to yet. It calls the shared helper for the other three rather than keeping a second
+copy.
+
+**On the statistics page the kind rides with the grouping key, not with the drawing.** *By account*
+groups by whatever the key function returns, so two accounts of different kinds must not be able to
+collapse into one row.

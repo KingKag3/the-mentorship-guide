@@ -181,7 +181,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, rende
          accountsHidden, setAccountsHidden, aliasMap,
          toNumber, fetchPaged,
          pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES,
-         retiredAccounts } from './app.js';
+         retiredAccounts, kindTag as sharedKindTag } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -1363,18 +1363,20 @@ function sameWayTwice(name, all) {
  * plain: a quiet tag is the correct amount of attention for money that is not
  * real.
  */
+/* THIS PAGE NAMES ALL FOUR, and the shared one does not.
+ *
+ * `kindTag` in app.js is silent on an evaluation, because everywhere else an
+ * evaluation is the default and tagging every one of them would bury the one
+ * tag worth seeing. Here the kind is the question being answered rather than
+ * reported, so a card that says nothing would read as a card nobody has got to
+ * yet. */
 function kindTag(kind) {
   const k = kind || 'prop';
-  const tone = k === 'live' ? ' time' : k === 'prop' ? ' info'
-             : k === 'funded' ? ' bull' : '';
-  const why = {
-    prop: 'A firm set the target and the drawdown',
-    funded: 'A passed evaluation. No target to reach - a payout threshold instead',
-    live: 'Your own money. Nothing to pass, and nothing to reset',
-    demo: 'Practice. Kept out of anything that claims to be a record'
-  }[k] || '';
-  return '<span class="tag' + tone + '" title="' + escapeHtml(why) + '">' +
-    escapeHtml(k) + '</span>';
+  if (k === 'prop') {
+    return '<span class="tag info" title="A firm set the target and the drawdown">' +
+      'prop</span>';
+  }
+  return sharedKindTag(k).trim();
 }
 
 /* Alive is green, dead is red, and stopped is neither.

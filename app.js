@@ -2053,6 +2053,46 @@ export function setStatus(selector, message, kind = 'info') {
 }
 
 
+/* ------------------------ saying what an account is ------------------------
+
+   `prop_accounts.kind` has existed since the table did, and only the accounts
+   page ever showed it. Everywhere else - the calendar, the statistics, every
+   list of account names - a live margin account at a broker and one of
+   nineteen copied evaluations looked exactly alike, which is the one
+   distinction on this site that changes what a number MEANS. An evaluation's
+   $4,000 loss is a fee already paid; a live account's is money.
+
+   ONLY WHERE IT IS NOT THE DEFAULT. Every account here is an evaluation unless
+   somebody says otherwise, so tagging them all `evaluation` would be noise
+   against which the one tag worth seeing would not stand out. The accounts
+   page still names all four, because that is the page where the question is
+   being answered rather than reported.
+-------------------------------------------------------------------------- */
+
+const KIND_TONE = { live: 'time', funded: 'bull', demo: '' };
+
+const KIND_WHY = {
+  funded: 'A passed evaluation. No target to reach - a payout threshold instead',
+  live: 'Your own money. Nothing to pass, and nothing to reset',
+  demo: 'Practice. Kept out of anything that claims to be a record'
+};
+
+/** A short tag for an account whose kind is worth stating. '' for an evaluation. */
+export function kindTag(kind) {
+  const k = String(kind || 'prop');
+  if (!(k in KIND_WHY)) return '';
+
+  const tone = KIND_TONE[k] ? ' ' + KIND_TONE[k] : '';
+  return ' <span class="tag' + tone + '" title="' + escapeHtml(KIND_WHY[k]) + '">' +
+    escapeHtml(k) + '</span>';
+}
+
+/** The same thing where markup cannot go - an <option>, a title attribute. */
+export function kindWord(kind) {
+  const k = String(kind || 'prop');
+  return k in KIND_WHY ? ' \u2014 ' + k : '';
+}
+
 /* --------------------------- accounts that are done ------------------------
 
    An evaluation that has passed is finished: the firm closes it and the

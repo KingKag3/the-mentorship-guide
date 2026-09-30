@@ -170,7 +170,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          pageSize, setPageSize, pageSlice, renderPager, barTrack,
          loadDayNotes, dayNoteEditor, dayKeyLabel, todayKey, dayNotesDirty,
-         contractFor, migrationHint, retiredAccounts } from './app.js';
+         contractFor, migrationHint, retiredAccounts, kindTag, kindWord } from './app.js';
 import { barChart, tradeMap, sessionRun, barSymbol } from './chart.js';
 import { openEditor, COLOURS } from './chart-draw.js';
 import { longestRun, streakOdds } from './analytics.js';
@@ -263,6 +263,17 @@ const targets = new Map();
 let retired = new Set();
 let hasRetired = false;
 
+/* WHAT EACH ACCOUNT IS, which this page has always had in hand and never said.
+ *
+ * `kind` was already being selected - it decided whether an account got a
+ * target ceiling on its bar - and was never shown, so a live margin account at
+ * a broker and one of nineteen copied evaluations were the same name in the
+ * same list. That is the one distinction here that changes what a figure
+ * means: an evaluation's loss is a fee already paid, a live account's is
+ * money. */
+const kinds = new Map();
+const kindOf = (name) => kinds.get(name || '') || 'prop';
+
 {
   const { data: accts } = await supabase
     .from('prop_accounts')
@@ -279,6 +290,7 @@ let hasRetired = false;
   hasRetired = [...retired].some((name) => traded.has(name));
 
   for (const a of accts || []) {
+    kinds.set(a.account, a.kind || 'prop');
     const t = toNumber(a.profit_target);
     // `funded` has no target by definition, and `live` is your own money.
     if ((a.kind || 'prop') === 'prop' && Number.isFinite(t) && t > 0) {
@@ -357,9 +369,11 @@ function renderAccountFilter() {
   // control says nothing the tab has not already said.
   sel.hidden = mine.length < 2;
 
+  // An <option> takes no markup, so the same fact arrives as a word.
   sel.innerHTML = '<option value="all">All accounts</option>' +
     mine.map((a) => '<option value="' + escapeHtml(a) + '"' +
-      (a === account ? ' selected' : '') + '>' + escapeHtml(label(a)) + '</option>').join('');
+      (a === account ? ' selected' : '') + '>' +
+      escapeHtml(label(a) + kindWord(kindOf(a))) + '</option>').join('');
 }
 
 $('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
@@ -1422,7 +1436,7 @@ function accountBreakdown(rows) {
       const v = dayValue(s.t);
       const of = useTargets ? targets.get(s.name) : undefined;
       return '<div class="bar-row">' +
-        '<span>' + escapeHtml(label(s.name)) + '</span>' +
+        '<span>' + escapeHtml(label(s.name)) + kindTag(kindOf(s.name)) + '</span>' +
         barTrack(v ?? 0, of || scale) +
         '<b>' + fmt(v) + (of ? ' <span class="acct-muted">/ ' + money(of) + '</span>' : '') + '</b>' +
       '</div>';

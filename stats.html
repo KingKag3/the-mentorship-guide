@@ -199,7 +199,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, renderToolRail,
          dbError, money, localDay,
          accountsHidden, setAccountsHidden, aliasMap, distinctDecisions,
          decisionKey, fetchPaged, barTrack, checklistState,
-         wasWrittenUp, retiredAccounts } from './app.js';
+         wasWrittenUp, retiredAccounts, kindTag, kindWord } from './app.js';
 import { groupBy, drawdown as drawdownWith, median,
          wilson, tStat, bootstrap, hhmm, humanSeconds, sequenceOfDecisions,
          permutationExtremes, permutationStatistic,
@@ -313,8 +313,9 @@ function renderAccountFilter() {
         .map(([key, name]) => option(key, name)).join('')
     : '';
 
+  // An <option> takes no markup, so the kind arrives as a word rather than a tag.
   sel.innerHTML = option('all', 'All accounts') + groups +
-    mine.map((a) => option(a, label(a))).join('');
+    mine.map((a) => option(a, label(a) + kindWord(kindOf(a)))).join('');
 
   document.getElementById('account-toggle').hidden = mine.length < 2;
 }
@@ -2724,7 +2725,12 @@ function statCard(label, value, note) {
 
 function renderSlices(list) {
   const sections = [
-    ['By account', 'Which account is carrying you, and which is bleeding.', (r) => label(r.account)],
+    /* The kind rides along with the name here rather than being added at the
+     * drawing, because this slice GROUPS by whatever the key function returns
+     * - two accounts of different kinds must not be able to collapse into one
+     * row, and a row has to say which it is. */
+    ['By account', 'Which account is carrying you, and which is bleeding.',
+      (r) => label(r.account) + kindWord(kindOf(r.account))],
     ['By model', 'Which of the things you were taught actually pays.', (r) => r.model],
     ['By session', 'When you trade well, and when you are just present.', (r) => r.session_kz],
     ['By what you entered from', 'Fair value gap, order block, breaker.', (r) => r.pd_array],

@@ -2757,6 +2757,14 @@ function renderBulk() {
       '<p class="stat-note">Copied accounts share a firm, a size and a target. Fill it in once and ' +
       'apply it to whichever accounts it describes. Anything left blank is left alone on the ' +
       'accounts you apply to, so this can also set a single field across the lot.</p>' +
+      /* Said because it is the thing this panel does that the obvious
+       * alternative cannot. An account that has only ever appeared as a name on
+       * an imported trade has no row to update - in the SQL editor that is an
+       * UPDATE matching nothing and reporting success, which is how four
+       * accounts stayed active after being marked failed. Here it is a tick. */
+      '<p class="stat-note">Accounts that have only ever appeared on an imported trade are in the ' +
+      'list too, without a <span class="acct-muted">set up</span> tag. Ticking one <strong>' +
+      'creates</strong> its record rather than failing to find it.</p>' +
       '<form class="auth-form auth-form-wide" id="bulk-form">' +
         '<div class="field-pair">' +
           '<div><label>What kind of account</label>' +
@@ -2860,7 +2868,7 @@ function renderBulk() {
         '<div class="row-actions">' +
           '<button class="link-button" type="button" data-pick="all">All ' + names.length + '</button>' +
           '<button class="link-button" type="button" data-pick="none">None</button>' +
-          '<button class="link-button" type="button" data-pick="unset">Only the ones not set up</button>' +
+          '<button class="link-button" type="button" data-pick="unset">Only the ones never set up</button>' +
           families.map((f) =>
             '<button class="link-button" type="button" data-pick="stem" data-stem="' +
             escapeHtml(f[0]) + '">' + (hidden ? 'This group' : escapeHtml(f[0]) + '*') +
@@ -2955,6 +2963,37 @@ function renderBulk() {
   form.addEventListener('submit', applyBulk);
 }
 
+/* ONE ROW OF A BULK APPLY, AND WHY IT IS A FUNCTION.
+ *
+ * An UPDATE cannot mark a row that does not exist, and it reports success
+ * either way. That is exactly how four accounts were marked failed in the SQL
+ * editor on 30 September 2026 and stayed active: `APEX-26922-1699` and its
+ * three siblings had traded for weeks and had never been set up, so there was
+ * no `prop_accounts` row to update, and nothing said so.
+ *
+ * This page cannot make that mistake, because `names` is every account the
+ * JOURNAL has seen as well as every one configured, and this is an UPSERT -
+ * an account that has only ever existed as a name on a trade gets its row
+ * created by being ticked. That property is the whole reason the page is a
+ * better tool than the SQL editor here, so it is pinned by a probe rather
+ * than left to be true by accident.
+ *
+ * `held` is the account's existing row, or undefined for one that has none.
+ */
+function bulkRow(name, patch, userId, held) {
+  const row = Object.assign({ status: 'active' }, held || {}, patch,
+    { user_id: userId, account: name });
+
+  // A settled date already on the account is the real one: re-marking should
+  // not move the day it actually ended.
+  if (patch.settled_on && held && held.settled_on) row.settled_on = held.settled_on;
+
+  // id is generated. Carrying a cached one into an upsert makes it argue with
+  // itself about which row it is looking at.
+  delete row.id;
+  return row;
+}
+
 async function applyBulk(e) {
   e.preventDefault();
   const form = e.currentTarget;
@@ -3020,19 +3059,7 @@ async function applyBulk(e) {
   setStatus('#bulk-status', 'Applying to ' + picked.length + ' account' +
     (picked.length === 1 ? '' : 's') + '...', 'info');
 
-  const rows = picked.map((name) => {
-    const row = Object.assign({ status: 'active' }, saved.get(name) || {}, patch,
-      { user_id: profile.id, account: name });
-
-    // See above: a settled date already on the account is the real one.
-    if (patch.settled_on && (saved.get(name) || {}).settled_on) {
-      row.settled_on = saved.get(name).settled_on;
-    }
-    // id is generated. Carrying a cached one into an upsert makes it argue with
-    // itself about which row it is looking at.
-    delete row.id;
-    return row;
-  });
+  const rows = picked.map((name) => bulkRow(name, patch, profile.id, saved.get(name)));
 
   const res = await supabase.from('prop_accounts')
     .upsert(rows, { onConflict: 'user_id,account' });

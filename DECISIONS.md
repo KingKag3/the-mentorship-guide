@@ -1907,3 +1907,42 @@ export.
 `tools/probe-ninjatrader.mjs` holds the real header as its fixture - 25 checks, including all three
 rows reproducing their own reported figure from prices less summed fees, which is the arithmetic
 that would otherwise have flagged every one of them.
+
+---
+
+## 2026-09-30 (the update that matched nothing) — A correction, and a probe
+
+**I said the bulk control only lists accounts it already knows about. That was wrong**, and it
+mattered: it would have sent somebody back to the SQL editor that had just failed them.
+
+`props.html` builds its account list from every name the JOURNAL has seen as well as every one
+configured, and the bulk write is an upsert. An account that has only ever appeared on an imported
+trade is already in the tick list, and ticking it CREATES its record. The page could have done the
+job the whole time.
+
+### What actually went wrong
+
+Nineteen blown funded accounts were marked failed in the Supabase SQL editor and it worked. Four
+evaluations in the same run - `APEX-26922-1699` and three siblings - stayed active, and nothing said
+so.
+
+They had traded for weeks and had never been set up, so there was no row to `UPDATE`. **An UPDATE
+that matches nothing reports success exactly like one that matches everything.** The only evidence
+was a count that did not move: 38 finished accounts where 42 were expected. That is the failure
+shape this project keeps meeting, in the one place on it where a statement is written by hand.
+
+### Decided
+
+The row-building rule comes out of `applyBulk` as `bulkRow(name, patch, userId, held)`, and
+`tools/probe-bulk-rows.mjs` pins it - most of all the `held === undefined` case, which is the shape
+an update cannot do anything with and an upsert can. The probe also matches the `names` line as
+source, because the page being a better tool than the SQL editor rests on that list including
+untraded names and nothing was testing it.
+
+And the panel says so, rather than leaving it to be discovered: accounts with no
+<span class="acct-muted">set up</span> tag are in the list too, and ticking one creates its record
+rather than failing to find it.
+
+**The lesson is not about upserts.** It is that a hand-written UPDATE is silent about the rows it
+did not find, so anything run there needs a count checked afterwards - which is why every migration
+in this repo ends with a verification query and why the ones offered in conversation now do too.

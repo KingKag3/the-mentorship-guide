@@ -5,6 +5,25 @@ with no memory of how any of it got here.
 
 Last updated: 30 September 2026.
 
+## 30 September 2026 (the update that matched nothing)
+
+Four evaluations were marked failed in the SQL editor and stayed active. They had traded for weeks
+and had never been set up, so there was no `prop_accounts` row to `UPDATE` — **and an UPDATE that
+matches nothing reports success exactly like one that matches everything.** The only evidence was a
+count that did not move.
+
+**The accounts page could have done it all along.** `names` is every account the journal has seen as
+well as every one configured, and the bulk write is an upsert, so ticking an account that exists only
+on an imported trade creates its record. Neither property was tested; both are now, in
+`tools/probe-bulk-rows.mjs`, along with the `settled_on` rule that stops re-marking moving the day an
+account ended.
+
+`bulkRow(name, patch, userId, held)` came out of `applyBulk` to make that testable. The panel now
+says that untagged accounts are selectable and will be created.
+
+**Anything run in the SQL editor needs its row count checked afterwards.** That is the one place on
+this project where a statement is written by hand and nothing verifies it.
+
 ## 30 September 2026 (later) — NinjaTrader, and labelling an account on the way in
 
 A NinjaTrader Grid export of a live margin account needed four things.

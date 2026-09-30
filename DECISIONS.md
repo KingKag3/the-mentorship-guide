@@ -1849,3 +1849,61 @@ account finished is not counted"*.
 arrived two days ago and was never added, so forgetting an account left readings behind - rows
 nothing on the site can ever show again. Fixed, and `tools/probe-forget-account.mjs` counts the
 tables now rather than trusting the list.
+
+---
+
+## 2026-09-30 (later) — A NinjaTrader grid, and what an unlabelled account becomes
+
+A NinjaTrader Grid export of a live margin account. Three things about it were wrong, and two were
+wrong in silence.
+
+### `Market pos.` matched nothing
+
+It normalises to `marketpos`, which is in no synonym list and satisfies neither loose rule -
+`position` is not inside it and it is not inside `position`. Side is a **required** field, so an
+otherwise entirely ordinary file stopped the import dead on a column every platform has.
+
+### The cost of a round turn was in five columns
+
+Commission, clearing, exchange, IP, NFA. Taking the first understated it by more than half: $0.70 of
+$1.80.
+
+**And it would have shown up as a hundred false findings rather than as a shortfall.** `Profit` in
+that export is already NET of all five, so the site would have compared the reported figure against
+one derived from the prices less the fees it had been told about, found a gap on every row, and
+reported every trade as disagreeing with itself. A page full of disagreements looks exactly like a
+real discovery.
+
+**Decided:** a field can carry `sum: true`, and then maps to as many columns as apply. Only `fees`
+has it. Auto-mapping runs a third pass, last and only over columns nothing else claimed, so a file
+with one fee column comes out as a plain index exactly as before and one that splits them comes out
+as a list. `Cum. net profit` cannot be swept in, because the exact pass has already given `Profit`
+to net p&l and marked it taken - and taking a running total as a row's own figure would be a much
+worse failure than the one being fixed.
+
+Tick boxes rather than a multi-select. Ctrl-clicking a second option in a select is a thing most
+people never discover they can do.
+
+### `MNQ DEC26` found no contract spec
+
+`contractFor` looked for an exact key, so a whole export of micro Nasdaq trades arrived with no
+points, no ticks and no derived dollars. Absent rather than wrong, which is harder to notice.
+
+Three tries now: the symbol as written, the part before the first space or dash (`MNQ DEC26`), then
+progressively shorter prefixes (`MNQZ5`, `MNQZ`, `MNQ`). Stopping at two characters, because one
+letter is not a contract.
+
+### An account nobody labels is an evaluation
+
+That is the right default - most of them are - and it gives a live margin account a profit target it
+can never have and a drawdown that will never end it. The question was only askable on another page,
+after the fact, which means it was answered by the default.
+
+So the importer asks, once, while the name is new: no `prop_accounts` row and something typed. It is
+written **after** the trades and its failure is reported without taking the import with it - the
+trades are in, and a label that did not save is a trip to the accounts page rather than a lost
+export.
+
+`tools/probe-ninjatrader.mjs` holds the real header as its fixture - 25 checks, including all three
+rows reproducing their own reported figure from prices less summed fees, which is the arithmetic
+that would otherwise have flagged every one of them.

@@ -5,6 +5,27 @@ with no memory of how any of it got here.
 
 Last updated: 30 September 2026.
 
+## 30 September 2026 (later) — NinjaTrader, and labelling an account on the way in
+
+A NinjaTrader Grid export of a live margin account needed four things.
+
+- **`Market pos.` is recognised as the side.** It matched nothing, and side is required, so the file
+  stopped the import dead.
+- **Fees can map to several columns and are added.** That export splits them five ways and `Profit`
+  is already net of all five, so taking only Commission would have made every row disagree with
+  itself - a hundred false findings, not a shortfall. `fees` is the only field with `sum: true`; a
+  file with one fee column behaves exactly as before.
+- **`contractFor` tolerates an expiry.** `MNQ DEC26`, `MNQZ5`, `NQ 12-26` all find their spec now.
+  Without it the whole export had no points, ticks or derived dollars.
+- **The importer asks what a new account is** - evaluation, funded, live, demo - and writes it after
+  the trades. An unlabelled account is an evaluation everywhere, which gives a live margin account a
+  target it can never have.
+
+**Verified:** `node tools/probe-ninjatrader.mjs` - 25 checks on the real header, including all three
+sample rows reproducing their own reported figure. The mapping rows were rendered against
+`style.css`. **Not run against the live project**, and no NinjaTrader file has been imported for
+real yet.
+
 ## 30 September 2026 — failed counts as finished
 
 Nineteen funded accounts blown in a day, all still sitting under **Funded**, still on the importer's

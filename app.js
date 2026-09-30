@@ -857,9 +857,37 @@ export function aliasMap(names) {
   return out;
 }
 
+/* A FUTURES SYMBOL USUALLY CARRIES ITS EXPIRY, AND THE SPEC DOES NOT.
+ *
+ * NinjaTrader writes `MNQ DEC26`, other platforms write `MNQZ5` or `MNQ 12-26`,
+ * and an exact lookup finds none of them - so a whole export of micro Nasdaq
+ * trades arrives with no contract spec, which means no points, no ticks and no
+ * derived dollars. Nothing errors; the numbers are simply absent, which is the
+ * failure this project keeps meeting.
+ *
+ * Three tries, cheapest first:
+ *
+ *   1. the symbol as written, so anything already clean is untouched;
+ *   2. the part before the first space or dash, which catches `MNQ DEC26`;
+ *   3. progressively shorter prefixes, which catches `MNQZ5` - `MNQZ5`,
+ *      `MNQZ`, then `MNQ`.
+ *
+ * Stopping at two characters, because one letter is not a contract and a
+ * one-character prefix would match far too much.
+ */
 export function contractFor(symbol) {
   const key = String(symbol ?? '').trim().toUpperCase();
-  return CONTRACTS[key] || null;
+  if (!key) return null;
+  if (CONTRACTS[key]) return CONTRACTS[key];
+
+  const head = key.split(/[\s\-_/]/)[0];
+  if (head && CONTRACTS[head]) return CONTRACTS[head];
+
+  for (let n = head.length - 1; n >= 2; n--) {
+    const spec = CONTRACTS[head.slice(0, n)];
+    if (spec) return spec;
+  }
+  return null;
 }
 
 /**

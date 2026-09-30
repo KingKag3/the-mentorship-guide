@@ -4723,3 +4723,23 @@ details > summary:hover { color: var(--accent); }
   margin: 0;
 }
 .reading-grid .grid-room { white-space: nowrap; }
+
+/* A mapping row whose field can take several columns at once - fees, where a
+ * platform splits commission, clearing, exchange and the rest. Tick boxes
+ * rather than a multi-select, because ctrl-clicking a second option in a
+ * select is a thing most people never discover they can do. */
+.map-multi > summary {
+  cursor: pointer;
+  padding: 6px 0;
+  color: var(--fg);
+  font-size: var(--step--1);
+}
+
+.map-ticks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px var(--s-3);
+  padding: var(--s-3) 0 0;
+}
+
+.map-tick { margin: 0; font-size: var(--step--1); }

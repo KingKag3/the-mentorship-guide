@@ -126,6 +126,24 @@
     <datalist id="dl-acct"></datalist>
     <p class="field-note" id="acct-note"></p>
 
+    <!-- WHAT KIND OF ACCOUNT, ASKED WHILE IT IS A NEW NAME.
+         An unlabelled account is an evaluation everywhere on this site, because
+         that is what most of them are - which gives a live margin account a
+         profit target it can never have and a drawdown that will never end it.
+         Asked here because this is the moment the name comes into existence,
+         and a question nobody is asked is answered by the default. -->
+    <div id="acct-kind-row" hidden>
+      <label for="acct-kind">What is this account <span class="opt">— new name, so it has not
+        been set up yet</span></label>
+      <select id="acct-kind" class="role-select">
+        <option value="">Decide later on the accounts page</option>
+        <option value="prop">Evaluation — a firm's test, with a target and a drawdown</option>
+        <option value="funded">Funded — passed, and being paid out of</option>
+        <option value="live">Live — your own money, at a broker</option>
+        <option value="demo">Demo or simulated</option>
+      </select>
+    </div>
+
     <label for="file">Export file <span class="opt">— CSV, TSV, XLSX or XLS</span></label>
     <input id="file" type="file"
            accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -250,10 +268,16 @@ const FIELDS = [
     syn: ['symbol', 'instrument', 'ticker', 'contract', 'market', 'product', 'asset', 'pair',
           'securitysymbol'] },
 
+  /* `marketpos` is NinjaTrader's, and it was the one required field its grid
+   * export could not fill in by itself - "Market pos." normalises to
+   * `marketpos`, which matches none of the loose rules either: `position` is
+   * not inside it and it is not inside `position`. A required field left blank
+   * stops the import dead on a file that is otherwise completely ordinary. */
   { key: 'direction', label: 'side', req: true,
     hint: 'Long or short. Buy/Sell and B/S are understood',
     syn: ['side', 'direction', 'longshort', 'ls', 'buysell', 'bs', 'type', 'position',
-          'action', 'tradetype', 'ordertype', 'positiontype'] },
+          'action', 'tradetype', 'ordertype', 'positiontype',
+          'marketpos', 'marketposition', 'possition', 'poslong'] },
 
   { key: 'entry', label: 'entry',
     hint: 'Price the position opened at',
@@ -276,10 +300,25 @@ const FIELDS = [
           'realizedpnl', 'realisedpnl', 'profitloss', 'grosspl', 'grosspnl', 'result',
           'netprofitloss', 'pandl'] },
 
-  { key: 'fees', label: 'fees',
-    hint: 'Commission and exchange fees',
+  /* THE ONE FIELD THAT LEGITIMATELY LIVES IN SEVERAL COLUMNS.
+   *
+   * A NinjaTrader grid splits the cost of a round turn five ways - commission,
+   * clearing, exchange, IP, NFA - and taking only the first understates it by
+   * more than half. On the file that prompted this, commission was $0.70 of
+   * $1.80.
+   *
+   * That is not a cosmetic shortfall. `Profit` in that export is already NET
+   * of all five, so the site compares a reported figure against one derived
+   * from the prices less the fees it was told about, finds a gap on every
+   * single row, and reports every trade as disagreeing with itself. A hundred
+   * false findings look exactly like a real one.
+   *
+   * So `sum` means "map as many columns as apply, and add them". */
+  { key: 'fees', label: 'fees', sum: true,
+    hint: 'Commission and exchange fees. Tick every column if your platform splits them',
     syn: ['fee', 'fees', 'commission', 'commissions', 'costs', 'cost', 'charges', 'totalfees',
-          'commissionandfees'] },
+          'commissionandfees', 'clearingfee', 'exchangefee', 'ipfee', 'nfafee', 'brokeragefee',
+          'regulatoryfee', 'swap', 'clearing'] },
 
   { key: 'stop', label: 'stop',
     hint: 'Needed for an R multiple. Most statements do not carry one',
@@ -401,6 +440,19 @@ let lastFile = null;
     .sort((a, b) => a.localeCompare(b));
 
   $('dl-acct').innerHTML = names.map((n) => '<option>' + escapeHtml(n) + '</option>').join('');
+
+  /* Offered only for a name that has no `prop_accounts` row yet. Asking about
+   * an account that is already set up would invite somebody to change a kind
+   * from the wrong page, and re-asking on every import is how a control gets
+   * clicked past without being read. */
+  const configuredNames = new Set((configured.data || []).map((r) => r.account));
+  const kindRow = $('acct-kind-row');
+  const showKind = () => {
+    const typed = $('acct').value.trim();
+    kindRow.hidden = !typed || configuredNames.has(typed);
+  };
+  $('acct').addEventListener('input', showKind);
+  showKind();
 
   // Said once, plainly, rather than leaving somebody to wonder where an account
   // they can see on the accounts page went.
@@ -666,6 +718,15 @@ function foldFills(grid) {
 
 /* -------------------------------- mapping -------------------------------- */
 
+/* Said back in the member's words rather than the column's. "live" is a value
+ * in a check constraint; "your own money" is what it means. */
+const KIND_WORD = {
+  prop: 'an evaluation',
+  funded: 'a funded account',
+  live: 'a live account, your own money',
+  demo: 'a demo account'
+};
+
 const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 
@@ -691,6 +752,29 @@ function autoMap() {
     if (i >= 0) { found[field.key] = i; taken.add(i); }
   }
 
+  /* A `sum` field takes EVERY column it recognises, not the first.
+   *
+   * Run last and only over columns nothing else claimed, so a file with one
+   * fee column comes out exactly as it did before - a single index - and one
+   * that splits them five ways comes out as five. `Cum. net profit` cannot be
+   * swept up here because the pass above has already given the profit column
+   * to net_pnl and marked it taken.
+   */
+  for (const field of ALL_FIELDS) {
+    if (!field.sum) continue;
+
+    const all = [];
+    if (found[field.key] >= 0) all.push(found[field.key]);
+
+    normalised.forEach((h, idx) => {
+      if (taken.has(idx) || !h) return;
+      const hit = field.syn.some((s) => s.length > 2 && (h.includes(s) || s.includes(h)));
+      if (hit) { all.push(idx); taken.add(idx); }
+    });
+
+    if (all.length > 1) found[field.key] = all.sort((a, b) => a - b);
+  }
+
   return found;
 }
 
@@ -706,8 +790,53 @@ function sample(index) {
   return '';
 }
 
+/* What a `sum` field shows under itself: which columns it is adding and what
+ * they come to on the first row that has any of them. A total is the only
+ * honest sample for a field made of five columns - printing the first one
+ * would say $0.70 beside a fee of $1.80. */
+function sumSample(field) {
+  const cols = columnsFor(field.key);
+  if (cols.length < 2) return escapeHtml(sample(cols[0] ?? -1));
+
+  for (let i = headerAt + 1; i < rows.length; i++) {
+    let total = null;
+    for (const c of cols) {
+      const one = numericValue(rows[i][c]);
+      if (one !== null) total = (total ?? 0) + one;
+    }
+    if (total !== null) return escapeHtml(money(total) + ' — ' + cols.length + ' columns added');
+  }
+  return '';
+}
+
 function fieldRow(field) {
-  const chosen = mapping[field.key] ?? -1;
+  const cols = columnsFor(field.key);
+  const chosen = cols[0] ?? -1;
+
+  if (field.sum) {
+    /* Tick boxes rather than a select, because the question is "which of these
+     * columns are fees" and the answer is often several. A select that has to
+     * be ctrl-clicked to pick a second column is a control most people never
+     * discover they can. */
+    const boxes = headers.map((h, i) =>
+      '<label class="check-line map-tick"><input type="checkbox" data-sum="' + field.key +
+        '" value="' + i + '"' + (cols.includes(i) ? ' checked' : '') + '>' +
+        '<span>' + escapeHtml(h || 'column ' + (i + 1)) + '</span></label>').join('');
+
+    return '<div class="map-row">' +
+      '<div><span class="map-name">' + escapeHtml(field.label) +
+        (field.req ? ' <span class="req">*</span>' : '') + '</span>' +
+        '<span class="map-hint">' + escapeHtml(field.hint) + '</span></div>' +
+      '<div><details class="map-multi"' + (cols.length > 1 ? ' open' : '') + '>' +
+          '<summary>' + (cols.length === 0 ? 'none of these columns'
+            : cols.length === 1 ? escapeHtml(headers[cols[0]] || 'column ' + (cols[0] + 1))
+            : cols.length + ' columns, added together') + '</summary>' +
+          '<div class="map-ticks">' + boxes + '</div>' +
+        '</details>' +
+        '<span class="map-sample" id="s-' + field.key + '">' + sumSample(field) + '</span></div>' +
+    '</div>';
+  }
+
   const options = ['<option value="-1">— not in this file —</option>']
     .concat(headers.map((h, i) =>
       '<option value="' + i + '"' + (i === chosen ? ' selected' : '') + '>' +
@@ -724,7 +853,7 @@ function fieldRow(field) {
 }
 
 function renderMapping() {
-  const paired = PAIRED.some((f) => (mapping[f.key] ?? -1) >= 0);
+  const paired = PAIRED.some((f) => columnsFor(f.key).length > 0);
 
   $('mapping').innerHTML =
     '<h2>Which column is which</h2>' +
@@ -747,6 +876,30 @@ function renderMapping() {
       mapping[key] = Number(select.value);
       const cell = $('s-' + key);
       if (cell) cell.textContent = sample(mapping[key]);
+      recompute();
+    });
+  });
+
+  $('mapping').querySelectorAll('[data-sum]').forEach((box) => {
+    box.addEventListener('change', () => {
+      const key = box.dataset.sum;
+      const picked = [...$('mapping').querySelectorAll('[data-sum="' + key + '"]:checked')]
+        .map((b) => Number(b.value)).sort((a, b) => a - b);
+
+      // One column stays a plain index, so nothing downstream has to care that
+      // this field can hold a list at all.
+      mapping[key] = picked.length === 0 ? -1 : picked.length === 1 ? picked[0] : picked;
+
+      const field = ALL_FIELDS.find((f) => f.key === key);
+      const cell = $('s-' + key);
+      if (cell) cell.innerHTML = sumSample(field);
+
+      const head = box.closest('.map-multi').querySelector('summary');
+      if (head) {
+        head.textContent = picked.length === 0 ? 'none of these columns'
+          : picked.length === 1 ? (headers[picked[0]] || 'column ' + (picked[0] + 1))
+          : picked.length + ' columns, added together';
+      }
       recompute();
     });
   });
@@ -791,9 +944,18 @@ function renderShape() {
 
 /* ------------------------------ interpreting ------------------------------ */
 
+/* A mapping entry is a column index, except on a `sum` field where it is a
+ * list of them. Everything downstream asks for one value, so the list is added
+ * up here rather than in nine call sites. */
+function columnsFor(key) {
+  const m = mapping[key];
+  if (Array.isArray(m)) return m.filter((i) => i >= 0);
+  return (m ?? -1) >= 0 ? [m] : [];
+}
+
 function raw(row, key) {
-  const i = mapping[key] ?? -1;
-  return i < 0 ? null : row[i];
+  const cols = columnsFor(key);
+  return cols.length ? row[cols[0]] : null;
 }
 
 function text(row, key) {
@@ -803,9 +965,27 @@ function text(row, key) {
   return s === '' ? null : s;
 }
 
-// Currency, thousands separators and accountants' parentheses for a negative.
+/* Several columns add up; one column behaves exactly as it always did.
+ *
+ * A blank among them is nothing rather than zero, but a row where EVERY
+ * mapped column is blank is still nothing - not a fee of zero - because
+ * "no figure" and "free" are different facts and the rest of the site
+ * distinguishes them. */
 function numeric(row, key) {
-  const v = raw(row, key);
+  const cols = columnsFor(key);
+  if (cols.length > 1) {
+    let total = null;
+    for (const i of cols) {
+      const one = numericValue(row[i]);
+      if (one !== null) total = (total ?? 0) + one;
+    }
+    return total;
+  }
+  return numericValue(raw(row, key));
+}
+
+// Currency, thousands separators and accountants' parentheses for a negative.
+function numericValue(v) {
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
 
@@ -1127,7 +1307,9 @@ function afterRows() {
 
 function recompute() {
   const account = $('acct').value.trim();
-  const missing = FIELDS.filter((f) => f.req && (mapping[f.key] ?? -1) < 0)
+  // `columnsFor`, not a bare comparison: a summed field holds a list, and
+  // `[1,2] < 0` is false for the wrong reason rather than the right one.
+  const missing = FIELDS.filter((f) => f.req && columnsFor(f.key).length === 0)
     .filter((f) => !(f.key === 'direction' && (mapping.bought_at ?? -1) >= 0 &&
                                               (mapping.sold_at ?? -1) >= 0))
     .filter((f) => !(f.key === 'opened_at' && (mapping.bought_at ?? -1) >= 0 &&
@@ -1421,9 +1603,33 @@ async function runImport() {
     return;
   }
 
+  /* THE KIND, WRITTEN AFTER THE TRADES AND NEVER INSTEAD OF THEM.
+   *
+   * Last, and its failure is reported without taking the import down with it:
+   * the trades are in, and a label that did not save is a trip to the accounts
+   * page rather than a lost export. The other order would be worse in exactly
+   * the way this page has been burned before - a step that succeeded reported
+   * as part of one that did not.
+   *
+   * `prop_accounts` is upserted rather than inserted so a second import of a
+   * name created moments ago cannot fail on the unique key. */
+  const kind = ($('acct-kind') || {}).value || '';
+  let labelled = '';
+  if (kind) {
+    const named = $('acct').value.trim();
+    const { error: kindError } = await supabase.from('prop_accounts')
+      .upsert({ user_id: profile.id, account: named, kind },
+              { onConflict: 'user_id,account' });
+
+    labelled = kindError
+      ? ' The trades are in, but "' + named + '" could not be labelled: ' + kindError.message +
+        ' Set it on the accounts page.'
+      : ' ' + named + ' is set up as ' + KIND_WORD[kind] + '.';
+  }
+
   say(payload.length + ' trade' + (payload.length === 1 ? '' : 's') + ' imported into ' + into +
     (found >= 0 ? ', and all ' + found + ' read back from the database' : '') +
-    '. Reload the journal or the calendar to see them.', 'ok');
+    '. Reload the journal or the calendar to see them.' + labelled, 'ok');
   buttons.forEach((b) => { b.textContent = 'Imported'; });
 }
 

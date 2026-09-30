@@ -173,5 +173,101 @@ const trade = (opened_at, closed_at) => heldPastIntraday({ opened_at, closed_at 
         one.initial - one.day === 4642.61, +(one.initial - one.day).toFixed(2));
 }
 
+// -------------------------------------- the same arithmetic in points
+
+/* "$900 of room" is correct and lands as nothing. "450 points" is the same
+ * fact in the unit somebody watches all day.
+ *
+ * The shape is the point: room collapses roughly with the SQUARE of size,
+ * because every contract added both raises the margin held and raises what a
+ * point costs. Nine times the size is not nine times the risk. A table makes
+ * that obvious and a sentence does not, so the table has to be right.
+ */
+const props = fs.readFileSync('props.html', 'utf8');
+
+const { escapeHtml, money, CONTRACTS, contractFor } = new Function(
+  grab(src, 'export function escapeHtml(').replace('export ', '') + '\n' +
+  grab(src, 'export function money(').replace('export ', '') + '\n' +
+  src.match(/export const CONTRACTS = \{[\s\S]*?\n\};/)[0].replace('export ', '') + '\n' +
+  grab(src, 'export function contractFor(').replace('export ', '') +
+  '; return { escapeHtml, money, CONTRACTS, contractFor };')();
+
+const roomTable = new Function('escapeHtml', 'money',
+  grab(props, 'function roomTable(') + '; return roomTable;')(escapeHtml, money);
+
+// The figures out of a rendered row, so the test reads what a member reads.
+const rows = (html) => [...html.matchAll(/<tr>(?!<th)([\s\S]*?)<\/tr>/g)]
+  .map((m) => [...m[1].matchAll(/<td>([\s\S]*?)<\/td>/g)]
+    .map((c) => c[1].replace(/<[^>]*>/g, '').trim()))
+  .filter((cells) => cells.length === 5);
+
+{
+  const html = roomTable(1000, MARGINS.MNQ, CONTRACTS.MNQ, 1);
+  const table = rows(html);
+
+  check('a thousand dollars opens ten micro contracts and no more',
+        table[table.length - 1][0] === '10', table.map((r) => r[0]));
+
+  const one = table.find((r) => r[0].startsWith('1 '));
+  check('one contract holds a hundred', one[1] === '$100.00', one);
+  check('leaving nine hundred', one[2] === '$900.00', one);
+  check('at two dollars a point', one[3] === '$2.00', one);
+  check('which is 450 points', one[4] === '450', one);
+
+  const five = table.find((r) => r[0] === '5');
+  check('five contracts leave fifty points, not ninety',
+        five[4] === '50', five);
+
+  check('the largest position taken is marked',
+        /your largest/.test(table.find((r) => r[0].startsWith('1 '))[0]), table[0]);
+}
+
+{
+  // Floored, not rounded. 700/6 is 116.67 and the honest answer is 116: the
+  // direction to be wrong in here is the one that leaves room over.
+  const table = rows(roomTable(1000, MARGINS.MNQ, CONTRACTS.MNQ, 0));
+  const three = table.find((r) => r[0] === '3');
+  check('points are floored rather than rounded up', three[4] === '116', three);
+}
+
+{
+  // A size the balance cannot open is a row about somebody else.
+  const table = rows(roomTable(450, MARGINS.MNQ, CONTRACTS.MNQ, 0));
+  check('no row for a position the balance cannot take',
+        table.every((r) => Number(r[0]) <= 4), table.map((r) => r[0]));
+}
+
+{
+  // A position the member has actually taken is always in the table, even
+  // when it is not one of the round numbers.
+  const table = rows(roomTable(1000, MARGINS.MNQ, CONTRACTS.MNQ, 7));
+  check('an unround largest position still gets its row',
+        table.some((r) => r[0].startsWith('7 ')), table.map((r) => r[0]));
+}
+
+{
+  const html = roomTable(60, MARGINS.MNQ, CONTRACTS.MNQ, 0);
+  check('a balance under one contract says so rather than drawing nothing',
+        /does not cover/.test(html) && !/<table/.test(html), html.slice(0, 120));
+}
+
+{
+  check('no balance draws no table', roomTable(null, MARGINS.MNQ, CONTRACTS.MNQ, 1) === '');
+  check('and neither does a symbol with no spec',
+        roomTable(1000, MARGINS.MNQ, null, 1) === '');
+  check('nor one with no published margin', roomTable(1000, null, CONTRACTS.MNQ, 1) === '');
+}
+
+{
+  /* THE CAVEAT IS PART OF THE TABLE, not something to remember to add. These
+   * are points to the margin requirement; their own page implies a floor above
+   * it on at least one contract, and the difference is somebody's account. */
+  const html = roomTable(1000, MARGINS.MNQ, CONTRACTS.MNQ, 1);
+  check('it says the figures run to the requirement, not to zero',
+        /floor at twice the margin/.test(html));
+  check('and that an open position counts the whole way',
+        /at every moment of the trade/.test(html));
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

@@ -2122,6 +2122,28 @@ What the recorded balance carries, intraday and past the cutoff, against the lar
 journal has actually seen; how many trades have already been held past it; and how many cannot be
 answered. `firm_balance` earns a second job - a broker shows a balance exactly as a prop firm does.
 
+### And the same arithmetic in the unit actually traded
+
+*$900 of room* is correct and lands as nothing. *450 points* is the same fact in the unit somebody
+watches all day, and the table makes visible what a sentence cannot:
+
+    1 contract    $100 held    $900 room    $2/pt    450 points
+    5 contracts   $500 held    $500 room   $10/pt     50 points
+
+**Room collapses roughly with the square of size**, because every contract added both raises the
+margin held and raises what a point costs. Nine times the size is not nine times the risk.
+
+Only sizes the balance can actually open - a row for ten contracts on an account that can hold nine
+is a row about somebody else - and the largest position the journal has seen is always one of them,
+marked, so nobody has to work out which line is theirs. Points are floored, never rounded: the
+direction to be wrong in is the one that leaves room over.
+
+**The caveat is part of the table.** These are points to the margin requirement itself. NinjaTrader
+liquidates a $25-margin contract once the balance goes under $50 - a floor at twice the margin - and
+their page states it only for that contract, so whether a $100 contract carries a $200 floor is not
+something this can know. Saying so beats quietly picking one, because the difference is somebody's
+account.
+
 **Stated as a broker's figures and dated.** Their page says the risk team adjusts intraday margins
 in real time without notice and may set them to **four times** standard fifteen minutes before a
 scheduled economic release. Nothing fetches them; the standing rule from 2026-09-17 holds. The

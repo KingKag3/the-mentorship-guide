@@ -182,7 +182,7 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, rende
          toNumber, fetchPaged,
          pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES,
          retiredAccounts, kindTag as sharedKindTag,
-         marginFor, heldPastIntraday, MARGINS_AS_OF } from './app.js';
+         marginFor, heldPastIntraday, MARGINS_AS_OF, contractFor } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -1948,6 +1948,78 @@ function groupOf(name, passed) {
    prediction, and it is invisible in every other view on this site.
 -------------------------------------------------------------------------- */
 
+/* ---------------- THE SAME ARITHMETIC IN THE UNIT ACTUALLY TRADED ----------
+
+   "$900 of room" is correct and lands as nothing. "450 points" is the same
+   fact in the unit somebody watches all day, and it is the one that makes the
+   shape of the thing obvious:
+
+       1 contract    $100 held    $900 room    $2/pt    450 points
+       5 contracts   $500 held    $500 room   $10/pt     50 points
+
+   Room collapses roughly with the SQUARE of size, because every contract added
+   both raises the margin held and raises what a point costs. Nine times the
+   size is not nine times the risk, it is eighty-one times less room - and that
+   is a table, not a sentence.
+
+   MEASURED TO THE MARGIN REQUIREMENT, which is the last point at which the
+   requirement is still met. NinjaTrader's own page says an account is
+   liquidated if the balance goes below $50 on a $25 margin contract - a floor
+   at twice the margin - and states it only for that contract, so whether a
+   $100 contract carries a $200 floor is not something this can know. The note
+   under the table says so rather than quietly picking one.
+-------------------------------------------------------------------------- */
+
+function roomTable(balance, margin, spec, largest) {
+  if (!balance || !margin || !spec || !spec.perPoint) return '';
+
+  // Every size the balance can actually open, and no more: a row for ten
+  // contracts on an account that can hold nine is a row about somebody else.
+  const most = Math.floor(balance / margin.day);
+  if (most < 1) {
+    return '<p class="stat-note">' + money(balance) + ' does not cover the ' +
+      money(margin.day) + ' one contract needs, so there is no position this balance can ' +
+      'open at all.</p>';
+  }
+
+  /* Up to eight rows, and the largest position the journal has seen is always
+   * one of them even when it falls outside - somebody who has traded five
+   * should not have to work out which line between three and ten is theirs. */
+  const wanted = new Set([1, 2, 3, 5, 10, 20, most]);
+  if (largest >= 1) wanted.add(Math.round(largest));
+
+  const sizes = [...wanted].filter((n) => n >= 1 && n <= most).sort((a, b) => a - b).slice(0, 8);
+
+  return '<h3>How far it can go against you</h3>' +
+    '<div class="table-scroll"><table><thead><tr>' +
+      '<th>Contracts</th><th>Margin held</th><th>Room</th><th>A point costs</th>' +
+      '<th>Points of room</th>' +
+    '</tr></thead><tbody>' +
+    sizes.map((n) => {
+      const held = margin.day * n;
+      const room = balance - held;
+      const perPoint = spec.perPoint * n;
+      const points = room / perPoint;
+      const mine = largest >= 1 && Math.round(largest) === n;
+
+      return '<tr>' +
+        '<td>' + n + (mine ? ' <span class="tag">your largest</span>' : '') + '</td>' +
+        '<td>' + money(held) + '</td>' +
+        '<td>' + money(room) + '</td>' +
+        '<td>' + money(perPoint) + '</td>' +
+        '<td><b>' + (points >= 10 ? Math.floor(points) : points.toFixed(1)) + '</b></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    '<p class="stat-note"><strong>Measured against the balance, not against realised losses.</strong> ' +
+    'The requirement is met or not met at every moment of the trade, so an open position running ' +
+    'against you counts the whole way. And these are the points to the margin requirement itself: ' +
+    'NinjaTrader liquidates a $25-margin contract once the balance goes under $50, which is a floor ' +
+    'at twice the margin, and their page does not say whether a ' + money(margin.day) + ' contract ' +
+    'carries one. If it does, every figure in this column is lower. Ask their desk before leaning ' +
+    'on the last of it.</p>';
+}
+
 function marginBlock(name, cfg, mine) {
   const balance = toNumber(cfg.firm_balance);
 
@@ -2028,6 +2100,8 @@ function marginBlock(name, cfg, mine) {
           ' either way.</li>'
         : '') +
     '</ul>' +
+
+    roomTable(balance, margin, contractFor(symbol), most) +
 
     '<p class="stat-note">A broker\'s figures, read on ' + escapeHtml(MARGINS_AS_OF) + ', and ' +
     'they change: NinjaTrader states its risk team adjusts intraday margins in real time without ' +

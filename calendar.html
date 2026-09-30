@@ -1503,7 +1503,13 @@ function tradeRow(r) {
       escapeHtml(r.direction) + '</span> ' + escapeHtml(r.symbol || '') +
       (r.contracts ? ' &times;' + escapeHtml(r.contracts) : '') + '</td>' +
     '<td>' + escapeHtml(r.model || '—') +
-      (r.account ? '<br><span class="acct-muted">' + escapeHtml(label(r.account)) + '</span>' : '') +
+      /* The account a trade was taken in, and what kind of account that is.
+       * On a day with both a live account and nineteen evaluation copies in
+       * it, the name alone does not say which row is money. */
+      (r.account
+        ? '<br><span class="acct-muted">' + escapeHtml(label(r.account)) + '</span>' +
+          kindTag(kindOf(r.account))
+        : '') +
       '</td>' +
     '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +
     '<td>' + (Number.isFinite(rm)

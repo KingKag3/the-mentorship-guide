@@ -2012,3 +2012,8 @@ copy.
 **On the statistics page the kind rides with the grouping key, not with the drawing.** *By account*
 groups by whatever the key function returns, so two accounts of different kinds must not be able to
 collapse into one row.
+
+**And on the trade rows themselves.** The account breakdown and the filter say it about a whole
+month; the row is where somebody is actually looking when the question arises. A day holding both a
+live account and nineteen evaluation copies is one table, and the name alone does not say which row
+is money.

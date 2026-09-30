@@ -2017,3 +2017,39 @@ collapse into one row.
 month; the row is where somebody is actually looking when the question arises. A day holding both a
 live account and nineteen evaluation copies is one table, and the name alone does not say which row
 is money.
+
+---
+
+## 2026-09-30 (every kind) — A missing tag now means one thing
+
+The tag drew `live`, `funded` and `demo` and stayed silent on an evaluation, on the argument that
+tagging all forty-four of them would bury the one tag worth seeing.
+
+**That was the wrong trade, and the reason is not aesthetic.** It made a blank mean two things at
+once: *this is an evaluation*, and *nobody has ever said what this is*. Those are different facts,
+and the second is the one that lets an account sit for weeks carrying a profit target and a drawdown
+it can never meet - which is exactly what four of them were doing when an `UPDATE` could not find
+their rows this morning.
+
+**Decided:** every recorded kind draws a tag, and nothing recorded draws nothing. A row with no tag
+is a question rather than an assumption.
+
+### Which means two readers, not one
+
+An account nobody has configured is treated as an evaluation everywhere, and that is right: it is
+what almost all of them are, and it errs toward a target and a drawdown applying rather than not.
+But DRAWING that default says the member decided it.
+
+So `kindOf` stays - defaulted, and what a kind filter matches against - and `recordedKind` is what
+is actually stored and what the tag is given. It is the `undefined` versus `null` distinction this
+project keeps meeting, in a place where it is visible to the member rather than only in the data.
+
+The failure this guards is a caller writing `kindTag(kind || 'prop')`, which throws the distinction
+away before the tag sees it and looks entirely reasonable in a diff. The probe greps both pages for
+it.
+
+### And the accounts page says it outright
+
+`not set up`, in plain grey, on any card whose kind has never been recorded. `.tag.time` is already
+the live account's colour and `.tag.warn` does not exist; an alarm colour would overstate it anyway,
+because this is a prompt rather than a problem.

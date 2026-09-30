@@ -323,5 +323,72 @@ const accountsInScope = (all, retired, scope) => new Function(
         accountsInScope(['APEX-1679'], new Set(), 'retired').length === 0);
 }
 
+// ------------------------- what an account is, and when nobody has said
+
+/* A MISSING TAG MUST MEAN ONE THING.
+ *
+ * These drew only the three kinds that are not the default at first, on the
+ * argument that tagging every evaluation would bury the one tag worth seeing.
+ * That made a blank mean two things at once - "this is an evaluation" and
+ * "nobody has ever said what this is" - and the second is the one that lets an
+ * account sit for weeks carrying a target it can never meet.
+ *
+ * So every recorded kind draws, and nothing recorded draws nothing. The
+ * failure mode this guards is a caller passing `kind || 'prop'`, which throws
+ * the distinction away before the tag ever sees it and looks entirely
+ * reasonable in a diff.
+ */
+const { kindTag, kindWord } = new Function(
+  grab(src, 'export function escapeHtml(').replace('export ', '') + '\n' +
+  src.match(/const KIND_TONE = [^;]+;/)[0] + '\n' +
+  src.match(/const KIND_WHY = \{[\s\S]*?\n\};/)[0] + '\n' +
+  grab(src, 'export function kindTag(').replace('export ', '') + '\n' +
+  grab(src, 'export function kindWord(').replace('export ', '') +
+  '; return { kindTag, kindWord };')();
+
+const tagWord = (kind) => (kindTag(kind).match(/>([^<]*)</) || [, ''])[1];
+
+{
+  for (const kind of ['prop', 'funded', 'live', 'demo']) {
+    check('"' + kind + '" is named', tagWord(kind) === kind, kindTag(kind));
+    check('  and in plain text too', kindWord(kind) === ' — ' + kind, kindWord(kind));
+  }
+}
+
+{
+  // The whole point. None of these is an evaluation; they are an absence.
+  for (const nothing of [undefined, null, '']) {
+    check('nothing recorded draws nothing (' + JSON.stringify(nothing) + ')',
+          kindTag(nothing) === '' && kindWord(nothing) === '', kindTag(nothing));
+  }
+
+  check('and so does a kind nobody has heard of', kindTag('junk') === '', kindTag('junk'));
+}
+
+{
+  // Every kind gets its own colour or none, and live must not share with an
+  // evaluation - they are the two a reader most needs to tell apart at a
+  // glance on a list where one row is money and the rest are a test.
+  const tone = (k) => (kindTag(k).match(/class="tag ?([a-z]*)"/) || [, ''])[1];
+  check('live and prop do not share a tone', tone('live') !== tone('prop'),
+        [tone('live'), tone('prop')]);
+  check('nor do funded and prop', tone('funded') !== tone('prop'),
+        [tone('funded'), tone('prop')]);
+}
+
+{
+  /* The pages that draw it keep two functions on purpose: a defaulted one for
+   * the arithmetic, which is right, and a raw one for the tag. A page that
+   * lost the raw one would silently start claiming every unconfigured account
+   * is an evaluation, and nothing else would change. */
+  for (const [page, text] of [['calendar.html', cal], ['stats.html', fs.readFileSync('stats.html', 'utf8')]]) {
+    check(page + ' keeps a raw reader beside the defaulted one',
+          /const recordedKind = /.test(text) && /const kindOf = /.test(text));
+    check(page + ' draws from the raw one, never the default',
+          !/kind(Tag|Word)\(kindOf\(/.test(text),
+          (text.match(/kind(?:Tag|Word)\(kindOf\([^)]*\)/g) || []).slice(0, 3));
+  }
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

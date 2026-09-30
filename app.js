@@ -2062,24 +2062,42 @@ export function setStatus(selector, message, kind = 'info') {
    distinction on this site that changes what a number MEANS. An evaluation's
    $4,000 loss is a fee already paid; a live account's is money.
 
-   ONLY WHERE IT IS NOT THE DEFAULT. Every account here is an evaluation unless
-   somebody says otherwise, so tagging them all `evaluation` would be noise
-   against which the one tag worth seeing would not stand out. The accounts
-   page still names all four, because that is the page where the question is
-   being answered rather than reported.
+   EVERY KIND IS NAMED, AND AN UNSET ONE IS NOT NAMED AS ANYTHING.
+
+   This tagged only the three that are not the default at first, on the
+   argument that tagging every evaluation would bury the one tag worth seeing.
+   That was the wrong trade, because it made a missing tag mean two things at
+   once: "this is an evaluation" and "nobody has ever said what this is". Those
+   are different facts, and the second one is the one that lets an account sit
+   for weeks with a target it can never meet.
+
+   So a recorded kind always draws a tag, and NOTHING recorded draws nothing.
+   A row with no tag is now a question rather than an assumption.
+
+   This is the `undefined` versus `null` distinction this project keeps
+   meeting, in a place where it is visible to the member rather than only in
+   the data: a caller that hands over a default has already thrown away the
+   fact worth showing, which is why `kindOf` and `recordedKind` are two
+   functions on the pages that use them.
 -------------------------------------------------------------------------- */
 
-const KIND_TONE = { live: 'time', funded: 'bull', demo: '' };
+const KIND_TONE = { live: 'time', funded: 'bull', prop: 'info', demo: '' };
 
 const KIND_WHY = {
+  prop: 'An evaluation. A firm set the target and the drawdown',
   funded: 'A passed evaluation. No target to reach - a payout threshold instead',
   live: 'Your own money. Nothing to pass, and nothing to reset',
   demo: 'Practice. Kept out of anything that claims to be a record'
 };
 
-/** A short tag for an account whose kind is worth stating. '' for an evaluation. */
+/**
+ * A short tag naming what an account is.
+ *
+ * `''` for a kind nobody has recorded - NOT for an evaluation. Pass what is
+ * actually stored; passing `kind || 'prop'` defeats the point.
+ */
 export function kindTag(kind) {
-  const k = String(kind || 'prop');
+  const k = String(kind || '');
   if (!(k in KIND_WHY)) return '';
 
   const tone = KIND_TONE[k] ? ' ' + KIND_TONE[k] : '';
@@ -2089,7 +2107,7 @@ export function kindTag(kind) {
 
 /** The same thing where markup cannot go - an <option>, a title attribute. */
 export function kindWord(kind) {
-  const k = String(kind || 'prop');
+  const k = String(kind || '');
   return k in KIND_WHY ? ' \u2014 ' + k : '';
 }
 

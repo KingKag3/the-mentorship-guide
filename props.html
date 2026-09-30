@@ -1363,20 +1363,20 @@ function sameWayTwice(name, all) {
  * plain: a quiet tag is the correct amount of attention for money that is not
  * real.
  */
-/* THIS PAGE NAMES ALL FOUR, and the shared one does not.
+/* WHAT THIS CARD IS, OR THAT NOBODY HAS SAID.
  *
- * `kindTag` in app.js is silent on an evaluation, because everywhere else an
- * evaluation is the default and tagging every one of them would bury the one
- * tag worth seeing. Here the kind is the question being answered rather than
- * reported, so a card that says nothing would read as a card nobody has got to
- * yet. */
+ * The shared tag draws nothing for a kind that was never recorded, and on this
+ * page that is worth saying out loud rather than leaving as a gap: an account
+ * that has only ever appeared on an imported trade looks otherwise exactly
+ * like a configured evaluation, and it is the one that quietly carries a
+ * target it can never meet. */
 function kindTag(kind) {
-  const k = kind || 'prop';
-  if (k === 'prop') {
-    return '<span class="tag info" title="A firm set the target and the drawdown">' +
-      'prop</span>';
-  }
-  return sharedKindTag(k).trim();
+  const tag = sharedKindTag(kind).trim();
+  /* Plain, not a tone. `.tag.time` is already the live account's colour and
+   * `.tag.warn` does not exist; an alarm colour would overstate it anyway -
+   * this is a prompt, not a problem. */
+  return tag || '<span class="tag" title="Nobody has said what this account is, so it is ' +
+    'treated as an evaluation">not set up</span>';
 }
 
 /* Alive is green, dead is red, and stopped is neither.
@@ -1989,7 +1989,11 @@ function card(name, passedTo) {
       (passedTo ? ' is-passed' : '') + '" data-account="' +
       escapeHtml(name) + '">' +
     '<h3>' + escapeHtml(label(name)) + ' ' +
-      kindTag(kind) +
+      /* `cfg.kind`, not `kind`. The local one is defaulted to `prop` for the
+       * arithmetic below, and handing that to the tag would claim every
+       * account nobody has set up is an evaluation - which is the assumption
+       * the tag exists to stop being made silently. */
+      kindTag(cfg.kind) +
       /* What became of it, on the card itself rather than only in the pile it
        * was sorted into: somebody who arrives by scrolling should not have to
        * work out why this one is grey. */

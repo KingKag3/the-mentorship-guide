@@ -315,7 +315,7 @@ function renderAccountFilter() {
 
   // An <option> takes no markup, so the kind arrives as a word rather than a tag.
   sel.innerHTML = option('all', 'All accounts') + groups +
-    mine.map((a) => option(a, label(a) + kindWord(kindOf(a)))).join('');
+    mine.map((a) => option(a, label(a) + kindWord(recordedKind(a)))).join('');
 
   document.getElementById('account-toggle').hidden = mine.length < 2;
 }
@@ -477,7 +477,11 @@ const KIND_FILTERS = [
 
 let account = 'all';
 
+/* The default is right for the arithmetic and a claim for the reader - see
+ * the same pair on the calendar. `kindOf` decides what a kind filter matches;
+ * `recordedKind` is what is drawn, and draws nothing where nothing is stored. */
 const kindOf = (name) => (accountFacts.get(name) || {}).kind || 'prop';
+const recordedKind = (name) => (accountFacts.get(name) || {}).kind || '';
 
 /** A name means that name. A kind means every account of that kind. */
 function matchesAccount(name) {
@@ -2730,7 +2734,7 @@ function renderSlices(list) {
      * - two accounts of different kinds must not be able to collapse into one
      * row, and a row has to say which it is. */
     ['By account', 'Which account is carrying you, and which is bleeding.',
-      (r) => label(r.account) + kindWord(kindOf(r.account))],
+      (r) => label(r.account) + kindWord(recordedKind(r.account))],
     ['By model', 'Which of the things you were taught actually pays.', (r) => r.model],
     ['By session', 'When you trade well, and when you are just present.', (r) => r.session_kz],
     ['By what you entered from', 'Fair value gap, order block, breaker.', (r) => r.pd_array],

@@ -272,7 +272,21 @@ let hasRetired = false;
  * means: an evaluation's loss is a fee already paid, a live account's is
  * money. */
 const kinds = new Map();
+
+/* TWO FUNCTIONS, BECAUSE THE DEFAULT IS TRUE FOR THE ARITHMETIC AND A CLAIM
+ * FOR THE READER.
+ *
+ * An account nobody has configured is treated as an evaluation everywhere,
+ * which is the right and safe default - it is what almost all of them are, and
+ * it means a target and a drawdown apply rather than not. But DRAWING that
+ * default as a tag says the member decided it, when in fact nobody has said
+ * anything, and an unconfigured account is exactly the one that ends up
+ * carrying terms it can never meet.
+ *
+ * `kindOf` is the default. `recordedKind` is what is actually stored, and what
+ * the tag is given: nothing recorded draws nothing. */
 const kindOf = (name) => kinds.get(name || '') || 'prop';
+const recordedKind = (name) => kinds.get(name || '') || '';
 
 {
   const { data: accts } = await supabase
@@ -373,7 +387,7 @@ function renderAccountFilter() {
   sel.innerHTML = '<option value="all">All accounts</option>' +
     mine.map((a) => '<option value="' + escapeHtml(a) + '"' +
       (a === account ? ' selected' : '') + '>' +
-      escapeHtml(label(a) + kindWord(kindOf(a))) + '</option>').join('');
+      escapeHtml(label(a) + kindWord(recordedKind(a))) + '</option>').join('');
 }
 
 $('account-filter').addEventListener('change', (e) => { account = e.target.value; regroup(); });
@@ -1436,7 +1450,7 @@ function accountBreakdown(rows) {
       const v = dayValue(s.t);
       const of = useTargets ? targets.get(s.name) : undefined;
       return '<div class="bar-row">' +
-        '<span>' + escapeHtml(label(s.name)) + kindTag(kindOf(s.name)) + '</span>' +
+        '<span>' + escapeHtml(label(s.name)) + kindTag(recordedKind(s.name)) + '</span>' +
         barTrack(v ?? 0, of || scale) +
         '<b>' + fmt(v) + (of ? ' <span class="acct-muted">/ ' + money(of) + '</span>' : '') + '</b>' +
       '</div>';
@@ -1508,7 +1522,7 @@ function tradeRow(r) {
        * it, the name alone does not say which row is money. */
       (r.account
         ? '<br><span class="acct-muted">' + escapeHtml(label(r.account)) + '</span>' +
-          kindTag(kindOf(r.account))
+          kindTag(recordedKind(r.account))
         : '') +
       '</td>' +
     '<td>' + escapeHtml(r.session_kz || '—') + '</td>' +

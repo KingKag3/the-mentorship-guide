@@ -5,6 +5,31 @@ with no memory of how any of it got here.
 
 Last updated: 30 September 2026.
 
+## 30 September 2026 (margin) — a live account has rules too
+
+A prop account is ended by a drawdown; a live one by margin. `MARGINS` in [app.js](app.js) holds
+NinjaTrader's published table for the eight index contracts, dated `MARGINS_AS_OF`.
+
+**The figure a broker advertises applies for least of the day.** MNQ is $100 intraday and
+**$4,742.61** from fifteen minutes before the session close - 16:45 New York. Forty-seven times, on
+a schedule. An account that cannot meet it is liquidated and charged $25, then $50.
+
+So `heldPastIntraday(row)` answers the question a journal can actually settle: was this position
+still open when the cheap rate ended. It returns **null** for a trade with no close - counting that
+as safe would make the figure reassuring rather than true - and the cutoff is a New York wall clock,
+so it moves against UTC twice a year. Both pinned in `tools/probe-margin.mjs`.
+
+A `live` card now says what the recorded balance carries intraday and overnight, against the largest
+position the journal has seen, plus how many trades were held past the cutoff. `firm_balance` does
+double duty: a broker shows a balance exactly as a prop firm does.
+
+**Nothing is fetched**, and the block says the figures are a broker's, dated, and may be set to four
+times standard before scheduled news.
+
+**Verified:** `node tools/probe-margin.mjs` - 26 checks, with the real NinjaTrader CSV timestamps as
+a fixture. Rendered in a browser in both the balance-known and balance-missing states. **Not seen
+against the live project.**
+
 ## 30 September 2026 (the dropdown) — scoped to the tab above it
 
 The account filter offered all forty-eight accounts whatever the tab said. It sits below the tabs

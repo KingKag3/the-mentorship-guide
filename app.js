@@ -668,6 +668,111 @@ export const CONTRACTS = {
   MNQ: { perPoint: 2,  tick: 0.25, micro: null  }
 };
 
+/* ---------------------------- MARGIN, ON A LIVE ACCOUNT --------------------
+
+   A prop account is ended by a drawdown somebody set. A live account is ended
+   by margin, and the two behave nothing alike - which is why this site knew
+   how to reason about the first and not the second until a live margin account
+   arrived in the journal on 30 September 2026.
+
+   THE NUMBER THAT MATTERS IS NOT THE ONE PEOPLE QUOTE. Intraday margin is what
+   a broker advertises - $100 for a Micro Nasdaq at NinjaTrader - and it applies
+   only from the product open until FIFTEEN MINUTES BEFORE the session close.
+   At 15:45 Chicago the requirement becomes INITIAL margin, which for the same
+   contract is $4,742.61. Forty-seven times, on a schedule, whether or not
+   anybody is watching.
+
+   An account that cannot meet it is liquidated and charged a fee for the
+   privilege - $25 the first time, $50 after that. That is the live-account
+   equivalent of a trailing threshold being touched, and unlike a threshold it
+   arrives at a fixed time rather than at a price.
+
+   Figures below are NinjaTrader's published table, read on 30 September 2026.
+   They are a broker's numbers and a broker changes them: their own page says
+   the risk team adjusts intraday margins in real time and without notice, and
+   may set them to FOUR TIMES standard fifteen minutes before a scheduled
+   economic release. So this is a reference point for arithmetic the member can
+   check, never a live figure, and nothing here fetches it. See the standing
+   rule in DECISIONS 2026-09-17.
+-------------------------------------------------------------------------- */
+
+/** When these were read, so a stale figure can be recognised as one. */
+export const MARGINS_AS_OF = '2026-09-30';
+
+/** NinjaTrader, in US dollars per contract. */
+export const MARGINS = {
+  ES:  { day: 500,  maintenance: 26097.59, initial: 28707.35 },
+  MES: { day: 50,   maintenance: 2609.76,  initial: 2870.74 },
+  NQ:  { day: 1000, maintenance: 43114.62, initial: 47426.09 },
+  MNQ: { day: 100,  maintenance: 4311.46,  initial: 4742.61 },
+  YM:  { day: 500,  maintenance: 15261.09, initial: 16787.20 },
+  MYM: { day: 50,   maintenance: 1526.11,  initial: 1678.73 },
+  RTY: { day: 500,  maintenance: 10908.66, initial: 11999.53 },
+  M2K: { day: 50,   maintenance: 1090.87,  initial: 1199.96 }
+};
+
+/* WHEN THE CHEAP RATE STOPS, in New York minutes.
+ *
+ * NinjaTrader publishes this as 15:45 Chicago for the equity index contracts,
+ * with the session closing at 16:00. Held in New York time because every other
+ * window on this site is - a member in London must not get a different answer
+ * for the same trade - and as a single number because these eight contracts
+ * share it. A product with a different cutoff (wheat closes at 13:05 Chicago)
+ * would need its own, and gets no answer here rather than a wrong one.
+ */
+const INTRADAY_ENDS_NY = 16 * 60 + 45;
+
+/** What one contract costs to hold, or null for a symbol with no published figure. */
+export function marginFor(symbol) {
+  const key = String(symbol ?? '').trim().toUpperCase();
+  if (!key) return null;
+  if (MARGINS[key]) return MARGINS[key];
+
+  // The same walk `contractFor` does, for the same reason: `MNQ DEC26`.
+  const head = key.split(/[\s\-_/]/)[0];
+  if (MARGINS[head]) return MARGINS[head];
+  for (let n = head.length - 1; n >= 2; n--) {
+    if (MARGINS[head.slice(0, n)]) return MARGINS[head.slice(0, n)];
+  }
+  return null;
+}
+
+/**
+ * Was this trade still open when the cheap rate ended?
+ *
+ * Needs a close. A trade with no `closed_at` cannot be answered - `null`, not
+ * `false`, because "we do not know" and "no" are different and the difference
+ * is the whole reason this project keeps making the distinction.
+ *
+ * Opening after the cutoff counts too: a position put on at 17:00 New York is
+ * on initial margin from the moment it exists.
+ */
+export function heldPastIntraday(row) {
+  if (!row || !row.opened_at || !row.closed_at) return null;
+
+  const at = (when) => {
+    const d = new Date(when);
+    if (Number.isNaN(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(d);
+    return (Number(parts.find((p) => p.type === 'hour').value) % 24) * 60 +
+      Number(parts.find((p) => p.type === 'minute').value);
+  };
+
+  const open = at(row.opened_at);
+  const shut = at(row.closed_at);
+  if (open === null || shut === null) return null;
+
+  // A trade that ran past midnight was open across everything in between.
+  const overnight = new Date(row.closed_at) - new Date(row.opened_at) > 20 * 3600 * 1000;
+  if (overnight) return true;
+
+  if (open >= INTRADAY_ENDS_NY) return true;         // opened after the cutoff
+  if (shut < open) return true;                      // wrapped past midnight
+  return shut >= INTRADAY_ENDS_NY;                   // still open at the cutoff
+}
+
 /** The spec for a symbol, or null when it is one we do not know. */
 /**
  * The journal's session vocabulary, and the windows that produce it.

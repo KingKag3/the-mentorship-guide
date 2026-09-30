@@ -2078,3 +2078,52 @@ Nothing warned. The CSS parsed, the page rendered, and the break was four times 
 being fixed - visible only because it was looked at. A stylesheet has no equivalent of the syntax
 check every other file here gets, which is the argument for rendering a change rather than reading
 it.
+
+---
+
+## 2026-09-30 (margin) — What ends a live account, which is not a drawdown
+
+A prop account is ended by a drawdown somebody set. A live account is ended by margin, and this site
+could reason about the first and had nothing to say about the second beyond *your own money, nothing
+to breach* - which is true of a target and false of everything else.
+
+Read from NinjaTrader's published pages on 30 September 2026.
+
+### The advertised number applies for least of the day
+
+Intraday margin runs from the product open until **fifteen minutes before the session close** -
+15:45 Chicago for the index contracts - after which **initial** margin is required.
+
+    MNQ    intraday $100.00      initial $4,742.61      47x
+    MES    intraday  $50.00      initial $2,870.74
+    NQ     intraday $1,000.00    initial $47,426.09
+
+An account that cannot meet it is liquidated and charged for it: $25 the first time, $50 after.
+That is the live-account equivalent of a trailing threshold being touched, except it arrives at a
+fixed time rather than at a price - which makes it the rarer thing, a risk a journal can see coming.
+
+### So the question worth asking is not "what is the margin"
+
+That is a lookup. The question is **was this position still open when the cheap rate ended**, and
+that is answerable from rows the member already has.
+
+`heldPastIntraday(row)` answers it, and the two ways it could be quietly wrong are both pinned:
+
+- **The cutoff is a New York wall clock**, so it moves against UTC twice a year. A test written in
+  summer passes all winter while the answer is an hour out. The probe asserts the same UTC instant
+  gives opposite answers in September and January.
+- **A trade with no closing time returns `null`, not `false`.** A broker export carrying an entry
+  and no exit is ordinary, and counting it as safe would make the figure reassuring rather than
+  true - the one direction it must never be wrong in.
+
+### What a live card says now
+
+What the recorded balance carries, intraday and past the cutoff, against the largest position the
+journal has actually seen; how many trades have already been held past it; and how many cannot be
+answered. `firm_balance` earns a second job - a broker shows a balance exactly as a prop firm does.
+
+**Stated as a broker's figures and dated.** Their page says the risk team adjusts intraday margins
+in real time without notice and may set them to **four times** standard fifteen minutes before a
+scheduled economic release. Nothing fetches them; the standing rule from 2026-09-17 holds. The
+figures are a reference point for arithmetic the member can check against their own platform, and
+the block says so rather than implying currency it does not have.

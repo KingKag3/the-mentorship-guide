@@ -181,7 +181,8 @@ import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, rende
          accountsHidden, setAccountsHidden, aliasMap,
          toNumber, fetchPaged,
          pageSize, setPageSize, pageSlice, renderPager, barTrack, CARD_SIZES,
-         retiredAccounts, kindTag as sharedKindTag } from './app.js';
+         retiredAccounts, kindTag as sharedKindTag,
+         marginFor, heldPastIntraday, MARGINS_AS_OF } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'props.html');
@@ -264,7 +265,10 @@ const [tradesRes, propsRes, presetRes, adjustRes, attemptRes, readingRes] = awai
   // Own rows only - an admin can read other members' shared trades, and their
   // accounts would otherwise appear here as cards. See DECISIONS 2026-09-14.
   fetchPaged(() => supabase.from('trades')
-    .select('account, opened_at, symbol, points, contracts, fees, net_pnl, r_multiple')
+    // `closed_at` is here for the margin block on a live account: whether a
+    // position was still open when the intraday rate ended cannot be answered
+    // without it. From `trade-closed-at.sql`, confirmed run on 11 August.
+    .select('account, opened_at, closed_at, symbol, points, contracts, fees, net_pnl, r_multiple')
     .eq('user_id', profile.id)
     .order('opened_at', { ascending: true }), 50000),
   supabase.from('prop_accounts')
@@ -1920,6 +1924,118 @@ function groupOf(name, passed) {
   return 'prop';
 }
 
+/* ------------------- WHAT ENDS A LIVE ACCOUNT, WHICH IS NOT A DRAWDOWN ------
+
+   This card knew how to reason about an account a firm is watching and had
+   nothing to say about one at a broker beyond "your own money, nothing to
+   breach". That is true of a target and false of everything else: a live
+   account is ended by margin, on a schedule, and the schedule is the part
+   nobody quotes.
+
+   THE ADVERTISED NUMBER IS THE ONE THAT APPLIES LEAST OF THE DAY. NinjaTrader's
+   $100 Micro Nasdaq margin runs from the product open until fifteen minutes
+   before the session close. At 15:45 Chicago the requirement becomes INITIAL -
+   $4,742.61 for the same contract, forty-seven times as much - and an account
+   that cannot meet it is liquidated and charged for it.
+
+   Two things this page can therefore say that nothing else does, both from
+   rows the member already has:
+
+     - what their recorded balance actually carries, intraday and overnight;
+     - how often they have already held a position past the cutoff.
+
+   The second is the one worth the code. It is a fact about behaviour, not a
+   prediction, and it is invisible in every other view on this site.
+-------------------------------------------------------------------------- */
+
+function marginBlock(name, cfg, mine) {
+  const balance = toNumber(cfg.firm_balance);
+
+  /* The symbol this account actually trades, not every symbol it has ever
+   * touched: a margin figure that averages a Micro Nasdaq and a Crude Oil
+   * describes no position anybody took. */
+  const counts = new Map();
+  for (const t of mine) {
+    const key = (t.symbol || '').trim();
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const symbol = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const margin = symbol ? marginFor(symbol) : null;
+
+  if (!margin) {
+    return '<p class="stat-note">Your own money, so there is no target and no drawdown. ' +
+      (symbol
+        ? 'No published margin is held for <strong>' + escapeHtml(symbol) + '</strong>, so ' +
+          'nothing here can say what a position in it costs to hold.'
+        : 'Import some trades and this can say what a position costs to hold.') + '</p>';
+  }
+
+  // The biggest single position the journal has seen, which is the one the
+  // account had to be able to carry.
+  let most = 0;
+  for (const t of mine) {
+    const n = toNumber(t.contracts);
+    if (Number.isFinite(n) && n > most) most = n;
+  }
+  const size = most || 1;
+
+  /* HELD PAST THE CUTOFF. `null` is not `false`: a trade with no close cannot
+   * be answered, and counting it as safe is how a figure like this becomes
+   * reassuring instead of true. */
+  const answered = mine.filter((t) => heldPastIntraday(t) !== null);
+  const past = answered.filter(heldPastIntraday);
+  const unknown = mine.length - answered.length;
+
+  const carriesDay = balance ? Math.floor(balance / margin.day) : null;
+  const carriesNight = balance ? Math.floor(balance / margin.initial) : null;
+
+  return '<div class="callout"><span class="callout-label">What it costs to hold</span>' +
+    '<p>Your own money, so there is no target and no drawdown. What ends a live account is ' +
+    'margin, and the figure a broker advertises is the one that applies for least of the day: ' +
+    '<strong>' + escapeHtml(symbol) + '</strong> is ' + money(margin.day) + ' a contract ' +
+    'intraday and <strong>' + money(margin.initial) + '</strong> from fifteen minutes before ' +
+    'the session close &mdash; 16:45 New York for the index contracts.</p>' +
+
+    '<ul>' +
+      (balance
+        ? '<li><strong>' + money(balance) + ' carries ' + carriesDay + ' contract' +
+          (carriesDay === 1 ? '' : 's') + ' intraday, and ' + carriesNight +
+          (carriesNight === 1 ? ' contract' : ' contracts') + ' past the cutoff.</strong> ' +
+          'Your largest position so far is ' + size + '.' +
+          (carriesNight < size
+            ? ' <strong>That position could not have been held past the cutoff on this ' +
+              'balance</strong> &mdash; it needs ' + money(margin.initial * size) + '.'
+            : '') + '</li>'
+        : '<li>Record the balance under <em>What the firm\'s dashboard says</em> and this can ' +
+          'say how many contracts it carries. ' + money(margin.initial) + ' each past the ' +
+          'cutoff, ' + money(margin.day) + ' each before it.</li>') +
+
+      (past.length
+        ? '<li><strong>' + past.length + ' of ' + answered.length + ' trade' +
+          (answered.length === 1 ? '' : 's') + ' here ' + (past.length === 1 ? 'was' : 'were') +
+          ' still open past 16:45 New York.</strong> Each one needed ' +
+          money(margin.initial) + ' a contract at that moment rather than ' +
+          money(margin.day) + '. An account that cannot meet it is liquidated, and charged a ' +
+          'fee for it.</li>'
+        : answered.length
+          ? '<li>Nothing here has been held past the cutoff, so the cheap rate is the only one ' +
+            'that has applied.</li>'
+          : '') +
+
+      (unknown
+        ? '<li>' + unknown + ' trade' + (unknown === 1 ? ' has' : 's have') + ' no closing ' +
+          'time recorded, so nothing can be said about ' + (unknown === 1 ? 'it' : 'them') +
+          ' either way.</li>'
+        : '') +
+    '</ul>' +
+
+    '<p class="stat-note">A broker\'s figures, read on ' + escapeHtml(MARGINS_AS_OF) + ', and ' +
+    'they change: NinjaTrader states its risk team adjusts intraday margins in real time without ' +
+    'notice, and may set them to <strong>four times</strong> standard fifteen minutes before a ' +
+    'scheduled economic release. Nothing here fetches them. Check yours before sizing on them.</p>' +
+    '</div>';
+}
+
 function card(name, passedTo) {
   const cfg = saved.get(name) || {};
   const kind = cfg.kind || 'prop';
@@ -2019,8 +2135,10 @@ function card(name, passedTo) {
       : '') +
 
     (isFunded ? payoutBlock(cfg, p, bar)
+      : kind === 'live'
+      ? marginBlock(name, cfg, allTrades.filter((t) => (t.account || '') === name))
       : !isProp
-      ? '<p class="stat-note">Your own money. Nothing to reach and nothing to breach, so this ' +
+      ? '<p class="stat-note">A demo account. Nothing to reach and nothing to breach, so this ' +
         'account is reported rather than scored.</p>'
       : target
         ? bar('Toward target', p.total, target)

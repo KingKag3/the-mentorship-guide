@@ -2149,3 +2149,55 @@ in real time without notice and may set them to **four times** standard fifteen 
 scheduled economic release. Nothing fetches them; the standing rule from 2026-09-17 holds. The
 figures are a reference point for arithmetic the member can check against their own platform, and
 the block says so rather than implying currency it does not have.
+
+---
+
+## 2026-10-01 — A file refused before it was read
+
+A WealthCharts orders export - 9,103 fills across twenty-five accounts - produced nothing. Not an
+error, not a partial import: a blank page.
+
+**Every stage of the importer handled it perfectly.** The fold turned 9,103 fills into 4,545 round
+turns and named the thirteen legs it could not pair. Automatic mapping found all ten columns without
+being told. The row reader mapped 4,545 of 4,545 and skipped none. Run by hand against the real
+file, the pipeline was flawless.
+
+It never got that far:
+
+    if (!$('acct').value.trim()) {
+      setStatus('#status', 'Name an account first - most files do not carry one.', 'error');
+      $('file').value = '';
+      return;
+    }
+
+**Most files do not carry one. This one carries twenty-five**, in a `name` column, and it was turned
+away at the door by a box it did not need. The file input was cleared as well, so the page went
+blank and the only explanation was a status line above the fold on a page somebody has scrolled
+down. *"I select a file and get nothing"* is precisely what that looks like from outside.
+
+Nothing was wrong in a way any test would have caught, because every function worked - on data it
+was never handed.
+
+**Decided:**
+
+- The file is read first. Whether a fallback account is needed is a question about what the file
+  turned out to contain, and it is now asked next to the preview where the file is still loaded and
+  the answer is visible.
+- `required` comes off the box. It is a fallback, as its own label says, and the browser cannot know
+  whether this file needs one. A condition the markup cannot express does not belong in the markup.
+- The file input is never cleared. Destroying somebody's selection to report a problem makes the
+  problem harder to fix than it was.
+- The box re-reads on `input` rather than `change`, so typing an account while looking at *Which
+  account are these?* does something before the box loses focus.
+
+`tools/probe-orders-fold.mjs` runs the real shape end to end and asserts the thing that was actually
+broken: that a file naming its own accounts needs nothing typed anywhere. It also greps the page for
+the gate, the `required` attribute and the file-clearing, because those are three lines that would
+read as reasonable to anybody adding them back.
+
+### The general shape
+
+This is the second time in a week that the broken thing was a guard rather than the work it guarded.
+A guard that runs before the evidence exists can only act on an assumption, and an assumption about
+a file is the one thing an importer should never make - it is the page's entire job to find out
+instead.

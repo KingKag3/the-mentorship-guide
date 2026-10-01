@@ -122,7 +122,12 @@
 
   <form class="auth-form auth-form-wide" id="import-form" autocomplete="off">
     <label for="acct">Account name <span class="opt">— used for any row the file does not name</span></label>
-    <input id="acct" type="text" list="dl-acct" placeholder="Main" required>
+    <!-- NOT `required`. It is a FALLBACK, as the label says: needed only for a
+         file that does not name its own accounts, and a WealthCharts orders
+         export names twenty-five. The browser cannot know which, so the
+         condition is checked in `recompute` where the file has been read and
+         the answer is knowable. -->
+    <input id="acct" type="text" list="dl-acct" placeholder="Main">
     <datalist id="dl-acct"></datalist>
     <p class="field-note" id="acct-note"></p>
 
@@ -1241,12 +1246,20 @@ $('file').addEventListener('change', async () => {
   reset();
   if (!file) return;
 
-  if (!$('acct').value.trim()) {
-    setStatus('#status', 'Name an account first — most files do not carry one.', 'error');
-    $('file').value = '';
-    return;
-  }
-
+  /* THIS USED TO REFUSE THE FILE BEFORE READING IT.
+   *
+   * An empty account box cleared the file input and stopped - on the grounds
+   * that most exports do not name an account, which is true and is not a
+   * reason to refuse the ones that do. A WealthCharts orders export carries a
+   * `name` column holding twenty-five of them; it was turned away at the door
+   * by a box it did not need, and because the file input was cleared too, the
+   * page went blank. "I select a file and get nothing" is exactly what that
+   * looks like from the outside, and the status line saying why is above the
+   * fold on a page somebody has scrolled down.
+   *
+   * So the file is read first. Whether an account is needed is a question
+   * about what the file turned out to contain, and it is asked below, next to
+   * the preview, where the answer is visible. */
   lastFile = file;
   setStatus('#status', 'Reading ' + file.name + '…', 'info');
 
@@ -1271,7 +1284,11 @@ $('file').addEventListener('change', async () => {
   afterRows();
 });
 
-$('acct').addEventListener('change', () => { if (rows.length) recompute(); });
+/* `input`, not `change`: `change` waits for the box to lose focus, so somebody
+ * typing an account name while looking at "Which account are these?" sees
+ * nothing happen until they click elsewhere - which reads as the page ignoring
+ * them. */
+$('acct').addEventListener('input', () => { if (rows.length) recompute(); });
 
 function reset() {
   rows = [];
@@ -1307,6 +1324,26 @@ function afterRows() {
 
 function recompute() {
   const account = $('acct').value.trim();
+
+  /* NOW that the file has been read, whether a fallback account is needed is
+   * answerable: it is needed only where the file does not name one itself.
+   *
+   * Checked before the required-column list below, because "every trade would
+   * land under no account at all" is a worse outcome than a missing column and
+   * should not be the second thing somebody is told. */
+  if (!account && columnsFor('account').length === 0 && rows.length) {
+    parsed = [];
+    $('actions-top').innerHTML = '';
+    $('preview').innerHTML =
+      '<div class="callout warn"><span class="callout-label">Which account are these?</span>' +
+      '<p>This file does not name one, so every trade in it would arrive under no account at ' +
+      'all &mdash; and nothing on the calendar, the statistics or the accounts page could tell ' +
+      'them from anybody else\'s. Fill in <strong>Account name</strong> above and this fills ' +
+      'in.</p>' +
+      '<p class="stat-note">Your file is still loaded. If it does have an account column, set ' +
+      'it under <em>Which column is which</em> and this goes away.</p></div>';
+    return;
+  }
   // `columnsFor`, not a bare comparison: a summed field holds a list, and
   // `[1,2] < 0` is false for the wrong reason rather than the right one.
   const missing = FIELDS.filter((f) => f.req && columnsFor(f.key).length === 0)

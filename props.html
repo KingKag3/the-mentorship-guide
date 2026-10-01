@@ -1822,10 +1822,21 @@ function payoutBlock(cfg, p, bar) {
   return out.join('');
 }
 
+/* PAUSED IS NOT A KIND OF FINISHED, and the tone says so.
+ *
+ * `passed`, `failed` and `retired` are final: the account is done and the site
+ * treats all three as finished. A live account with $99 in it is none of them.
+ * It has not passed, has not been blown, has not been closed - it simply
+ * cannot open a position, because a Micro Nasdaq needs $100 intraday, and it
+ * is one deposit from being real again.
+ *
+ * `info`, the same tone an evaluation's kind carries, rather than the grey of
+ * `retired`: grey is the colour of over. */
 function statusTag(status) {
-  const map = { active: 'bull', passed: 'bull', failed: 'bear', retired: '' };
+  const map = { active: 'bull', paused: 'info', passed: 'bull', failed: 'bear', retired: '' };
   const why = {
     active: 'Running now',
+    paused: 'Stopped for now, and not over. Still counted among the accounts being traded',
     passed: 'Reached its target',
     failed: 'Breached its drawdown',
     retired: 'Stopped, without passing or failing'
@@ -2190,9 +2201,16 @@ function card(name, passedTo) {
       (passedTo
         ? ' <span class="tag bull">passed &rarr; ' + escapeHtml(label(passedTo)) + '</span>'
         : '') +
-      // The status tag would say "passed" beside a tag already saying passed
-      // AND what it became. One of the two is furniture.
-      (isProp && !passedTo ? ' ' + statusTag(outcome) : '') +
+      /* The status tag would say "passed" beside a tag already saying passed
+       * AND what it became. One of the two is furniture.
+       *
+       * ON A LIVE OR DEMO ACCOUNT IT ONLY APPEARS WHEN THERE IS SOMETHING TO
+       * SAY. The tag used to be prop-only, so a live account marked paused set
+       * the column and showed nothing at all - a state recorded and never
+       * reported, which is worse than not offering the state. `active` is the
+       * default and needs no tag; anything else does. */
+      (!passedTo && (isProp || (outcome && outcome !== 'active'))
+        ? ' ' + statusTag(outcome) : '') +
       (live && live.attempt > 1
         ? ' <span class="tag">attempt ' + live.attempt + '</span>' : '') +
       (cfg.firm ? ' <span class="acct-muted">' + escapeHtml(cfg.firm) +
@@ -2457,7 +2475,11 @@ function card(name, passedTo) {
 
         '<label>Status</label>' +
         '<select name="status">' +
-          (isWatched ? ['active', 'passed', 'failed', 'retired'] : ['active', 'retired']).map((v) =>
+          /* A live or demo account cannot pass or fail - there is no target and
+           * no drawdown to breach - but it can certainly be put down for a
+           * while, which is the whole reason `paused` exists. */
+          (isWatched ? ['active', 'paused', 'passed', 'failed', 'retired']
+                     : ['active', 'paused', 'retired']).map((v) =>
             '<option value="' + v + '"' + ((cfg.status || 'active') === v ? ' selected' : '') +
             '>' + v + '</option>').join('') +
         '</select>' +
@@ -2984,6 +3006,7 @@ function renderBulk() {
             '<select name="status" class="role-select">' +
               '<option value="">Leave as they are</option>' +
               '<option value="active">Still being traded</option>' +
+              '<option value="paused">Paused &mdash; stopped for now, not over</option>' +
               '<option value="failed">Blown</option>' +
               '<option value="passed">Passed</option>' +
               '<option value="retired">Retired</option>' +
@@ -3235,7 +3258,10 @@ async function applyBulk(e) {
   /* The day it stopped, recorded once, the same way a single card records it.
    * Only where the account has not already got one - re-marking nineteen
    * accounts should not move the date they actually ended. */
-  if (patch.status && patch.status !== 'active') {
+  /* `settled_on` is the day an account ENDED, and a pause is not an ending -
+   * stamping one would put a settled date on an account that is expected back,
+   * and `active` would then have to know to clear it again. */
+  if (patch.status && patch.status !== 'active' && patch.status !== 'paused') {
     patch.settled_on = new Date().toISOString().slice(0, 10);
   }
 
@@ -3889,7 +3915,8 @@ async function save(e) {
     firm_threshold: num('firm_threshold'),
     firm_seen_on: txt('firm_seen_on')
   };
-  if (row.status !== 'active' && !saved.get(name)?.settled_on) {
+  // See the bulk panel: a pause is not an ending, so it earns no settled date.
+  if (row.status !== 'active' && row.status !== 'paused' && !saved.get(name)?.settled_on) {
     row.settled_on = new Date().toISOString().slice(0, 10);
   }
 

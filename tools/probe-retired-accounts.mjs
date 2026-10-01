@@ -390,5 +390,63 @@ const tagWord = (kind) => (kindTag(kind).match(/>([^<]*)</) || [, ''])[1];
   }
 }
 
+// ----------------------------------- paused is not a kind of finished
+
+/* THE WHOLE POINT OF THE STATE.
+ *
+ * `passed`, `failed` and `retired` are final: the account is done, the trading
+ * has moved somewhere else, and this site greys the card, drops the name from
+ * the importer and takes it out of the default view.
+ *
+ * A live margin account with $99 in it is none of those. It has not passed, has
+ * not been blown, has not been closed - it simply cannot open a position,
+ * because a Micro Nasdaq needs $100 intraday, and it is one deposit from being
+ * real again.
+ *
+ * Folding it in with the final three would make the Finished pile mean two
+ * incompatible things - "this is over" and "this is waiting" - which is the
+ * same mistake the kind tags made on 30 September, where a blank meant both
+ * "evaluation" and "nobody has said". A label that means two things tells you
+ * neither.
+ *
+ * So it is asserted here, pointing the opposite way to every other check in
+ * this file, because `paused` sitting in a list beside four finals is exactly
+ * the thing somebody tidies up later. */
+{
+  check('a paused account is NOT finished',
+        !has(retiredAccounts([{ account: 'LIVE-1', kind: 'live', status: 'paused' }], []), 'LIVE-1'));
+
+  check('and a paused latest attempt does not finish one either',
+        !has(retiredAccounts([{ account: 'E-1', status: 'active' }],
+                             [{ account: 'E-1', attempt: 2, outcome: 'paused' }]), 'E-1'));
+
+  // ...and a pause does not rescue one that IS finished by other evidence.
+  check('a funded account still retires the evaluation behind it',
+        has(retiredAccounts([{ account: 'PA-9', kind: 'funded', from_account: 'E-9' },
+                             { account: 'E-9', status: 'paused' }], []), 'E-9'));
+}
+
+{
+  /* It has to be in the enum the database accepts, or saving it fails with a
+   * constraint violation that reads as a bug in the page. */
+  const sql = fs.readFileSync('supabase/account-paused.sql', 'utf8');
+  check('the migration widens the status constraint',
+        /check \(status in \([^)]*'paused'[^)]*\)\)/.test(sql), (sql.match(/check \(status in [^;]+/) || [''])[0]);
+
+  const props = fs.readFileSync('props.html', 'utf8');
+  check('the card offers it on a watched account',
+        /'active', 'paused', 'passed', 'failed', 'retired'/.test(props));
+  check('and on a live or demo one, which cannot pass or fail',
+        /'active', 'paused', 'retired'/.test(props));
+  check('the bulk panel offers it too', /value="paused"/.test(props));
+
+  check('a pause earns no settled date, because it is not an ending',
+        /status !== 'active' && .*status !== 'paused'/.test(props) ||
+        /!== 'active' && row\.status !== 'paused'/.test(props));
+
+  check('and a non-active status shows on a live account, not only a prop one',
+        /outcome && outcome !== 'active'/.test(props));
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

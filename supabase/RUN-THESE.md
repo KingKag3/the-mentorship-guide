@@ -17,6 +17,19 @@ Supersedes `chart-marks-shapes.sql`, which was never run — this repeats all of
 
 Until it runs, pins keep working and the tool row names this file where **Draw on the chart** would be.
 
+### `account-paused.sql` — an account that has stopped without being over (1 October 2026)
+
+Run after `prop-accounts.sql`. Widens the `status` check to accept `paused`.
+
+Until it runs, choosing **Paused** on a card fails with a constraint violation that reads like a bug
+in the page. Once it has, the option saves and the card carries a blue `paused` tag.
+
+**It is deliberately not a kind of finished.** A paused account keeps its place among the ones still
+being traded, stays on the importer's list, and earns no settled date — it has not ended, it is
+waiting. Folding it in with passed, failed and retired would make the Finished pile mean two
+incompatible things. `tools/probe-retired-accounts.mjs` asserts the distinction so nobody tidies it
+away. DECISIONS 2026-10-01 (paused).
+
 ## Held back on purpose
 
 Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on

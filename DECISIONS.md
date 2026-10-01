@@ -2201,3 +2201,45 @@ This is the second time in a week that the broken thing was a guard rather than 
 A guard that runs before the evidence exists can only act on an assumption, and an assumption about
 a file is the one thing an importer should never make - it is the page's entire job to find out
 instead.
+
+---
+
+## 2026-10-01 (paused) — Stopped is not finished
+
+A live margin account with **$99** left in it. A Micro Nasdaq needs $100 intraday, so it cannot open
+a position at all - and the accounts page had no way to say that.
+
+`status` held four values and three of them are **final**: passed, failed, retired. The site reads
+them that way, and `retiredAccounts` treats all three as finished - greying the card, dropping the
+name from the importer's suggestions, and taking the account out of the default view on the calendar
+and the statistics.
+
+A $99 live account is none of them. It has not passed, has not been blown, has not been closed. It
+is one deposit from being real again, and calling it `active` says something untrue about an account
+that cannot place a trade.
+
+**Decided:** `paused`, and **it is not a kind of finished.**
+
+Folding it in with the final three would make the Finished pile mean two incompatible things -
+*this is over* and *this is waiting*. That is precisely the mistake the kind tags made yesterday,
+where a missing tag meant both "evaluation" and "nobody has said", and it had to be corrected for
+the same reason: a label that means two things tells you neither.
+
+So a paused account keeps its place among the ones still being traded, stays on the importer's list
+- trades for it may well still arrive, which is exactly what separates it from a passed evaluation
+the firm has closed - and earns **no settled date**, because `settled_on` is the day an account
+ended and a pause is not an ending.
+
+### The tag had nowhere to appear
+
+The status tag was prop-only. A live account marked paused would have set the column and shown
+nothing at all - a state recorded and never reported, which is worse than not offering the state.
+It now appears on any account whose status is not `active`; `active` is the default and needs no tag.
+
+Blue rather than the grey of `retired`. Grey is the colour of over.
+
+### And the margin block already said the rest
+
+`roomTable` refuses to draw for a balance that cannot cover one contract, and says so: *$99.00 does
+not cover the $100.00 one contract needs, so there is no position this balance can open at all.*
+That was written for a different reason and turns out to be the other half of this.

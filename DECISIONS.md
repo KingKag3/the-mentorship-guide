@@ -2243,3 +2243,32 @@ Blue rather than the grey of `retired`. Grey is the colour of over.
 `roomTable` refuses to draw for a balance that cannot cover one contract, and says so: *$99.00 does
 not cover the $100.00 one contract needs, so there is no position this balance can open at all.*
 That was written for a different reason and turns out to be the other half of this.
+
+---
+
+## 2026-10-05 — A size is a size, however many ladders have one
+
+The account-size dropdown offered **$25,000.00** three times, **$100,000.00** four times and
+**$250,000.00** twice. Identical options, nothing to tell them apart, and three of the four doing
+exactly what the first one does.
+
+It listed one option per **preset row**, which was right while `prop_presets` held one row per size.
+`prop-presets-by-product.sql` added a product column and a row per product per size - Apex sells
+four ladders - and the dropdown kept listing rows.
+
+Nothing broke. Picking the second $100,000 did the same thing as picking the first, because the
+ladder is looked up by firm **and** size **and** product, and the product has its own control two
+fields away. So this was a list that told the member there was a decision to make where there was
+none, which is its own kind of wrong: a control that implies a difference it cannot express.
+
+**Decided:** the size list is the sizes that exist, each once, in order. Both selects - the card and
+the bulk panel - go through one builder, so they cannot drift apart.
+
+**Sorted here rather than trusted from the query.** The rows arrive ordered by size, but they arrive
+from two migrations and nothing makes a third keep that.
+
+**A row with no size is not a size.** `Number('')` and `Number(null)` are both 0, which is the hole
+this project keeps finding, so blanks are filtered rather than offered as a $0 account.
+
+`tools/probe-bulk-rows.mjs` pins it, including that a size the member typed which is on no ladder
+marks nothing rather than quietly selecting its neighbour.

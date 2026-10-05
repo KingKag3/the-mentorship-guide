@@ -141,5 +141,81 @@ const TODAY = '2026-09-30';
         built && built[0].replace(/\s+/g, ' '));
 }
 
+// ------------------------------------------- one option per size, not per row
+
+/* THE DROPDOWN LISTED PRESET ROWS, AND THERE IS NO LONGER ONE PER SIZE.
+ *
+ * That was right while `prop_presets` held a row per size. The product column
+ * added a row per PRODUCT per size, so Apex's four ladders put "$25,000.00" on
+ * screen three times, "$100,000.00" four times and "$250,000.00" twice -
+ * identical options with nothing to tell them apart, three of the four doing
+ * exactly what the first one does.
+ *
+ * Which product it is has its own control two fields away, and the pair is
+ * what looks a ladder up. So the size list is the sizes that exist, each once.
+ */
+const app = fs.readFileSync('app.js', 'utf8');
+
+const money = new Function(
+  grab(app, 'export function money(').replace('export ', '') + '; return money;')();
+
+const sizes = (rows) => new Function('presets', 'money',
+  props.match(/const PRESET_SIZES = [\s\S]*?\.sort\(\(a, b\) => a - b\);/)[0] + '\n' +
+  grab(props, 'function sizeOptions(') +
+  '; return { PRESET_SIZES, sizeOptions };')(rows, money);
+
+{
+  // The real seeded shape: four products, sizes shared between them, and the
+  // rows arriving from two migrations rather than one ordered query.
+  const seeded = [
+    { size: 250000 }, { size: 25000 }, { size: 25000 }, { size: 100000 },
+    { size: 100000 }, { size: 100000 }, { size: 100000 }, { size: 25000 },
+    { size: 50000 }, { size: 50000 }, { size: 250000 }, { size: 75000 }
+  ];
+  const api = sizes(seeded);
+
+  check('twelve rows become five sizes', api.PRESET_SIZES.length === 5, api.PRESET_SIZES);
+  check('and they are in order, not in row order',
+        api.PRESET_SIZES.join() === '25000,50000,75000,100000,250000', api.PRESET_SIZES);
+
+  const html = api.sizeOptions(100000);
+  check('each size appears exactly once',
+        (html.match(/\$100,000\.00/g) || []).length === 1,
+        (html.match(/\$100,000\.00/g) || []).length);
+  check('the chosen one is marked', /value="100000" selected/.test(html));
+  check('and only that one is', (html.match(/ selected/g) || []).length === 1);
+}
+
+{
+  // A row with no size is not a size. `Number('')` is 0 and `Number(null)` is
+  // 0 as well, which is the hole this project keeps finding.
+  const api = sizes([{ size: 50000 }, { size: '' }, { size: null }, { size: 0 }]);
+  check('a blank size is not offered as an option',
+        api.PRESET_SIZES.join() === '50000', api.PRESET_SIZES);
+}
+
+{
+  const api = sizes([]);
+  check('no presets at all offers nothing rather than throwing',
+        api.PRESET_SIZES.length === 0 && api.sizeOptions(null) === '');
+}
+
+{
+  // A size the member typed that is not on any ladder must not be silently
+  // selected as something else.
+  const api = sizes([{ size: 50000 }, { size: 100000 }]);
+  const html = api.sizeOptions(66000);
+  check('a size off the ladder marks nothing', !/ selected/.test(html), html);
+}
+
+{
+  // Both selects go through the one builder, so they cannot drift apart.
+  check('the card and the bulk panel share the builder',
+        (props.match(/sizeOptions\(/g) || []).length >= 3,
+        (props.match(/sizeOptions\(/g) || []).length);
+  check('and neither still maps the preset rows',
+        !/presets\.map\(\(x\) => '<option value="' \+ x\.size/.test(props));
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

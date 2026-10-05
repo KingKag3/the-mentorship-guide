@@ -394,6 +394,33 @@ const presetsBroken = !!presetData.error;
  * outside if you do not already know what should be there. */
 const presetsEmpty = !presetsBroken && presets.length === 0;
 
+/* ------------------- A SIZE IS A SIZE, HOWEVER MANY LADDERS HAVE ONE -------
+
+   The size dropdowns listed one option per PRESET ROW, which was right while
+   there was one row per size. `prop-presets-by-product.sql` added a product
+   column and a row per product per size, so Apex's four ladders put
+   "$25,000.00" on screen three times, "$100,000.00" four times, and
+   "$250,000.00" twice - identical options, no way to tell them apart, and
+   three of the four doing exactly what the first one does.
+
+   Which product it is has its own control two fields away, and the pair of
+   them is what looks a ladder up. So this is a list of the sizes that exist,
+   each once, in order.
+
+   Sorted here rather than trusted from the query: the rows arrive ordered by
+   size, but they arrive from two migrations and nothing guarantees a third
+   would keep that.
+-------------------------------------------------------------------------- */
+const PRESET_SIZES = [...new Set(presets.map((x) => Number(x.size)).filter((n) => n > 0))]
+  .sort((a, b) => a - b);
+
+/** The options for an account-size select, with `chosen` marked where it is one. */
+function sizeOptions(chosen) {
+  const want = Number(chosen);
+  return PRESET_SIZES.map((n) => '<option value="' + n + '"' +
+    (want === n ? ' selected' : '') + '>' + money(n) + '</option>').join('');
+}
+
 const schemaShort = optionalMissing || presetOptionalMissing || presetsBroken || presetsEmpty;
 const migrationNote = schemaShort
   ? '<div class="callout warn"><span class="callout-label">' +
@@ -2352,9 +2379,7 @@ function card(name, passedTo) {
             '<input name="firm" type="text" list="dl-firm" value="' + escapeHtml(cfg.firm || '') + '"></div>' +
           '<div><label>Account size</label>' +
             '<select name="size"><option value="">—</option>' +
-            presets.map((x) => '<option value="' + x.size + '"' +
-              (Number(cfg.size) === Number(x.size) ? ' selected' : '') + '>' +
-              money(x.size) + '</option>').join('') +
+            sizeOptions(cfg.size) +
             '</select></div>' +
         '</div>' +
         '<div class="field-pair">' +
@@ -3021,7 +3046,7 @@ function renderBulk() {
                 escapeHtml(PRODUCT_LABEL[v] || v) + '</option>').join('') +
             '</select></div>' +
           '<div><label>Account size</label><select name="size"><option value="">-</option>' +
-            presets.map((x) => '<option value="' + x.size + '">' + money(x.size) + '</option>').join('') +
+            sizeOptions(null) +
             '</select></div>' +
         '</div>' +
         '<div class="field-pair">' +

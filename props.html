@@ -1896,7 +1896,25 @@ const KINDS = [
    of how the funded account was earned, and hiding it would lose both.
 -------------------------------------------------------------------------- */
 
+/* ONE OF THESE IS NOT LIKE THE OTHERS, AND THAT IS THE POINT.
+ *
+ * Funded, Evaluations, Finished and Live-and-demo PARTITION the accounts: each
+ * one lands in exactly one of them. `trading` does not - it holds every
+ * account that is not finished, whatever kind it is, so a funded account and a
+ * live account and an evaluation all appear there and in their own pile too.
+ *
+ * It is first because it answers the question somebody opens this page with.
+ * By the end of a week in which nineteen funded accounts were blown and
+ * fourteen evaluations deleted, the four kind tabs between them held one live
+ * account worth looking at and forty-odd that were over - and finding it meant
+ * knowing which kind it was before you could look for it.
+ *
+ * The same split the calendar and the statistics already make, which is the
+ * other reason: three pages disagreeing about what "being traded" means would
+ * be worse than this page not having the tab at all.
+ */
 const TABS = [
+  ['trading', 'Still trading'],
   ['funded', 'Funded'],
   ['prop', 'Evaluations'],
   ['finished', 'Finished'],
@@ -3452,7 +3470,15 @@ function render() {
   const passed = passedMap();
   finished = retiredAccounts([...saved.values()], allAttempts());
   const piles = new Map(TABS.map(([key]) => [key, []]));
-  for (const name of names) piles.get(groupOf(name, passed)).push(name);
+
+  /* `groupOf` assigns the one exclusive pile. `trading` is filled alongside it
+   * rather than by it, because an account belongs there as well as to its kind
+   * and a function returning one answer cannot say both. */
+  for (const name of names) {
+    const pile = groupOf(name, passed);
+    piles.get(pile).push(name);
+    if (pile !== 'finished') piles.get('trading').push(name);
+  }
 
   /* The tab remembered from last time, unless it is now empty - a member whose
    * only funded account was deleted should not land on a blank page and think
@@ -3468,6 +3494,15 @@ function render() {
         '" role="tab" aria-selected="' + (key === propTab) + '" data-prop-tab="' + key + '">' +
         escapeHtml(name) + ' <span class="acct-muted">' + piles.get(key).length + '</span>' +
       '</button>').join('');
+
+  /* Said once, where the numbers stop adding up. Four tabs that partition and
+   * one that overlaps means the counts along the top sum to more than the
+   * number of accounts, which reads as a bug unless somebody says otherwise. */
+  const tabNote = propTab === 'trading'
+    ? '<p class="stat-note">Every account that is not finished, whatever kind it is &mdash; so ' +
+      'these also appear under their own tab. The same accounts the calendar and the statistics ' +
+      'count by default.</p>'
+    : '';
 
   const shown = piles.get(propTab);
   const state = { ...pageSlice(shown, propPage, propPer), per: propPer };
@@ -3487,6 +3522,7 @@ function render() {
 
   mount.innerHTML =
     migrationNote +
+    tabNote +
     '<datalist id="dl-firm">' +
       [...new Set(presets.map((p) => p.firm))].map((f) =>
         '<option>' + escapeHtml(f) + '</option>').join('') +

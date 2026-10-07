@@ -2272,3 +2272,30 @@ this project keeps finding, so blanks are filtered rather than offered as a $0 a
 
 `tools/probe-bulk-rows.mjs` pins it, including that a size the member typed which is on no ladder
 marks nothing rather than quietly selecting its neighbour.
+
+---
+
+## 2026-10-07 — A tab that overlaps the others, on purpose
+
+**Still trading** on the accounts page: every account that is not finished, whatever kind it is.
+
+The four tabs there partition - Funded, Evaluations, Finished, Live and demo, each account in
+exactly one. This one does not. A funded account, a live account and an evaluation all appear in it
+*and* in their own pile.
+
+**Why that is worth the inconsistency.** After a week in which nineteen funded accounts were blown
+and fourteen evaluations deleted, the four kind tabs between them held one account worth looking at
+and forty-odd that were over - and finding it meant knowing which kind it was before you could go
+looking. The question somebody opens this page with is "what is alive", and nothing answered it.
+
+It is also the split the calendar and the statistics already make. Three pages disagreeing about
+what *being traded* means would be worse than this page not having the tab.
+
+**Filled alongside the exclusive pile rather than by it.** `groupOf` returns one answer and an
+account belongs in two places, so the overlap is a second push rather than a fifth return value -
+and the probe asserts there is still exactly one push into the exclusive pile, because a second
+would show every card twice.
+
+**The counts stop adding up, so it says so.** Four partitioning tabs and one overlapping means the
+numbers along the top sum to more than the number of accounts. That reads as a bug unless somebody
+says otherwise, so the tab carries a line explaining that these also appear under their own tab.

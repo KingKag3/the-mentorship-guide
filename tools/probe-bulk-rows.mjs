@@ -217,5 +217,69 @@ const sizes = (rows) => new Function('presets', 'money',
         !/presets\.map\(\(x\) => '<option value="' \+ x\.size/.test(props));
 }
 
+// ------------------------------------------- the piles on the accounts page
+
+/* FOUR TABS THAT PARTITION, AND ONE THAT OVERLAPS.
+ *
+ * Funded, Evaluations, Finished and Live-and-demo hold each account exactly
+ * once. `trading` holds every account that is not finished, whatever kind it
+ * is, so the same account appears there AND in its own pile.
+ *
+ * That is deliberate and it is the thing most likely to be "corrected" later
+ * by somebody noticing the counts along the top sum to more than the number of
+ * accounts. So both halves are asserted: that the four still partition, and
+ * that `trading` deliberately does not.
+ */
+const groupOf = (name, passed, finished, saved) => new Function(
+  'name', 'passed', 'finished', 'saved',
+  grab(props, 'function groupOf(') + '; return groupOf(name, passed);')(
+    name, passed, finished, saved);
+
+{
+  const saved = new Map([
+    ['PA-1', { kind: 'funded' }],
+    ['EVAL-1', { kind: 'prop' }],
+    ['EVAL-2', { kind: 'prop' }],
+    ['LIVE-1', { kind: 'live' }],
+    ['DEMO-1', { kind: 'demo' }]
+  ]);
+  const finished = new Set(['EVAL-2']);
+  const passed = new Map();
+
+  const pile = (n) => groupOf(n, passed, finished, saved);
+
+  check('a funded account is funded', pile('PA-1') === 'funded', pile('PA-1'));
+  check('an evaluation is an evaluation', pile('EVAL-1') === 'prop', pile('EVAL-1'));
+  check('a finished one is finished', pile('EVAL-2') === 'finished', pile('EVAL-2'));
+  check('live and demo share a pile',
+        pile('LIVE-1') === 'other' && pile('DEMO-1') === 'other');
+
+  // The rule the tab is built from, stated the way the page states it.
+  const trading = [...saved.keys()].filter((n) => pile(n) !== 'finished');
+  check('still trading holds every unfinished account, whatever kind',
+        trading.join() === 'PA-1,EVAL-1,LIVE-1,DEMO-1', trading);
+  check('and holds no finished one', !trading.includes('EVAL-2'));
+}
+
+{
+  const src = props;
+
+  check('the tab exists and comes first',
+        /const TABS = \[\s*\['trading', 'Still trading'\]/.test(src),
+        (src.match(/const TABS = \[[\s\S]{0,80}/) || [''])[0].replace(/\s+/g, ' '));
+
+  check('it is filled alongside the exclusive pile, not by it',
+        /if \(pile !== 'finished'\) piles\.get\('trading'\)\.push\(name\)/.test(src));
+
+  /* An account must not be double-counted in its OWN pile - the overlap is
+   * with `trading` only, and a second push into `pile` would quietly show
+   * every card twice. */
+  check('and each account still lands in exactly one exclusive pile',
+        (src.match(/piles\.get\(pile\)\.push\(name\)/g) || []).length === 1);
+
+  check('the overlap is said, where the counts stop adding up',
+        /also appear under their own tab/.test(src));
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

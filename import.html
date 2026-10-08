@@ -284,10 +284,15 @@ const FIELDS = [
           'action', 'tradetype', 'ordertype', 'positiontype',
           'marketpos', 'marketposition', 'possition', 'poslong'] },
 
+  /* `avgprice` is NinjaTrader's, and `fillprice` is several platforms'. On an
+   * export with one price column it is the only price there is, which makes it
+   * the entry; on one with two, `entryprice` matches first in the exact pass
+   * and this never gets a look in. */
   { key: 'entry', label: 'entry',
     hint: 'Price the position opened at',
     syn: ['entry', 'entryprice', 'pricein', 'openprice', 'avgentry', 'averageentry', 'entryavg',
-          'openingprice', 'entryfillprice'] },
+          'openingprice', 'entryfillprice', 'avgprice', 'averageprice', 'fillprice',
+          'avgfillprice', 'executionprice'] },
 
   { key: 'exit_price', label: 'exit',
     hint: 'Price it closed at',
@@ -391,6 +396,7 @@ const ALL_FIELDS = [...FIELDS, ...PAIRED];
 
 let rows = [];        // every row of the chosen sheet, as arrays of cells
 let headerAt = 0;     // which of them is the header
+let ordersGrid = false;  // whether this file is a list of orders rather than trades
 let headers = [];     // that row, trimmed
 let mapping = {};     // field key -> column index, -1 for unset
 let parsed = [];      // rows ready for the database
@@ -612,6 +618,74 @@ function guessHeaderRow(all) {
    every one of the 126. So profit is net and points is gross. profit is mapped
    to net_pnl for that reason, and fees are left empty rather than guessed at.
 --------------------------------------------------------------------------- */
+
+/* ------------------- AN ORDER IS NOT A TRADE -------------------------------
+
+   NinjaTrader's Orders grid exports one row per ORDER: every working order,
+   every cancellation, every rejection, alongside the ones that actually
+   filled. A cancelled limit that never existed in the market is not a trade,
+   and the journal has no honest place to put it.
+
+   Nothing downstream could tell. `State` and `Filled` map to no field, so a
+   cancelled order arrived as a row with a time, an instrument and a side, and
+   was counted among the trades.
+
+   Done at load, before anything is mapped, because it is a fact about the row
+   rather than about the mapping - and only where the file carries a column
+   saying so. A file without one is unchanged.
+-------------------------------------------------------------------------- */
+
+const DEAD_STATES = new Set(['cancelled', 'canceled', 'rejected', 'expired', 'unfilled',
+                             'working', 'accepted', 'pending', 'initialized', 'submitted']);
+
+// Returns [grid, dropped].
+function dropUnfilled(grid) {
+  const at = guessHeaderRow(grid);
+  const head = (grid[at] || []).map(norm);
+
+  const state = head.indexOf('state');
+  const filled = head.indexOf('filled');
+  if (state < 0 && filled < 0) return [grid, 0];
+
+  const keep = [];
+  let dropped = 0;
+
+  for (const row of grid.slice(at + 1)) {
+    const word = state >= 0 ? norm(row[state]) : '';
+    const count = filled >= 0 ? Number(String(row[filled] ?? '').replace(/[^0-9.-]/g, '')) : null;
+
+    /* A quantity of zero is decisive and a state word is not: platforms spell
+     * the states differently and a word nobody here has seen must not take a
+     * real fill out of the file. So an unrecognised state keeps the row. */
+    const dead = (word && DEAD_STATES.has(word)) ||
+                 (filled >= 0 && Number.isFinite(count) && count === 0);
+
+    if (dead) dropped++; else keep.push(row);
+  }
+
+  if (!dropped) return [grid, 0];
+  return [[...grid.slice(0, at + 1), ...keep], dropped];
+}
+
+/* THE ORDERS GRID IS THE WRONG EXPORT, AND NOTHING SAID SO.
+ *
+ * Its rows have no entry, no exit and no profit - those live in the TRADES
+ * grid, which pairs the fills and nets the commission. Mapped by hand it
+ * produces rows with a time, an instrument and a side and nothing else: they
+ * import without error and then appear nowhere, because every page that counts
+ * money asks for a result first.
+ *
+ * "I imported it and nothing showed up" is precisely that, and it is the worst
+ * shape this page can fail in - a success message over an empty journal.
+ */
+function looksLikeOrders(headerCells) {
+  const h = headerCells.map(norm);
+  const has = (...keys) => keys.filter((k) => h.includes(k)).length;
+
+  // Three of the four, so a renamed column does not hide it.
+  return has('state', 'filled', 'remaining', 'tif', 'oco') >= 3 &&
+         !h.includes('profit') && !h.includes('entryprice');
+}
 
 const WC_OPEN = { '1': 'long', '3': 'short' };
 
@@ -1275,12 +1349,24 @@ $('file').addEventListener('change', async () => {
     return;
   }
 
+  // An order that never filled is not a trade, whatever else this file is.
+  const [live, dropped] = dropUnfilled(rows);
+  rows = live;
+
   // A fills export becomes a trades export before anything else looks at it.
   const [folded, foldNote] = foldFills(rows);
   rows = folded;
 
+  ordersGrid = looksLikeOrders((rows[guessHeaderRow(rows)] || []));
+
   headerAt = guessHeaderRow(rows);
-  setStatus('#status', foldNote, foldNote ? 'ok' : 'info');
+
+  const dropNote = dropped
+    ? dropped + ' order' + (dropped === 1 ? '' : 's') + ' had not filled and ' +
+      (dropped === 1 ? 'was' : 'were') + ' left out. '
+    : '';
+
+  setStatus('#status', dropNote + foldNote, (dropNote || foldNote) ? 'ok' : 'info');
   afterRows();
 });
 
@@ -1311,6 +1397,7 @@ function reset() {
    * for something that is no longer there, and the only reason it went unseen
    * is that Cancel never worked, so nothing ever reached this. */
   lastFile = null;
+  ordersGrid = false;
   setStatus('#status', '', 'info');
 }
 
@@ -1359,6 +1446,40 @@ function recompute() {
       '<p>Set ' + missing.map((f) => '<strong>' + escapeHtml(f.label) + '</strong>').join(', ') +
       ' above. If the file genuinely has no such column, it cannot be imported as trades — a row ' +
       'with no date, no instrument or no side is not a trade, it is a number.</p></div>';
+    return;
+  }
+
+  /* THE WRONG EXPORT, NAMED, WITH THE RIGHT ONE BESIDE IT.
+   *
+   * Checked after the required columns, because an orders grid HAS a time, an
+   * instrument and a side - it passes that test comfortably and then produces
+   * rows with no prices and no profit, which import without error and appear
+   * nowhere. A success message over an empty journal is the worst shape this
+   * page can fail in, and it is the one being prevented here.
+   *
+   * Only while nothing in the file carries a result. Somebody who has mapped a
+   * price column by hand has told this page it is wrong about the file, and it
+   * should believe them. */
+  /* AN EXIT OR A REPORTED FIGURE, not a price of any kind. `Avg. price` maps
+   * to the entry - rightly, on a file with one price column - and that was
+   * enough to switch this off while every row still had no result, because the
+   * fill price of an order is an entry on one row and an exit on another and
+   * neither row knows which. Without a close there is no result, ever. */
+  if (ordersGrid && columnsFor('exit_price').length === 0 &&
+      columnsFor('net_pnl').length === 0) {
+    parsed = [];
+    $('actions-top').innerHTML = '';
+    $('preview').innerHTML =
+      '<div class="callout risk"><span class="callout-label">This is the Orders grid</span>' +
+      '<p>One row per order &mdash; every working order, every cancellation, alongside the ones ' +
+      'that filled. There is no entry, no exit and no profit in it, so these would import ' +
+      'without error and then appear nowhere: the calendar and the statistics ask for a result ' +
+      'before they count anything.</p>' +
+      '<p><strong>Export the Trades tab instead.</strong> In NinjaTrader that is the grid beside ' +
+      'this one &mdash; it pairs each entry with its exit and nets the commission, which is ' +
+      'everything this file is missing.</p>' +
+      '<p class="stat-note">If you mean to map a price column by hand, do it above and this goes ' +
+      'away. Your file is still loaded.</p></div>';
     return;
   }
 

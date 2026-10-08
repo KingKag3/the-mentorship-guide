@@ -2299,3 +2299,42 @@ would show every card twice.
 **The counts stop adding up, so it says so.** Four partitioning tabs and one overlapping means the
 numbers along the top sum to more than the number of accounts. That reads as a bug unless somebody
 says otherwise, so the tab carries a line explaining that these also appear under their own tab.
+
+---
+
+## 2026-10-08 — An order is not a trade
+
+A NinjaTrader **Orders** grid imported and produced nothing visible, and reported success doing it.
+
+Nothing errored. Every required field mapped - a time, an instrument, a side. What the file has no
+column for is a **result**: the Orders grid carries no exit and no profit, because those live in the
+**Trades** grid, which pairs each entry with its exit and nets the commission. So the rows arrived
+with nothing to count, and every page that counts money asks for a result first.
+
+**A success message over an empty journal is the worst shape this page can fail in**, and it is the
+third time in eight days the broken thing has been a guard that could not see what it was guarding:
+the required-column test asks whether the columns exist, never whether they can produce an answer.
+
+### Two things, and the first is true of every platform
+
+**An order that never filled is dropped**, at load, before anything is mapped. The file carried a
+cancelled limit alongside two fills; `State` and `Filled` map to no field, so it arrived as a row
+with a time, an instrument and a side and was counted among the trades.
+
+A **filled quantity of zero is decisive and a state word is not.** Platforms spell their states
+differently, and taking a real fill out of a file over a word nobody here has seen is the expensive
+direction to be wrong in - so an unrecognised state keeps its row.
+
+**And the grid is named.** An orders export with no exit and no profit is refused, saying which file
+this is, that its rows would import without error and then appear nowhere, and which export to take
+instead. The file stays loaded, and mapping a price column by hand turns the refusal off: somebody
+who has done that has told the page it is wrong about the file, and it should believe them.
+
+### The test is an exit or a profit, not a price
+
+`Avg. price` now maps to the entry, rightly - on a file with one price column it is the only price
+there is. An earlier version of this refusal checked for `entry`, which switched it off while every
+row still had no result.
+
+The fill price of an order is an entry on one row and an exit on another, and **neither row knows
+which**. Without a close there is no result, ever, so that is what the test asks for.

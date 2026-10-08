@@ -2338,3 +2338,41 @@ row still had no result.
 
 The fill price of an order is an entry on one row and an exit on another, and **neither row knows
 which**. Without a close there is no result, ever, so that is what the test asks for.
+
+---
+
+## 2026-10-08 (the live card) — A bar measured against something a live account has
+
+A live account card had no bar at all, on a page where every other card has two.
+
+Not an oversight in the drawing: `isWatched = isProp || isFunded` gates both of them, and every bar
+there is measured against **a number a firm set** - a profit target, a drawdown allowance. A live
+account has neither, so there was nothing to put on the other side of the fraction and the bars were
+skipped rather than invented.
+
+**It has a number of its own.** `firm_balance` is what the broker shows today and `held` is what the
+trading has done since, so `balance - held` is the balance before any of it. A worst dip against
+**what the account started with** is the honest question - how much of it did the deepest hole eat -
+and it needs nothing a firm has to supply.
+
+**Not against today's balance**, which is the same mistake in a smaller form: a dip from six weeks
+ago over what is left after it is two different accounts in one fraction.
+
+It says its own denominator, because every other bar on the page means *allowance* and this one
+means something else. And it draws nothing rather than a bar with an invented denominator: no
+balance recorded, no bar; a dip of zero says so in words; losses larger than the balance leave no
+positive start to divide by and draw nothing at all.
+
+### The card asked for a balance it gave nowhere to put
+
+`readingsBlock` was gated on `isWatched` too, so the margin block's *record the balance under what
+the firm's dashboard says* pointed at a section that did not exist on a live card. A broker shows a
+balance exactly as a prop firm does, and it is what the margin arithmetic divides by.
+
+Two things had to give with it:
+
+- **A reading no longer requires a threshold.** A live account has none, and a prop account whose
+  member only has the balance to hand should not be turned away for the half they do have.
+- **A missing threshold is not written over one already recorded.** The promotion to
+  `prop_accounts` now writes only what the reading carried; `null` for the half it did not would
+  have quietly erased last week's threshold.

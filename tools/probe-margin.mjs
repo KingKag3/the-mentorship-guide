@@ -269,5 +269,71 @@ const rows = (html) => [...html.matchAll(/<tr>(?!<th)([\s\S]*?)<\/tr>/g)]
         /at every moment of the trade/.test(html));
 }
 
+// ------------------------------- the one bar a live account can draw
+
+/* EVERY BAR ON AN ACCOUNT CARD IS MEASURED AGAINST A NUMBER A FIRM SET, and a
+ * live account has none - so it had no bar at all, on a page where every other
+ * card has two.
+ *
+ * It has a number of its own: what it started with. `firm_balance` is what the
+ * broker shows today and `held` is what the trading has done since, so
+ * `balance - held` is the balance before any of it, and a worst dip against
+ * THAT is the honest question.
+ *
+ * Not against today's balance. A dip from six weeks ago over what is left
+ * after it is two different accounts in one fraction. */
+const propsSrc = fs.readFileSync('props.html', 'utf8');
+
+const liveDipBar = new Function('toNumber', 'money',
+  grab(propsSrc, 'function liveDipBar(') + '; return liveDipBar;')(
+    (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; }, money);
+
+const fakeBar = (label, value, of) => '[BAR ' + label + ' ' + value + '/' + of + ']';
+
+{
+  // $99 left, $901 lost: it started with $1,000.
+  const out = liveDipBar('live', { firm_balance: 99 }, { held: -901, worstDip: 1240 }, fakeBar);
+  check('a live account gets a bar', out.includes('[BAR'), out.slice(0, 44));
+  check('measured against what it started with, not what is left',
+        out.includes('/1000]'), out.slice(0, 44));
+  check('and the denominator is named in words', /started with/.test(out));
+}
+
+{
+  check('a prop account is not given it',
+        liveDipBar('prop', { firm_balance: 1000 }, { held: 0, worstDip: 10 }, fakeBar) === '');
+  check('nor a funded one',
+        liveDipBar('funded', { firm_balance: 1000 }, { held: 0, worstDip: 10 }, fakeBar) === '');
+}
+
+{
+  check('no balance recorded draws nothing rather than inventing a denominator',
+        liveDipBar('live', {}, { held: -901, worstDip: 1240 }, fakeBar) === '');
+
+  // A dip of zero is a fact, not a missing bar.
+  const flat = liveDipBar('live', { firm_balance: 1000 }, { held: 0, worstDip: 0 }, fakeBar);
+  check('no dip yet says so instead of drawing an empty bar',
+        !flat.includes('[BAR') && /nothing has come off a high/.test(flat), flat);
+
+  // Losses larger than the balance leave no positive start to divide by, and a
+  // negative denominator would draw nonsense.
+  check('an impossible start draws nothing',
+        liveDipBar('live', { firm_balance: 99 }, { held: 200, worstDip: 50 }, fakeBar) === '');
+}
+
+{
+  /* The card has to let a live account record the balance all of this divides
+   * by. The readings block was gated on `isWatched`, so the margin block asked
+   * for something the card gave it nowhere to put. */
+  check('a live account is offered the readings block',
+        /readingsBlock\(name, isWatched \|\| kind === 'live', cfg\)/.test(propsSrc));
+
+  check('and a reading can be saved without a threshold, which it has none of',
+        /A date and an account value, please/.test(propsSrc));
+
+  check('a missing threshold is not written over one already recorded',
+        /if \(Number\.isFinite\(threshold\)\) patch\.firm_threshold = threshold;/.test(propsSrc));
+}
+
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');
 process.exit(bad ? 1 : 0);

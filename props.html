@@ -1522,8 +1522,11 @@ function payoutCost(isFunded, cfg, p, room, dd) {
  * is closed takes every number it ever showed with it. See the comment above
  * `readings`.
  *
- * Offered on a watched account only - an evaluation or a funded account. On
- * your own money there is no threshold and nothing to read. */
+ * On a LIVE account there is no threshold, and the balance is wanted all the
+ * same: it is what the margin block divides by to say how many contracts the
+ * account carries, and what the dip bar measures against. The threshold half
+ * is simply left empty there, which the lock note below already handles - it
+ * needs two readings carrying one, and a live account has none. */
 function readingsBlock(name, isWatched, cfg) {
   if (!isWatched) return '';
 
@@ -1575,8 +1578,12 @@ function readingsBlock(name, isWatched, cfg) {
         '<div><label>Read on</label><input name="seen_on" type="date" required></div>' +
         '<div><label>Account value</label>' +
           '<input name="balance" type="number" step="0.01" required></div>' +
-        '<div><label>Threshold <span class="opt">&mdash; the &ldquo;stop&rdquo;</span></label>' +
-          '<input name="threshold" type="number" step="0.01" required></div>' +
+        /* NOT required: a live account has no threshold at all, and a prop
+         * account whose member only has the balance to hand should not be
+         * turned away for the half they do have. */
+        '<div><label>Threshold <span class="opt">&mdash; the &ldquo;stop&rdquo;, if the ' +
+          'account has one</span></label>' +
+          '<input name="threshold" type="number" step="0.01"></div>' +
       '</div>' +
       '<label>Max balance <span class="opt">&mdash; optional, from the account summary. It ' +
         'settles the lock on its own</span></label>' +
@@ -2166,6 +2173,32 @@ function marginBlock(name, cfg, mine) {
     '</div>';
 }
 
+/* The one bar a live account can honestly draw.
+ *
+ * Returns '' when there is nothing to measure against, rather than a bar with
+ * an invented denominator - the margin block beside it already asks for the
+ * balance, so a card with no reading says so once instead of twice.
+ */
+function liveDipBar(kind, cfg, p, bar) {
+  if (kind !== 'live') return '';
+
+  const balance = toNumber(cfg.firm_balance);
+  if (!Number.isFinite(balance)) return '';
+
+  // What it started with: today's balance, less what the trading has done.
+  const started = balance - (p.held || 0);
+  if (!(started > 0)) return '';
+  if (!(p.worstDip > 0)) {
+    return '<p class="stat-note">No peak-to-trough yet on this account &mdash; nothing has come ' +
+      'off a high.</p>';
+  }
+
+  return bar('Worst dip so far', p.worstDip, started, 'is-bad') +
+    '<p class="stat-note">Against the ' + money(started) + ' this account started with, not ' +
+    'against a drawdown somebody set &mdash; a live account has none. Measured from closed ' +
+    'trades, so a position that ran against you and recovered is not in it.</p>';
+}
+
 function card(name, passedTo) {
   const cfg = saved.get(name) || {};
   const kind = cfg.kind || 'prop';
@@ -2282,9 +2315,21 @@ function card(name, passedTo) {
         : '<p class="stat-note">No target set yet, so there is nothing to measure against. ' +
           'If this account has no target at all, mark it live below.</p>') +
 
+    /* A LIVE ACCOUNT HAD NO BAR AT ALL, because every bar on this card is
+     * measured against a number a firm set and a live account has none.
+     *
+     * It has one of its own: what it started with. `firm_balance` is what the
+     * broker shows today and `held` is what the trading has done since, so
+     * `balance - held` is the balance before any of it - and a worst dip
+     * against THAT is the honest question, "how much of the account did the
+     * deepest hole eat".
+     *
+     * Not against today's balance, which is the same mistake in a smaller
+     * form: a dip from six weeks ago compared with what is left after it would
+     * be two different accounts in one fraction. */
     (isWatched && dd
       ? bar('Worst dip so far', p.worstDip, dd, 'is-bad')
-      : '') +
+      : liveDipBar(kind, cfg, p, bar)) +
 
     /* A LOCKED FLOOR HAS NO DENOMINATOR, SO IT GETS NO BAR.
      *
@@ -2318,7 +2363,10 @@ function card(name, passedTo) {
     payoutCost(isFunded, cfg, p, room, dd) +
     lockQuestion(isFunded, cfg, p) +
     adjustmentsBlock(name, isFunded, cfg) +
-    readingsBlock(name, isWatched, cfg) +
+    /* A LIVE ACCOUNT HAS A BALANCE TOO, and the margin block beside this one
+     * asks for it by name. Gated on `isWatched` it was asking for something
+     * the card gave it nowhere to put. */
+    readingsBlock(name, isWatched || kind === 'live', cfg) +
 
     '<div class="card-grid">' +
       '<div class="card"><h3>Net</h3><div class="readout-big">' + money(p.total) +
@@ -3753,8 +3801,8 @@ async function saveReading(e) {
   const max_balance = num('max_balance');
   const note = form.querySelector('[name="note"]').value.trim() || null;
 
-  if (!seen_on || !Number.isFinite(balance) || !Number.isFinite(threshold)) {
-    say('A date, an account value and a threshold, please.', 'error');
+  if (!seen_on || !Number.isFinite(balance)) {
+    say('A date and an account value, please.', 'error');
     return;
   }
 
@@ -3766,7 +3814,9 @@ async function saveReading(e) {
    * of the account - which is not subtle, and is exactly why it is caught here
    * rather than drawn.
    */
-  if (threshold >= balance) {
+  // Only where one was given. A reading with no threshold is a balance, which
+  // is the whole of what a broker account has.
+  if (Number.isFinite(threshold) && threshold >= balance) {
     say('The threshold sits below the account value - it is the figure the account is closed ' +
         'at, not the allowance. Check which column you copied.', 'error');
     return;
@@ -3793,15 +3843,21 @@ async function saveReading(e) {
    * day. The history takes it either way. */
   const current = saved.get(account) || {};
   if (!current.firm_seen_on || seen_on >= current.firm_seen_on) {
+    /* ONLY WHAT THIS READING ACTUALLY CARRIED. A reading with no threshold is
+     * a balance, which is the whole of what a broker account has - and writing
+     * `null` for the half it did not carry would quietly erase a threshold
+     * somebody recorded last week. */
+    const patch = { firm_balance: balance, firm_seen_on: seen_on };
+    if (Number.isFinite(threshold)) patch.firm_threshold = threshold;
+
     const { error: e2 } = await supabase.from('prop_accounts')
-      .update({ firm_balance: balance, firm_threshold: threshold, firm_seen_on: seen_on })
+      .update(patch)
       .eq('user_id', profile.id).eq('account', account);
 
     // The reading is saved either way; failing to promote it is worth saying
     // and is not worth throwing the reading away over.
     if (e2) say('Reading saved, but the card could not be updated: ' + e2.message, 'error');
-    else saved.set(account, { ...current, firm_balance: balance,
-                              firm_threshold: threshold, firm_seen_on: seen_on });
+    else saved.set(account, { ...current, ...patch });
   }
 
   const at = readings.findIndex((r) => r.account === account && r.seen_on === seen_on);

@@ -222,6 +222,7 @@ const summaryNote = ({ trades, retired, scope, account = 'all', metric = 'dollar
   const [y, m] = month.split('-').map(Number);
   const parts = [
     grab(src, 'export const CONTRACTS = '),
+    grab(src, 'export function rootSymbol('),
     grab(src, 'export function contractFor('),
     grab(src, 'export function toNumber('),
     grab(src, 'export function tradeValue('),

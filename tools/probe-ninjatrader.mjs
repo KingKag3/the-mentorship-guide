@@ -91,6 +91,7 @@ const { mapping, columnsFor, text, numeric, parseSide } = build(HEADERS, [HEADER
 
 const { contractFor } = new Function(
   app.match(/export const CONTRACTS = \{[\s\S]*?\n\};/)[0].replace('export ', '') + '\n' +
+  grab(app, 'export function rootSymbol(').replace('export ', '') + '\n' +
   grab(app, 'export function contractFor(').replace('export ', '') +
   '; return { contractFor };')();
 
@@ -199,6 +200,58 @@ check('and a plain figure is not inverted',
   for (const i of columnsFor('fees')) blanks[i] = '';
   check('a row with every fee blank is null, not zero', numeric(blanks, 'fees') === null,
         numeric(blanks, 'fees'));
+}
+
+// ------------------------------------- the root, and why it is not cosmetic
+
+/* THE SYMBOL IS STORED AS A ROOT, OR THE CANDLES NEVER ARRIVE.
+ *
+ * `rootSymbol` stripped a trailing month code - NQZ6 to NQ - and nothing else,
+ * so `MNQ DEC26` was stored whole. The bar fetcher asks for sessions whose
+ * symbol maps to NQ or ES; `MNQ DEC26` maps to neither, so a fortnight of
+ * charts drew the fills with no candles behind them.
+ *
+ * Nothing errored and nothing was missing. The trades were right, the totals
+ * were right, and a session with no bars draws exactly like a day Yahoo had
+ * nothing for. That is the whole reason this is pinned: the symptom is
+ * indistinguishable from a legitimate empty.
+ */
+// Moved to app.js on 9 October, so the importer, the contract spec and the
+// chart's bar lookup all read the same rule.
+const rootSymbol = new Function(
+  grab(app, 'export function rootSymbol(').replace('export ', '') +
+  '; return rootSymbol;')();
+
+{
+  check('a spaced expiry is stripped', rootSymbol('MNQ DEC26') === 'MNQ', rootSymbol('MNQ DEC26'));
+  check('with a space before the year too', rootSymbol('MNQ DEC 26') === 'MNQ');
+  check('and a dashed one', rootSymbol('NQ 12-26') === 'NQ', rootSymbol('NQ 12-26'));
+  check('a month code still is', rootSymbol('MNQZ6') === 'MNQ');
+  check('and a venue prefix', rootSymbol('CM.NQZ6') === 'NQ', rootSymbol('CM.NQZ6'));
+  check('lower case comes back rooted and upper', rootSymbol('mnq dec26') === 'MNQ');
+}
+
+{
+  // The ones that must survive untouched. A root that eats a real symbol is a
+  // worse bug than the one being fixed.
+  for (const sym of ['MNQ', 'NQ', 'ES', 'MES', 'MYM', 'M2K', 'RTY']) {
+    check('"' + sym + '" is left alone', rootSymbol(sym) === sym, rootSymbol(sym));
+  }
+
+  check('a dotted equity is not mistaken for a venue prefix',
+        rootSymbol('BRK.B') === 'BRK.B', rootSymbol('BRK.B'));
+  check('and nothing at all stays nothing', rootSymbol('') === '' && rootSymbol(null) === '');
+}
+
+{
+  /* The fetcher reads what was already stored, so the mapping strips the
+   * expiry on the way past rather than rewriting a member's trades. */
+  const sql = fs.readFileSync('supabase/bars-root-symbol.sql', 'utf8');
+  check('a migration roots the symbol for the fetcher too',
+        sql.includes('create or replace function public.bar_root_symbol'));
+  check('and the wanted-sessions view uses it',
+        sql.includes("bar_root_symbol(t.symbol) in ('MNQ', 'NQ')"));
+  check('without rewriting a single trade', !/update\s+public\.trades/i.test(sql));
 }
 
 console.log(bad ? '\n' + bad + ' FAILED' : '\nall good');

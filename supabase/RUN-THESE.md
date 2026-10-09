@@ -30,6 +30,19 @@ waiting. Folding it in with passed, failed and retired would make the Finished p
 incompatible things. `tools/probe-retired-accounts.mjs` asserts the distinction so nobody tidies it
 away. DECISIONS 2026-10-01 (paused).
 
+### `bars-root-symbol.sql` — the fetcher reads the root (9 October 2026)
+
+Run after `market-bars.sql`. Adds `bar_root_symbol` and rebuilds `bar_sessions_wanted` to use it.
+
+**Why.** NinjaTrader writes `MNQ DEC26` and the importer stored it whole, so the fetcher — which
+asks for sessions whose symbol maps to NQ or ES — never asked for them. Charts for those days drew
+the fills with no candles and said so in a note, which is also exactly what a day the source had
+nothing for looks like. Nothing errored and every other figure was right.
+
+The importer roots the symbol properly now; this is for the rows already stored, and it strips the
+expiry on the way past rather than rewriting a member's trades. Once it has run, the next fetch
+picks up the missing sessions by itself. DECISIONS 2026-10-09.
+
 ## Held back on purpose
 
 Written, committed, and **deliberately not run**. Not waiting on anybody &mdash; waiting on

@@ -2376,3 +2376,45 @@ Two things had to give with it:
 - **A missing threshold is not written over one already recorded.** The promotion to
   `prop_accounts` now writes only what the reading carried; `null` for the half it did not would
   have quietly erased last week's threshold.
+
+---
+
+## 2026-10-09 — One answer to "which contract is this"
+
+The chart for 8 October drew the fills with no candles behind them. Nothing had failed: the trades
+were right, the day's total was right, and the note under the chart said there were no bars — which
+is the correct thing to say, and indistinguishable from a day the source had nothing for.
+
+**The symbol was `MNQ DEC26`.** `rootSymbol` in the importer stripped a trailing month code — `NQZ6`
+to `NQ` — and nothing else, so NinjaTrader's spaced expiry was stored whole. `bar_sessions_wanted`
+asks for sessions whose symbol maps to NQ or ES; `MNQ DEC26` maps to neither, so those sessions were
+never requested. And `barSymbol` in the chart matched exactly, so even with bars present it would
+have found none.
+
+### The rule existed four times, each knowing a different subset
+
+The importer stripped a month code. `contractFor` walked prefixes and split on spaces. `barSymbol`
+matched two exact strings. The SQL compared the raw column. Three shapes have actually turned up —
+`CM.NQZ6`, `MNQ DEC26`, `MNQZ6` — and no two of those four handled the same set.
+
+**Decided:** `rootSymbol` lives in `app.js` and the other three call it. The SQL copy is unavoidable
+and is marked as a mirror in `supabase/bars-root-symbol.sql`.
+
+### Synonymous for candles, never for money
+
+MNQ and NQ track the same index at the same prices, so one set of bars serves both — that is
+`priceSeries`, and MES and ES answer the same way.
+
+They are **not** the same answer to `contractFor`. A Nasdaq point is $2 on the micro and $20 on the
+full. Same picture, different money, and merging the two questions would be an order-of-magnitude
+error in the one that counts. Two functions, named for the question each answers.
+
+### The rows already stored
+
+`bars-root-symbol.sql` strips the expiry inside the mapping rather than rewriting `trades`. A
+member's record is not something to edit for a fetcher's convenience, and the fetcher asking the
+right question gets the same result.
+
+A venue prefix is only taken off where what remains is still a symbol, so `BRK.B` survives. This
+project is futures and that case has not arisen; the guard is there because the alternative is
+silent.

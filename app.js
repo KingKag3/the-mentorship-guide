@@ -773,7 +773,6 @@ export function heldPastIntraday(row) {
   return shut >= INTRADAY_ENDS_NY;                   // still open at the cutoff
 }
 
-/** The spec for a symbol, or null when it is one we do not know. */
 /**
  * The journal's session vocabulary, and the windows that produce it.
  *
@@ -962,37 +961,63 @@ export function aliasMap(names) {
   return out;
 }
 
-/* A FUTURES SYMBOL USUALLY CARRIES ITS EXPIRY, AND THE SPEC DOES NOT.
- *
- * NinjaTrader writes `MNQ DEC26`, other platforms write `MNQZ5` or `MNQ 12-26`,
- * and an exact lookup finds none of them - so a whole export of micro Nasdaq
- * trades arrives with no contract spec, which means no points, no ticks and no
- * derived dollars. Nothing errors; the numbers are simply absent, which is the
- * failure this project keeps meeting.
- *
- * Three tries, cheapest first:
- *
- *   1. the symbol as written, so anything already clean is untouched;
- *   2. the part before the first space or dash, which catches `MNQ DEC26`;
- *   3. progressively shorter prefixes, which catches `MNQZ5` - `MNQZ5`,
- *      `MNQZ`, then `MNQ`.
- *
- * Stopping at two characters, because one letter is not a contract and a
- * one-character prefix would match far too much.
- */
-export function contractFor(symbol) {
+/* ---------------- ONE ANSWER TO "WHICH CONTRACT IS THIS" -------------------
+
+   A futures symbol usually carries its expiry and nothing that looks it up
+   wants one. Three shapes have turned up, in this order:
+
+     CM.NQZ6     a venue prefix, from WealthCharts
+     MNQ DEC26   a spaced expiry, from NinjaTrader - also `NQ 12-26`
+     MNQZ6       a month code, from almost everybody
+
+   This lived in four places by 9 October 2026 - the importer, the contract
+   spec, the chart's bar lookup and the SQL the fetcher runs - each knowing a
+   different subset of those shapes. The consequence was not an error anywhere.
+   `MNQ DEC26` found its contract spec, so every dollar figure was right, and
+   failed to match `NQ` in the bar lookup, so a fortnight of charts drew the
+   fills with no candles behind them and said so in a note. A session with no
+   bars looks exactly like a day the source had nothing for.
+
+   The SQL copy is unavoidable and is marked as a mirror of this one in
+   `supabase/bars-root-symbol.sql`. The other three are now this.
+
+   The venue prefix is only taken off where what remains is still a symbol, so
+   `BRK.B` is left alone. This project is futures and that case has not arisen;
+   the guard is there because the alternative is silent.
+-------------------------------------------------------------------------- */
+
+/** `MNQ DEC26` to `MNQ`, `CM.NQZ6` to `NQ`, `MNQZ6` to `MNQ`. */
+export function rootSymbol(symbol) {
   const key = String(symbol ?? '').trim().toUpperCase();
-  if (!key) return null;
-  if (CONTRACTS[key]) return CONTRACTS[key];
+  if (!key) return '';
 
-  const head = key.split(/[\s\-_/]/)[0];
-  if (head && CONTRACTS[head]) return CONTRACTS[head];
+  const dotted = key.match(/^[A-Z]{1,4}\.(.{2,})$/);
+  const bare = dotted ? dotted[1] : key;
 
-  for (let n = head.length - 1; n >= 2; n--) {
-    const spec = CONTRACTS[head.slice(0, n)];
-    if (spec) return spec;
-  }
-  return null;
+  return bare.split(/[\s\-_/]/)[0].replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '');
+}
+
+/* WHOSE CANDLES THIS SYMBOL WANTS.
+ *
+ * A micro and its full-size contract track the same index at the same prices,
+ * so one set of bars serves both - which is why MNQ and NQ are the same answer
+ * here, and MES and ES are.
+ *
+ * They are NOT the same answer to `contractFor`: a Nasdaq point is $2 on the
+ * micro and $20 on the full. Same picture, different money, and merging the
+ * two questions would be an order-of-magnitude error in the one that counts.
+ */
+export function priceSeries(symbol) {
+  const root = rootSymbol(symbol);
+  if (root === 'MNQ' || root === 'NQ') return 'NQ';
+  if (root === 'MES' || root === 'ES') return 'ES';
+  return root;
+}
+
+/** The spec for a symbol, or null when it is one we do not know. */
+export function contractFor(symbol) {
+  const root = rootSymbol(symbol);
+  return root ? (CONTRACTS[root] || null) : null;
 }
 
 /**

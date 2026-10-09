@@ -233,7 +233,7 @@
 <script type="module">
 import { supabase, requireRole, renderAccountStrip, escapeHtml, setStatus, renderToolRail,
          money, migrationHint, contractFor, sessionAt, fetchPaged,
-         retiredAccounts } from './app.js';
+         retiredAccounts, rootSymbol } from './app.js';
 
 renderAccountStrip();
 renderToolRail('#tool-rail', 'import.html');
@@ -1163,10 +1163,6 @@ function build(y, m, d, hh, mm, ss) {
 }
 
 // NQU6 -> NQ. The CME month letter plus a year digit comes off the end.
-function rootSymbol(s) {
-  return String(s ?? '').trim().toUpperCase().replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '');
-}
-
 // Stable across re-imports of the same file, so a platform that gives no
 // identifier of its own still gets corrected rather than duplicated. Two
 // genuinely identical trades collapse into one, which is called out on screen.

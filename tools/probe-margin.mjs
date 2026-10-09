@@ -189,6 +189,7 @@ const { escapeHtml, money, CONTRACTS, contractFor } = new Function(
   grab(src, 'export function escapeHtml(').replace('export ', '') + '\n' +
   grab(src, 'export function money(').replace('export ', '') + '\n' +
   src.match(/export const CONTRACTS = \{[\s\S]*?\n\};/)[0].replace('export ', '') + '\n' +
+  grab(src, 'export function rootSymbol(').replace('export ', '') + '\n' +
   grab(src, 'export function contractFor(').replace('export ', '') +
   '; return { escapeHtml, money, CONTRACTS, contractFor };')();
 

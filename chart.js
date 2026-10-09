@@ -33,7 +33,7 @@
  * distinctDecisions().
  */
 
-import { escapeHtml, money } from './app.js';
+import { escapeHtml, money, priceSeries } from './app.js';
 
 /* A gap longer than this between consecutive bars means a different session.
  * Five-minute bars sit five minutes apart all through a Globex day - the only
@@ -170,11 +170,11 @@ export function cropToTrades(bars, decisions, marks) {
 }
 
 /** Root symbol for a traded one: micros print the same prices as the full size. */
+/* The rule moved to app.js, where the importer and the contract spec can share
+ * it. This matched the symbol EXACTLY, so `MNQ DEC26` - which is how
+ * NinjaTrader writes it - was neither MNQ nor NQ, and found no bars at all. */
 export function barSymbol(symbol) {
-  const s = String(symbol || '').toUpperCase();
-  if (s === 'MNQ' || s === 'NQ') return 'NQ';
-  if (s === 'MES' || s === 'ES') return 'ES';
-  return s;
+  return priceSeries(symbol);
 }
 
 /* 24-HOUR, AND NOT THE LOCALE'S CHOICE.

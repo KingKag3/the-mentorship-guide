@@ -124,7 +124,7 @@ const parts = [
   grab(imp, 'function parseStamp('),
   'const skipped = {};',
   grab(imp, 'function skip('),
-  grab(imp, 'function rootSymbol('),
+  grab(app, 'export function rootSymbol(').replace('export ', ''),
   grab(imp, 'function fingerprint('),
   grab(imp, 'function mapRow(')
 ].join('\n');
